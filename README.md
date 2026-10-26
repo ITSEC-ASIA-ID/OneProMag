@@ -481,9 +481,16 @@ The staff directory: everyone with a login, one row each, as a table of
 a tester looking for the project manager who owns the engagement should not have to
 ask an admin.
 
-The Role column carries the account's role and, for pentesters and admins, their
-level as a chip (*Lead*, *Sub Lead*, *Member*), because "Pentester" alone does not
-tell you which one to ask. The e-mail and the number are `mailto:`/`tel:` links, so
+The list is **divided by role** — **Project managers** first, then **Pentesters** —
+each with its own count, because the question is "who do I ask about this project",
+not "who exists". Administrator accounts are **not listed**: an admin is operations,
+they belong in **Manage users**, and showing them here invites asking the wrong
+person about a retest. The search box filters across both groups and hides a group
+with no matches.
+
+The Role column carries the account's role and, for pentesters, their level as a
+chip (*Lead*, *Sub Lead*, *Member*), because "Pentester" alone does not tell you
+which one to ask. The e-mail and the number are `mailto:`/`tel:` links, so
 they work from a phone; clicking the avatar opens that person's card.
 
 This is deliberately **not** the admin tree. Looking someone up is a lookup, and
@@ -1274,6 +1281,12 @@ a card, in the drawer, and on the team status board. Clicking one opens a person
 - **Pentesting** — every project they are assigned to, with `N active · M done`
   (omitted entirely for a PM, who does not sit on the test bench);
 - **Reporting to this person** — their direct reports in the hierarchy.
+
+Opened **from a project row**, the same card is compact: it answers *who is this* and
+stops. The "Project manager for" and "Pentesting" blocks are dropped there, because
+you clicked a face on a project and the list of everything that person works on is
+noise — the full card is one click away on the team board or in Users, where "how
+busy is this person" is the actual question.
 
 Clicking a project chip closes the person card and opens that project, so you are
 never stacked two dialogs deep. The card is a read-only view; the API behind it is

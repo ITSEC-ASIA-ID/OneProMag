@@ -1143,7 +1143,10 @@ function renderResults() {
       if (person) {
         e.stopPropagation();
         e.preventDefault();
-        openPerson(Number(person.dataset.person));
+        // Compact: you clicked a face on a PROJECT row, so the project is the
+        // subject. Listing every engagement that person is on buries the reason
+        // you clicked; the full card is a click away on the team board.
+        openPerson(Number(person.dataset.person), { compact: true });
         return;
       }
       openProject(Number(el.dataset.project));
@@ -1157,7 +1160,7 @@ function renderResults() {
         if (person) {
           e.preventDefault();
           e.stopPropagation();
-          openPerson(Number(person.dataset.person));
+          openPerson(Number(person.dataset.person), { compact: true });
           return;
         }
         e.preventDefault();
@@ -4762,7 +4765,7 @@ async function openPerson(id, opts = {}) {
 
   const box = modal;
   box.querySelector('.modal-head h2').textContent = data.person.name;
-  box.querySelector('.modal-body').innerHTML = personCardHTML(data);
+  box.querySelector('.modal-body').innerHTML = personCardHTML(data, { compact: Boolean(opts.compact) });
   // Project chips open the project itself, replacing the person card so you are
   // never two overlapping dialogs deep.
   box.querySelectorAll('[data-person-open]').forEach((btn) => {
@@ -5726,8 +5729,32 @@ function bindDrawer(el, project, retests) {
    Management (create, import, move in the tree) stays in the Admin
    panel, one page over.
    ============================================================ */
+/**
+ * Who the directory is FOR: people you might need to ask something.
+ *
+ * Admin accounts are excluded on purpose. An administrator is operations — they
+ * appear in Manage users, and listing them here invites a tester to ask the wrong
+ * person about a retest.
+ */
+const DIRECTORY_GROUPS = [
+  {
+    role: 'Project Manager',
+    label: 'Project managers',
+    note: 'Own the engagement and the client relationship',
+  },
+  {
+    role: 'Pentester',
+    label: 'Pentesters',
+    note: 'Do the testing',
+  },
+];
+
+function directoryPeople() {
+  return (state.directory || []).filter((u) => u.role !== 'Admin');
+}
+
 function directoryHTML() {
-  const all = state.directory || [];
+  const all = directoryPeople();
   const q = (state.dirQuery || '').trim();
   const rows = directoryMatches(all, q);
 
@@ -5735,7 +5762,8 @@ function directoryHTML() {
     <div class="dev-head">
       <div>
         <h2>Users</h2>
-        <p class="dev-sub">${all.length} ${all.length === 1 ? 'person' : 'people'} with a login</p>
+        <p class="dev-sub">${all.length} ${all.length === 1 ? 'person' : 'people'} you can ask —
+          project managers and pentesters</p>
       </div>
     </div>
     <div class="dev-bar">
@@ -5746,8 +5774,31 @@ function directoryHTML() {
         <button class="btn btn-sm dev-clear" data-dir-clear ${q ? '' : 'hidden'}>Clear</button>
       </div>
     </div>
-    <div id="dir-results">${directoryTableHTML(rows, q)}</div>
+    <div id="dir-results">${directoryGroupsHTML(rows, q)}</div>
   </div>`;
+}
+
+/**
+ * The two groups, in that order, each with its own count.
+ *
+ * One alphabetical table answered "who is this?" but not "who do I ask about the
+ * project" — the role was a column you had to read past. A group per role makes the
+ * answer a heading. Groups with no matches disappear, so a search for a manager
+ * leaves one section rather than an empty one.
+ */
+function directoryGroupsHTML(rows, q) {
+  if (!rows.length) return directoryTableHTML(rows, q); // renders the empty state
+  return DIRECTORY_GROUPS.map((group) => {
+    const list = rows.filter((u) => u.role === group.role);
+    if (!list.length) return '';
+    return `<section class="dir-group">
+      <div class="dir-group-head">
+        <h3>${h(group.label)}<span class="dir-count">${list.length}</span></h3>
+        <p>${h(group.note)}</p>
+      </div>
+      ${directoryTableHTML(list)}
+    </section>`;
+  }).join('');
 }
 
 /** Phone numbers, normalized so the country code does not decide the result. */
@@ -5865,14 +5916,13 @@ function bindDirectory() {
   const host = content.querySelector('#dir-results');
   const repaint = () => {
     if (!host) return;
-    host.innerHTML = directoryTableHTML(
-      directoryMatches(state.directory || [], state.dirQuery),
-      (state.dirQuery || '').trim()
-    );
+    const query = (state.dirQuery || '').trim();
+    // Same two groups as the first paint — filtering must not flatten the page back
+    // into one table, which is what a call to directoryTableHTML() alone did.
+    host.innerHTML = directoryGroupsHTML(directoryMatches(directoryPeople(), query), query);
     const clear = content.querySelector('[data-dir-clear]');
-    if (clear) clear.hidden = !(state.dirQuery || '').trim();
-    const wrap = content.querySelector('[data-dir-scroll]');
-    if (wrap) syncTableOverflow(wrap);
+    if (clear) clear.hidden = !query;
+    host.querySelectorAll('[data-dir-scroll]').forEach((wrap) => syncTableOverflow(wrap));
   };
 
   const search = content.querySelector('#dir-search');

@@ -611,8 +611,13 @@ const personProjectChip = (p) =>
  * be rendered from anywhere (project table, card grid, team board) without
  * those places needing to know how a person is shaped.
  */
-export function personCardHTML(data) {
+export function personCardHTML(data, opts = {}) {
   const { person, managerOf = [], pentesterOn = [], reports = [] } = data;
+  // `compact` drops the two "which projects" blocks. It is what the project list
+  // asks for: there the row already IS a project, so the person card answers "who
+  // is this" and stops — the full load belongs to the team board, where the
+  // question is "how busy is this person".
+  const showProjects = !opts.compact;
   const openProjects = pentesterOn.filter((p) => p.status !== 'Done');
   const doneProjects = pentesterOn.filter((p) => p.status === 'Done');
 
@@ -652,7 +657,7 @@ export function personCardHTML(data) {
       }
 
       ${
-        managerOf.length
+        showProjects && managerOf.length
           ? `<div class="pc-block">
                <div class="pc-block-label">${icon.userCheck(13)} Project manager for<em>${managerOf.length}</em></div>
                <div class="pc-projects">${managerOf.map(personProjectChip).join('')}</div>
@@ -661,7 +666,7 @@ export function personCardHTML(data) {
       }
 
       ${
-        person.role === 'Project Manager'
+        !showProjects || person.role === 'Project Manager'
           ? ''
           : `<div class="pc-block">
                <div class="pc-block-label">${icon.users(13)} Pentesting<em>${openProjects.length} active${
