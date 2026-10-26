@@ -722,28 +722,51 @@ function filtersHTML() {
 }
 
 /**
- * Display name for a project.
+ * The rows the Active list actually shows.
  *
- * A project with an open client retest request is sitting in the retest queue,
- * and in the Active workspace it is shown as "Retest - <name>" so it is
- * obvious that the work waiting on it is a re-verification, not a new test.
+ * One row per engagement, plus one row per OPEN retest of that engagement: a
+ * project with two outstanding retests is three lines of work, not one. The
+ * retest rows are not decorations — they carry their own status control, and
+ * choosing a status there writes to the retest, not to the project.
+ *
+ * Done retests are left out: they are history, and the drawer keeps it.
  */
-function projectLabel(p) {
-  const isRetest = p.inRetestQueue && state.nav === 'active';
-  return isRetest ? `Retest - ${p.name}` : p.name;
+function listRows(list) {
+  // Only the "active" workspaces expand: they answer "what is being worked on", and
+  // an open retest is work. All projects stays a catalogue of engagements — it has
+  // the retest counts in their own column.
+  const expand = state.nav === 'active' || state.nav === 'mineActive';
+  const rows = [];
+  for (const p of list) {
+    rows.push({ key: `p${p.id}`, kind: 'project', project: p, status: p.status });
+    if (!expand) continue;
+    for (const r of p.openRetests || []) {
+      rows.push({ key: `r${r.id}`, kind: 'retest', project: p, retest: r, status: r.status });
+    }
+  }
+  return rows;
 }
 
-function projectCardHTML(p) {
+/** Name of the thing a row represents: the project, or the retest of it. */
+function rowLabel(row) {
+  return row.kind === 'retest' ? `Retest - ${row.project.name}` : row.project.name;
+}
+
+function projectCardHTML(row) {
+  const p = row.project;
+  const isRetest = row.kind === 'retest';
   // A category the admin added has no palette entry of its own; the card still needs
   // a tint, so it borrows the neutral slate rather than pretending to be Web.
   const cat = CATEGORY[p.category] || { color: 'var(--slate)', soft: 'var(--slate-soft)' };
   return `
-    <div class="pcard" data-project="${p.id}" role="button" tabindex="0"
+    <div class="pcard${isRetest ? ' pcard-retest' : ''}" data-project="${p.id}" role="button" tabindex="0"
             style="--cat-color:${cat.color};--cat-soft:${cat.soft}">
       <div class="pcard-top">
-        <div class="cat-icon">${catIcon(p.category, 17)}</div>
+        <div class="cat-icon">${
+          isRetest ? icon.refresh(17) : catIcon(p.category, 17)
+        }</div>
         <div class="pcard-title">
-          <h3>${h(projectLabel(p))}</h3>
+          <h3>${h(rowLabel(row))}</h3>
           <div class="meta client-line">${icon.building(12)}<span>${h(p.client || 'No client')}${
             p.applicationName ? ` &ndash; ${h(p.applicationName)}` : ''
           }</span></div>
@@ -757,9 +780,10 @@ function projectCardHTML(p) {
               : ''
           }
         </div>
-        ${quickStatus(p.status, p.id)}
+        ${quickStatus(row.status, isRetest ? row.retest.id : p.id, { kind: row.kind })}
       </div>
       <div class="pcard-badges">
+        ${isRetest ? `<span class="badge" data-tone="cyan">Retest</span>` : ''}
         ${catBadge(p.category, p.platform)}
         ${envBadge(p.env)}
         ${methodBadge(p.method)}
@@ -768,17 +792,19 @@ function projectCardHTML(p) {
         ${teamCell(p.pentesters, p.id)}
         <span class="spacer"></span>
         ${
-          p.retestCount
-            ? `<span class="foot-item ${p.openRetestCount ? 'has-open' : ''}">
-                 ${icon.refresh()} ${p.retestCount} retest${p.retestCount > 1 ? 's' : ''}
-               </span>`
-            : `<span class="foot-item">${icon.refresh()} No retest</span>`
+          isRetest
+            ? `<span class="foot-item has-open">${icon.refresh()} ${h(row.retest.code || 'Retest')}</span>`
+            : p.retestCount
+              ? `<span class="foot-item ${p.openRetestCount ? 'has-open' : ''}">
+                   ${icon.refresh()} ${p.retestCount} retest${p.retestCount > 1 ? 's' : ''}
+                 </span>`
+              : `<span class="foot-item">${icon.refresh()} No retest</span>`
         }
       </div>
     </div>`;
 }
 
-function projectTableHTML(list) {
+function projectTableHTML(rows) {
   return `
     <div class="ptable-wrap">
       <table class="ptable">
@@ -794,33 +820,43 @@ function projectTableHTML(list) {
           </tr>
         </thead>
         <tbody>
-          ${list
+          ${rows
             .map(
-              (p) => `
-            <tr data-project="${p.id}">
-              <td class="cell-name">${h(projectLabel(p))}${
+              (row) => `
+            <tr data-project="${row.project.id}"${
+              row.kind === 'retest' ? ' class="prow-retest"' : ''
+            }>
+              <td class="cell-name">${h(rowLabel(row))}${
                 // The client lives under the project name as "Client - App", so
                 // the list loses a whole column without losing the information.
-                p.client
-                  ? `<div class="sub">${h(p.client)}${p.applicationName ? ` &ndash; ${h(p.applicationName)}` : ''}</div>`
-                  : p.applicationName
-                    ? `<div class="sub">${h(p.applicationName)}</div>`
+                row.project.client
+                  ? `<div class="sub">${h(row.project.client)}${
+                      row.project.applicationName ? ` &ndash; ${h(row.project.applicationName)}` : ''
+                    }</div>`
+                  : row.project.applicationName
+                    ? `<div class="sub">${h(row.project.applicationName)}</div>`
                     : ''
               }</td>
-              <td>${catBadge(p.category, p.platform)}</td>
+              <td>${catBadge(row.project.category, row.project.platform)}</td>
               <td class="hide-md cell-pm">${managerCell(
-                { id: p.managerId, name: p.managerName },
+                { id: row.project.managerId, name: row.project.managerName },
                 'sm'
               )}</td>
-              <td class="hide-md cell-team">${teamCell(p.pentesters, p.id)}</td>
+              <td class="hide-md cell-team">${teamCell(row.project.pentesters, row.project.id)}</td>
               <td>${
-                p.retestCount
-                  ? `<span class="badge ${p.openRetestCount ? 'pulse' : ''}" data-tone="${
-                      p.openRetestCount ? 'cyan' : 'slate'
-                    }">${p.retestCount}</span>`
-                  : '<span class="dash">—</span>'
+                row.kind === 'retest'
+                  ? `<span class="badge" data-tone="cyan">Retest</span>`
+                  : row.project.retestCount
+                    ? `<span class="badge ${row.project.openRetestCount ? 'pulse' : ''}" data-tone="${
+                        row.project.openRetestCount ? 'cyan' : 'slate'
+                      }">${row.project.retestCount}</span>`
+                    : '<span class="dash">—</span>'
               }</td>
-              <td class="cell-status">${quickStatus(p.status, p.id)}</td>
+              <td class="cell-status">${quickStatus(
+                row.status,
+                row.kind === 'retest' ? row.retest.id : row.project.id,
+                { kind: row.kind }
+              )}</td>
               <td class="cell-actions">
                 <span class="btn btn-icon" style="width:28px;height:28px">${icon.chevronRight()}</span>
               </td>
@@ -873,7 +909,15 @@ function emptyHTML() {
 }
 
 function resultsHTML() {
-  const list = state.projects;
+  const statusFilterForRows = state.filters.status;
+  // The server filters the engagements by status; a retest row carries its OWN
+  // status, so it has to answer the same filter for itself or a "Done" filter
+  // would list open retests.
+  const rows = listRows(state.projects).filter(
+    (r) => r.kind !== 'retest' || !statusFilterForRows || r.status === statusFilterForRows
+  );
+  const retestRows = rows.filter((r) => r.kind === 'retest').length;
+  const projectRows = rows.length - retestRows;
   // A status filter overrides the scope both in the payload and in the copy, so
   // the heading can never advertise "Active projects" while showing Done rows.
   const statusFilter = state.filters.status;
@@ -884,7 +928,8 @@ function resultsHTML() {
       : '';
   return `
     <div class="result-bar">
-      <strong>${list.length}</strong> project${list.length === 1 ? '' : 's'}
+      <strong>${projectRows}</strong> project${projectRows === 1 ? '' : 's'}
+      ${retestRows ? `<span class="badge" data-tone="cyan">+${retestRows} retest${retestRows === 1 ? '' : 's'}</span>` : ''}
       ${navLabel ? `<span class="badge" data-tone="amber">${navLabel}</span>` : ''}
       ${statusFilter ? `<span class="badge" data-tone="blue">status: ${h(statusFilter)}</span>` : ''}
       <span class="spacer" style="margin-left:auto"></span>
@@ -894,11 +939,11 @@ function resultsHTML() {
     ${
       state.loading && !state.projects.length
         ? `<div class="project-grid">${'<div class="skeleton"></div>'.repeat(6)}</div>`
-        : list.length === 0
+        : rows.length === 0
         ? emptyHTML()
         : state.view === 'grid'
-        ? `<div class="project-grid">${list.map(projectCardHTML).join('')}</div>`
-        : projectTableHTML(list)
+        ? `<div class="project-grid">${rows.map(projectCardHTML).join('')}</div>`
+        : projectTableHTML(rows)
     }`;
 }
 
@@ -1130,11 +1175,20 @@ function bindQuickStatus(host) {
       e.stopPropagation();
       const id = Number(item.dataset.statusFor);
       const status = item.dataset.setStatus;
+      const kind = item.dataset.statusKind || 'project';
       hideMenu(item.closest('.quick-status-menu'));
       item.closest('.pcard')?.classList.remove('menu-open');
       try {
-        await api.updateProject(id, { status });
-        toast(`Status changed to ${status}`);
+        // A retest row on the Active list stands for ONE retest request, so its
+        // status control writes to that request. It used to patch the project,
+        // which changed the engagement while the row kept showing the retest.
+        if (kind === 'retest') {
+          await api.updateRetest(id, { status });
+          toast(`Retest status changed to ${status}`);
+        } else {
+          await api.updateProject(id, { status });
+          toast(`Status changed to ${status}`);
+        }
         await Promise.all([loadStats(), loadProjects()]);
       } catch (err) {
         toast(err.message, 'err');

@@ -414,6 +414,27 @@ Besides `Pentester` and `Admin` there is a third role, **`Project Manager`**
 - Sidebar scopes, in order: Active projects / All projects / **My active projects** /
   **My all projects**, plus a separate **Admin panel** group for privileged users
   (and **Team status**, **Users** and **Devices** above the scopes)
+
+#### Retests get their own rows in the active lists
+
+An open retest is work, so **Active projects** and **My active projects** list it as
+its own row, labelled `Retest - <project>`, next to the engagement:
+
+```
+Core Banking Web Portal          2 retests   Ongoing
+Retest - Core Banking Web Portal  Retest      Ongoing     ← this request
+Retest - Core Banking Web Portal  Retest      Incoming    ← that request
+```
+
+One engagement with two outstanding requests is **three** rows, because they are
+three things to do. Each retest row has **its own status control**, and choosing a
+status there changes *that retest* — not the project, which keeps its own status
+and its own control on its own row. The list header counts them separately
+(`5 projects  +2 retests`), and a status filter applies to each row's own status.
+
+Retest rows appear only in the active lists. **All projects** stays a catalogue of
+engagements and keeps the retest *count* column; **All projects → a project** (and
+the drawer's retest queue) remains where the whole history lives.
 ### Users
 
 The staff directory: everyone with a login, one row each, as a table of

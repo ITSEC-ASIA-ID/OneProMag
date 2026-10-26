@@ -2330,6 +2330,11 @@ svg { display: block; }
 /* A retest is work on an engagement that is already finished, so it reads as a
    sibling of the project chips rather than another project: same shape, a dashed
    edge and the amber of the retest queue. */
+/* A retest card is the SAME engagement seen through an open request, not another
+   project: dashed edge, matching the retest chips on the team board, so the two
+   lines read as a pair at a glance. */
+.pcard-retest { border-style: dashed; }
+.prow-retest .cell-name { font-weight: 500; }
 .board-chip-retest {
   border-style: dashed;
   border-color: color-mix(in srgb, var(--amber) 45%, var(--border));

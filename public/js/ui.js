@@ -79,17 +79,22 @@ export const availabilityBadge = (status, automatic = false) =>
  * moving a project to another status never needs the full edit form.
  * `stopPropagation` matters because the whole card/row is clickable.
  */
-export function quickStatus(status, projectId, statuses = propKeys('status')) {
+export function quickStatus(status, projectId, opts = {}) {
+  const statuses = opts.statuses || propKeys('status');
+  // `kind` decides which endpoint the choice is written to. A retest row on the
+  // Active list has its own status: sending that click to the project instead
+  // changed the engagement while the row kept showing the retest.
+  const kind = opts.kind || 'project';
   const items = statuses
     .map(
       (s) => `<button type="button" class="quick-status-item ${s === status ? 'on' : ''}"
-        data-set-status="${s}" data-status-for="${projectId}">
+        data-set-status="${s}" data-status-for="${projectId}" data-status-kind="${kind}">
         <span class="badge" data-tone="${propTone('status', s, STATUS[s]?.tone || 'slate')}"><span class="dot"></span>${escapeHtml(propLabel('status', s))}</span>
         ${s === status ? `<span class="qs-check">${icon.check(14)}</span>` : ''}
       </button>`
     )
     .join('');
-  return `<span class="quick-status" data-quick-status="${projectId}">
+  return `<span class="quick-status" data-quick-status="${projectId}" data-quick-kind="${kind}">
     <button type="button" class="quick-status-toggle" data-quick-toggle
       aria-haspopup="menu" aria-label="Change status">
       ${statusBadge(status)}${icon.chevronDown(13)}

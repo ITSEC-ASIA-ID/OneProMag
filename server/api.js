@@ -851,6 +851,39 @@ async function lastFinishedByUser() {
  * the project chips — a pentester whose only outstanding work is a retest on a
  * finished engagement is not idle, and saying so was the whole problem.
  */
+/**
+ * Open retest requests for a set of project ids, keyed by project.
+ *
+ * One query for the whole page: the project list expands each open retest into its
+ * own row, so every project on screen needs them, and asking per project would be
+ * N+1 on the hottest endpoint in the app.
+ */
+async function openRetestsForProjects(ids) {
+  if (!ids.length) return new Map();
+  const rows = await db.all(
+    `SELECT id, project_id, code, title, status, requested_at, started_at
+       FROM retests
+      WHERE status IN ('Incoming', 'Ongoing')
+        AND project_id IN (${ids.map(() => '?').join(',')})
+      ORDER BY id`,
+    ids
+  );
+  const map = new Map();
+  for (const row of rows) {
+    const pid = Number(row.project_id);
+    if (!map.has(pid)) map.set(pid, []);
+    map.get(pid).push({
+      id: Number(row.id),
+      code: row.code,
+      title: row.title,
+      status: row.status,
+      requestedAt: row.requested_at || '',
+      startedAt: row.started_at || '',
+    });
+  }
+  return map;
+}
+
 async function openRetestsByProject() {
   const rows = await db.all(
     `SELECT id, project_id, code, title, status
@@ -1477,9 +1510,16 @@ export const api = {
       p.updated_at DESC`;
 
     const rows = await db.all(sql, params);
-    const map = await pentestersByProject(rows.map((r) => Number(r.id)));
+    const ids = rows.map((r) => Number(r.id));
+    const [map, retests] = await Promise.all([pentestersByProject(ids), openRetestsForProjects(ids)]);
     return {
-      projects: rows.map((row) => shapeProject(row, map.get(Number(row.id)) || [])),
+      projects: rows.map((row) => ({
+        ...shapeProject(row, map.get(Number(row.id)) || []),
+        // The list renders one row per open retest beside the engagement row, and
+        // each of those rows carries its own status control — so the retest rows
+        // have to arrive with the project, not behind another request.
+        openRetests: retests.get(Number(row.id)) || [],
+      })),
     };
   },
 
