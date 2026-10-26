@@ -52,6 +52,9 @@ services:
       # boot. This file is the development file, so it is on; the production
       # file turns it off and creates one admin instead.
       SEED_DEMO: ${SEED_DEMO:-1}
+      # Open self-registration, so a second account can be made without an admin.
+      # The production file closes this.
+      ALLOW_REGISTER: ${ALLOW_REGISTER:-1}
       # Used only when DB=sqlite.
       DATA_DIR: /data
       # Used only when DB=postgres.

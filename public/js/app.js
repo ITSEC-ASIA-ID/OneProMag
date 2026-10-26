@@ -101,6 +101,9 @@ const NAV = {
 
 const state = {
   user: null,
+  // Both come from /api/auth/me; false until the server says otherwise.
+  demo: false,
+  allowRegister: false,
   info: [],
   infoQuery: '',
   infoResults: [],
@@ -176,7 +179,13 @@ function canManageCatalog() {
    login view
    ============================================================ */
 function renderAuth(mode = 'login') {
-  const isRegister = mode === 'register';
+  // The server decides both of these (see /api/auth/me): a production install seeds
+  // no demo accounts and closes registration, and the screen it shows must not
+  // advertise either. Unknown means no — offering a form that answers 403 is worse
+  // than not offering it.
+  const canRegister = state.allowRegister === true;
+  const showDemo = state.demo === true;
+  const isRegister = mode === 'register' && canRegister;
   root.innerHTML = `
     <div class="auth-wrap">
       <div class="auth-card">
@@ -223,13 +232,19 @@ function renderAuth(mode = 'login') {
           </button>
         </form>
 
-        <div class="auth-alt">
-          <span>${isRegister ? 'Already have an account?' : 'Need an account?'}</span>
-          <button class="link-btn" id="switch-mode">${isRegister ? 'Sign in' : 'Register'}</button>
-        </div>
+        ${
+          canRegister
+            ? `<div class="auth-alt">
+                 <span>${isRegister ? 'Already have an account?' : 'Need an account?'}</span>
+                 <button class="link-btn" id="switch-mode">${isRegister ? 'Sign in' : 'Register'}</button>
+               </div>`
+            : `<div class="auth-alt auth-alt-note">
+                 <span>Accounts are created by an administrator — ask your team lead.</span>
+               </div>`
+        }
 
         ${
-          isRegister
+          isRegister || !showDemo
             ? ''
             : `<div class="demo-box">
                  <p>Demo accounts</p>
@@ -258,7 +273,8 @@ function renderAuth(mode = 'login') {
   const errBox = document.getElementById('auth-error');
   const submit = document.getElementById('auth-submit');
 
-  document.getElementById('switch-mode').addEventListener('click', () => {
+  document.getElementById('switch-mode')?.addEventListener('click', () => {
+    if (!canRegister) return;
     renderAuth(isRegister ? 'login' : 'register');
   });
 
@@ -7958,6 +7974,10 @@ async function boot() {
   applyTheme(currentTheme());
   try {
     const me = await api.me();
+    // Recorded before anything renders: the login screen is the first thing an
+    // unauthenticated visitor sees, and it needs to know what to offer.
+    state.demo = me.demo === true;
+    state.allowRegister = me.allowRegister === true;
     if (!me.user) {
       renderAuth('login');
       return;

@@ -83,6 +83,10 @@ Seeded by `docker-compose.yml` / `npm start` on a fresh database (`SEED_DEMO`
 unset). The production file seeds none of this — see
 [Running in production](#running-in-production).
 
+The login screen shows these as a **Demo accounts** box with a "Use" button, and
+only when the server reports that the demo seed ran. On a production install the
+box is not rendered at all, so no credentials are ever advertised to a visitor.
+
 | Username | Password       | Role      | Level    |
 | -------- | -------------- | --------- | -------- |
 | `admin`  | `admin123`     | Admin     | Lead     |
@@ -153,6 +157,17 @@ The password warning is the one setting this file cannot invent for you:
 
 Create `.env` with `POSTGRES_PASSWORD=$(openssl rand -base64 24)` (plus anything
 from `deploy/.env.example`) and it stops printing that line.
+
+### Two public surfaces, both closed by default
+
+| | dev | prod |
+| --- | --- | --- |
+| `SEED_DEMO` | demo fixtures on a fresh database | **0** — no fixtures, no demo logins shown on the login screen |
+| `ALLOW_REGISTER` | open self-registration | **0** — `POST /api/auth/register` answers `403`, the login screen shows no Register link |
+
+Both are decisions of the server and are reported to the client by
+`GET /api/auth/me` (`{"demo":false,"allowRegister":false}`), so the login screen
+cannot advertise something the server would refuse.
 
 ### No demo data — one admin instead
 
@@ -349,7 +364,12 @@ rebuild does not log anyone out. Two limits worth knowing:
 ### Auth
 - Username + password login with `scrypt` hashing and per-user random salt
 - Server-side sessions (`HttpOnly`, `SameSite=Lax` cookie), 14-day expiry
-- Self-service registration with username/password validation
+- Self-service registration with username/password validation — **on by default,
+  closed by the production compose file** (`ALLOW_REGISTER=0`). Closed means the
+  endpoint answers `403` and the login screen offers no Register link, just
+  *"Accounts are created by an administrator"*. On a real installation every
+  account comes from **Admin panel → Manage users** or its import, where role,
+  level and reporting line are set deliberately instead of being guessed.
 - Light & dark theme, remembered in `localStorage`
 
 ### Signing in
@@ -1496,6 +1516,7 @@ PostgreSQL's `LIKE` is case-sensitive by default, SQLite's is not).
 | `APP_PORT`     | `3131`       | *compose only* — host port to publish (both files) |
 | `TZ`           | `Asia/Jakarta` | timezone inside the container. A container defaults to **UTC**, so without this the automatic start/end date stamps would record the wrong day. Set your own zone, e.g. `TZ=Europe/Amsterdam`. |
 | `ONEPROMAG_SUBNET` | `10.77.0.0/24` | *compose only* — Docker subnet for the app network |
+| `ALLOW_REGISTER` | `1` | public self-registration. The production compose file sets `0`. |
 | `SEED_DEMO` | `1` | `0` skips the demo fixtures and creates a single admin instead. The production compose file sets `0`. |
 | `ADMIN_USERNAME` / `ADMIN_NAME` | `admin` / `Administrator` | *used only while the users table is empty, with `SEED_DEMO=0`* |
 | `ADMIN_PASSWORD` | generated | *same* — when unset a random password is printed once in the boot log |

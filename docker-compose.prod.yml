@@ -95,6 +95,9 @@ services:
       # categories/statuses and a single admin account — nothing with a fake
       # client name on it. Set SEED_DEMO=1 only for a throwaway demo box.
       SEED_DEMO: ${SEED_DEMO:-0}
+      # Public self-registration is off: accounts come from an admin or the import.
+      # Set ALLOW_REGISTER=1 only for a throwaway demo box.
+      ALLOW_REGISTER: ${ALLOW_REGISTER:-0}
       # The bootstrap admin (used only while the users table is empty).
       # Without ADMIN_PASSWORD a random one is generated and printed once in
       # the boot log.

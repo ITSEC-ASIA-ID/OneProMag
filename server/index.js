@@ -4,7 +4,7 @@ import fsp from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { api } from './api.js';
-import { initDatabase, db, bootstrapCredentials } from './db.js';
+import { initDatabase, db, bootstrapCredentials, DEMO_MODE } from './db.js';
 import {
   HttpError,
   currentUser,
@@ -19,6 +19,7 @@ import {
   changePassword,
   updateOwnContact,
   destroyOtherSessions,
+  ALLOW_REGISTER,
 } from './auth.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -186,6 +187,14 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (pathname === '/api/auth/register' && method === 'POST') {
+      // Refused before the body is even read: with self-registration off there is
+      // nothing to validate, and the message has to say who to ask instead.
+      if (!ALLOW_REGISTER) {
+        throw new HttpError(
+          403,
+          'Self-registration is disabled on this installation — ask an administrator for an account'
+        );
+      }
       const body = await readBody(req);
       // Public self-registration is an untrusted path: it may only ever create
       // an ordinary pentester. Role, sub-role and parent are never taken from
@@ -206,7 +215,10 @@ const server = http.createServer(async (req, res) => {
 
     if (pathname === '/api/auth/me' && method === 'GET') {
       const user = await currentUser(req);
-      return sendJSON(res, 200, { user });
+      // Two facts the login screen cannot know by itself: whether it may advertise
+      // the demo logins (they exist only when demo seeding ran) and whether it may
+      // offer registration at all. Both are decisions of THIS server, so it says.
+      return sendJSON(res, 200, { user, demo: DEMO_MODE, allowRegister: ALLOW_REGISTER });
     }
 
     if (pathname === '/api/auth/profile' && method === 'PATCH') {

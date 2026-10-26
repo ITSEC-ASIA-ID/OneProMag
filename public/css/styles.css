@@ -431,6 +431,13 @@ svg { display: block; }
 }
 .auth-error.show { display: flex; }
 
+/* When registration is closed the row holds an explanation instead of a link, so it
+   is a single centred line rather than two spaced items. */
+.auth-alt-note {
+  justify-content: center;
+  text-align: center;
+  line-height: 1.5;
+}
 .auth-alt {
   margin-top: 18px;
   padding-top: 16px;

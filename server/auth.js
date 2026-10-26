@@ -2,6 +2,23 @@ import crypto from 'node:crypto';
 import { db, verifyPassword, hashPassword, ENUMS } from './db.js';
 
 const SESSION_COOKIE = 'opm_session';
+
+/**
+ * Public self-registration.
+ *
+ * On a development box it is the fastest way to get a second account, and on a
+ * real installation it is an open door: anyone who can reach the port can create
+ * themselves a Member account, see every engagement name and the staff directory,
+ * and start filing notes. The production compose file sets ALLOW_REGISTER=0, so
+ * every account comes from an admin (Admin panel → Manage users, or its import).
+ * Unset means allowed, which keeps `npm start` and the development file working
+ * exactly as before.
+ */
+export const ALLOW_REGISTER = (() => {
+  const raw = String(process.env.ALLOW_REGISTER ?? '').trim();
+  if (raw === '') return true;
+  return /^(1|true|yes|on)$/i.test(raw);
+})();
 const SESSION_TTL_DAYS = 14;
 
 export function nowISO() {

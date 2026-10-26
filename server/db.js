@@ -490,11 +490,14 @@ function seedProjects(daysAgo) {
  * Unset — a bare `npm start`, the SQLite fallback, the development compose file
  * — still seeds, so nothing changes for an existing workflow.
  */
-const SEED_DEMO = (() => {
+/** Exported for the login screen: it may only advertise demo logins when they
+ *  were actually created here. */
+export const DEMO_MODE = (() => {
   const raw = String(process.env.SEED_DEMO ?? '').trim();
   if (raw === '') return true;
   return /^(1|true|yes|on)$/i.test(raw);
 })();
+const SEED_DEMO = DEMO_MODE;
 
 /**
  * The one account a demo-free install gets.
