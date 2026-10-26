@@ -78,6 +78,16 @@ services:
       PORT: 3131
       HOST: 0.0.0.0
       DB: postgres
+      # No fixtures. A fresh database gets the schema, the built-in
+      # categories/statuses and a single admin account — nothing with a fake
+      # client name on it. Set SEED_DEMO=1 only for a throwaway demo box.
+      SEED_DEMO: ${SEED_DEMO:-0}
+      # The bootstrap admin (used only while the users table is empty).
+      # Without ADMIN_PASSWORD a random one is generated and printed once in
+      # the boot log.
+      ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
+      ADMIN_NAME: ${ADMIN_NAME:-Administrator}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
       PGHOST: db
       PGPORT: 5432
       PGUSER: ${POSTGRES_USER:-onepromag}

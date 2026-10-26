@@ -473,6 +473,56 @@ function seedProjects(daysAgo) {
  * inventory — the feature would look broken rather than new. This fills it once
  * and is a no-op afterwards because it checks for existing rows first.
  */
+/**
+ * Demo data, or an empty install?
+ *
+ * `seed()` fills a fresh database with fixtures: ten people, five clients, seven
+ * projects, notes, retests and a hardware inventory. That is what makes the
+ * development environment worth looking at, and it is the last thing a
+ * production install wants to hand a real client — a "SecurePay Devices" client
+ * with fake engagements is noise at best and confusing at worst.
+ *
+ * SEED_DEMO=0 (set by docker-compose.prod.yml) keeps everything structural:
+ * the schema, the nine built-in categories and statuses (project rows reference
+ * their keys, so they are not fixtures), and a single admin account, because an
+ * empty users table means nobody can sign in and create anyone.
+ *
+ * Unset — a bare `npm start`, the SQLite fallback, the development compose file
+ * — still seeds, so nothing changes for an existing workflow.
+ */
+const SEED_DEMO = (() => {
+  const raw = String(process.env.SEED_DEMO ?? '').trim();
+  if (raw === '') return true;
+  return /^(1|true|yes|on)$/i.test(raw);
+})();
+
+/**
+ * The one account a demo-free install gets.
+ *
+ * Refusing to boot without ADMIN_PASSWORD would make
+ * `docker compose -f docker-compose.prod.yml up -d` impossible, which is the
+ * whole point of that file, so the password is generated when it is not given
+ * and printed once in the boot log. It is the account the operator signs in
+ * with, then changes; `ADMIN_PASSWORD` exists for the case where the password
+ * must be known in advance (provisioning, a password manager, a script).
+ */
+async function seedBootstrapAdmin() {
+  const existing = await db.get('SELECT COUNT(*) AS n FROM users');
+  if (existing && Number(existing.n) > 0) return { seeded: false };
+
+  const username = (process.env.ADMIN_USERNAME || 'admin').trim().toLowerCase();
+  const name = (process.env.ADMIN_NAME || 'Administrator').trim();
+  const given = String(process.env.ADMIN_PASSWORD || '').trim();
+  const password = given || crypto.randomBytes(9).toString('base64url');
+
+  await db.run(
+    `INSERT INTO users (username, name, role, subrole, parent_id, availability, availability_note, phone, email, password_hash, created_at)
+     VALUES (?, ?, 'Admin', 'Lead', NULL, '', '', '', '', ?, ?)`,
+    [username, name, hashPassword(password), now()]
+  );
+  return { seeded: false, bootstrapAdmin: { username, password, generated: !given } };
+}
+
 async function seedDevicesIfEmpty() {
   const existing = await db.get('SELECT COUNT(*) AS n FROM devices');
   if (existing && Number(existing.n) > 0) return { seeded: false };
@@ -778,11 +828,12 @@ export async function initDatabase() {
   // Properties before the demo seed: the seeded projects carry category/status keys
   // that must already mean something.
   const properties = await seedPropertiesIfEmpty();
-  const result = await seed();
+  const result = SEED_DEMO ? await seed() : await seedBootstrapAdmin();
   // Runs after seed() on purpose: a brand-new database gets its devices from
-  // seed() itself, and only an EXISTING install needs the backfill.
-  const devices = await seedDevicesIfEmpty();
-  return { engine: db.engine, ...result, devices, properties };
+  // seed() itself, and only an EXISTING install needs the backfill. With demo
+  // data off there is nothing to backfill into either.
+  const devices = SEED_DEMO ? await seedDevicesIfEmpty() : { seeded: false };
+  return { engine: db.engine, ...result, devices, properties, demo: SEED_DEMO };
 }
 
 /**

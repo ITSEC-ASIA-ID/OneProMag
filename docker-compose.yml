@@ -48,6 +48,10 @@ services:
       PORT: 3131
       HOST: 0.0.0.0
       DB: ${DB:-postgres}
+      # Demo fixtures (clients, projects, notes, devices, ten people) on first
+      # boot. This file is the development file, so it is on; the production
+      # file turns it off and creates one admin instead.
+      SEED_DEMO: ${SEED_DEMO:-1}
       # Used only when DB=sqlite.
       DATA_DIR: /data
       # Used only when DB=postgres.

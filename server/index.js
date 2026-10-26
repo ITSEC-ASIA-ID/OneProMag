@@ -296,9 +296,28 @@ server.listen(PORT, HOST, () => {
     console.log('  Warning        → database password is still the default "onepromag"');
     console.log('                   set POSTGRES_PASSWORD in .env before exposing this');
   }
+  // Demo data is a development convenience; say plainly when it is off, because
+  // an empty dashboard then means "correct" and not "the seed broke".
+  if (info.demo === false) {
+    console.log('  Demo data      → off (SEED_DEMO=0) — schema and built-in properties only');
+  }
+  // The one account a demo-free install gets. Printed once, at creation: the
+  // generated password is not stored anywhere readable afterwards.
+  if (info.bootstrapAdmin) {
+    const { username, password, generated } = info.bootstrapAdmin;
+    console.log('\n  First admin:');
+    console.log(`    ${username} / ${password}`);
+    console.log(
+      generated
+        ? '    Generated password — sign in and change it (top right → Change password)'
+        : '    Password taken from ADMIN_PASSWORD'
+    );
+  }
   // Only advertise credentials that actually exist in this database: on an
   // existing install the seed is skipped, so the demo logins would be a lie.
-  if (info.seeded) {
+  if (info.demo === false) {
+    // Nothing to add: the switch above already said why this database is empty.
+  } else if (info.seeded) {
     console.log('  Seed           → demo data created');
     console.log('\n  Demo accounts:');
     console.log('    admin / admin123        (Admin, Lead)');

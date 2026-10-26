@@ -79,6 +79,10 @@ npm run reset-db      # wipe the SQLite file, re-seed on next start
 
 ### Demo accounts
 
+Seeded by `docker-compose.yml` / `npm start` on a fresh database (`SEED_DEMO`
+unset). The production file seeds none of this — see
+[Running in production](#running-in-production).
+
 | Username | Password       | Role      | Level    |
 | -------- | -------------- | --------- | -------- |
 | `admin`  | `admin123`     | Admin     | Lead     |
@@ -149,6 +153,37 @@ The password warning is the one setting this file cannot invent for you:
 
 Create `.env` with `POSTGRES_PASSWORD=$(openssl rand -base64 24)` (plus anything
 from `deploy/.env.example`) and it stops printing that line.
+
+### No demo data — one admin instead
+
+`docker-compose.yml` seeds fixtures (ten people, five clients, seven projects,
+notes, a device inventory); `docker-compose.prod.yml` sets `SEED_DEMO=0` and
+seeds none of it. A fresh production database contains exactly:
+
+- the schema,
+- the nine built-in **categories and statuses** — these are structure, not
+  fixtures: every project row stores one of their keys, so an empty table would
+  make the project form unusable,
+- **one admin account**.
+
+```
+  Demo data      → off (SEED_DEMO=0) — schema and built-in properties only
+
+  First admin:
+    admin / o67UQuZGwKjh
+    Generated password — sign in and change it (top right → Change password)
+```
+
+The password is generated on first boot and printed **once**; set
+`ADMIN_PASSWORD` in `.env` when it has to be known in advance (provisioning, a
+password manager). `ADMIN_USERNAME` and `ADMIN_NAME` are optional. After that
+first admin exists, every other account is created in **Admin panel → Manage
+users**, or by `SEED_DEMO=1` on a throwaway demo box.
+
+Switching an existing development install to the production file does **not**
+delete what is already there — seeding only ever adds. To start production from a
+genuinely empty database, remove the volume first (`down -v`, which destroys the
+data) before the first production start.
 
 ### TLS is opt-in, because it needs something a file cannot invent
 
@@ -1335,6 +1370,9 @@ PostgreSQL's `LIKE` is case-sensitive by default, SQLite's is not).
 | `APP_PORT`     | `3131`       | *compose only* — host port to publish (both files) |
 | `TZ`           | `Asia/Jakarta` | timezone inside the container. A container defaults to **UTC**, so without this the automatic start/end date stamps would record the wrong day. Set your own zone, e.g. `TZ=Europe/Amsterdam`. |
 | `ONEPROMAG_SUBNET` | `10.77.0.0/24` | *compose only* — Docker subnet for the app network |
+| `SEED_DEMO` | `1` | `0` skips the demo fixtures and creates a single admin instead. The production compose file sets `0`. |
+| `ADMIN_USERNAME` / `ADMIN_NAME` | `admin` / `Administrator` | *used only while the users table is empty, with `SEED_DEMO=0`* |
+| `ADMIN_PASSWORD` | generated | *same* — when unset a random password is printed once in the boot log |
 | `COOKIE_SECURE` | auto | `Secure` on the session cookie is decided from the request: on over TLS (or `X-Forwarded-Proto: https`), off over plain http. `1`/`0` overrides that for proxies that do not send the header. |
 | `APP_BIND` | `0.0.0.0` | *compose only* — set `127.0.0.1` when a proxy is the only intended way in |
 | `POSTGRES_PASSWORD` | `onepromag` | *compose only* — the prod file warns in its boot log while it is still the default |
