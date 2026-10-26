@@ -1,0 +1,186 @@
+# OneProMag — production stack
+#
+#   cp deploy/.env.example .env       # DOMAIN, POSTGRES_PASSWORD, ...
+#   docker compose -f docker-compose.prod.yml up -d --build
+#
+# Differences from docker-compose.yml (which stays a developer file):
+#
+#   * TLS is terminated by Caddy in front of the app; only the proxy publishes
+#     ports. The app container is never reachable from the host network.
+#   * The database publishes nothing at all — it is on the compose network,
+#     reachable by the app as `db` and by nothing else.
+#   * POSTGRES_PASSWORD has no default. `${VAR:?}` makes compose refuse to start
+#     instead of quietly creating a cluster with the password "onepromag".
+#   * Every service is capped: no root, no new privileges, no capabilities it
+#     does not need, a read-only root filesystem for the app, and rotated logs.
+#   * restart: unless-stopped + init: true, so a reboot brings the stack back and
+#     SIGTERM reaches node directly (the app closes the listener and exits).
+
+services:
+  db:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    init: true
+    networks: [onepromag-net]
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-onepromag}
+      POSTGRES_USER: ${POSTGRES_USER:-onepromag}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      POSTGRES_INITDB_ARGS: '--encoding=UTF8 --locale=C'
+      # Pinned so the date stamps in the app and pg_dump filenames agree.
+      TZ: ${TZ:-Asia/Jakarta}
+    volumes:
+      - onepromag-pgdata:/var/lib/postgresql/data
+    # Postgres uses shared memory for parallel queries; the Docker default of
+    # 64 MB is the usual cause of "could not resize shared memory segment".
+    shm_size: 256mb
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-onepromag} -d ${POSTGRES_DB:-onepromag}']
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 20s
+    logging: &logging
+      driver: json-file
+      options: { max-size: '10m', max-file: '3' }
+    security_opt: ['no-new-privileges:true']
+
+  onepromag:
+    build: .
+    image: onepromag:latest
+    restart: unless-stopped
+    init: true
+    depends_on:
+      db:
+        condition: service_healthy
+    networks: [onepromag-net]
+    environment:
+      NODE_ENV: production
+      PORT: 3131
+      HOST: 0.0.0.0
+      DB: postgres
+      PGHOST: db
+      PGPORT: 5432
+      PGUSER: ${POSTGRES_USER:-onepromag}
+      PGPASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      PGDATABASE: ${POSTGRES_DB:-onepromag}
+      TZ: ${TZ:-Asia/Jakarta}
+      # Cookies carry `Secure` only when this is set: browsers silently drop a
+      # Secure cookie set over plain http, which looks like a broken login. Set
+      # it to 1 when a certificate is in front (the proxy below), leave it 0 for
+      # a LAN install addressed by IP and reached over http://.
+      COOKIE_SECURE: ${COOKIE_SECURE:-1}
+    # Read-only root: the image writes nothing except into /tmp and (for the
+    # SQLite fallback) /data. Catching an accidental write at deploy time is
+    # cheaper than discovering it in a crash loop at 3am.
+    read_only: true
+    tmpfs:
+      - /tmp:size=32m
+    volumes:
+      - onepromag-data:/data
+    cap_drop: [ALL]
+    security_opt: ['no-new-privileges:true']
+    healthcheck:
+      # Ask the app itself, and ask it about the database: /healthz returns 503
+      # when it cannot reach Postgres.
+      test:
+        ['CMD', 'node', '-e', "fetch('http://127.0.0.1:3131/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 6s
+      retries: 3
+      start_period: 30s
+    logging: *logging
+
+  proxy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    init: true
+    depends_on:
+      onepromag:
+        condition: service_started
+    networks: [onepromag-net]
+    ports:
+      - '80:80'
+      - '443:443'
+      - '443:443/udp'
+    environment:
+      # Caddy uses DOMAIN for both the certificate request and the host match.
+      # `:80` in .env serves plain http for a LAN install with no certificate.
+      DOMAIN: ${DOMAIN:-localhost}
+      # Automatic HTTPS needs an e-mail for the ACME account; it is never shown
+      # to visitors.
+      ACME_EMAIL: ${ACME_EMAIL:-}
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      # Certificates and ACME account keys. Losing this volume means re-issuing
+      # every certificate on the next start, which can hit Let's Encrypt rate
+      # limits — do not put it in a tmpfs.
+      - onepromag-caddy:/data
+      - onepromag-caddy-config:/config
+    logging: *logging
+    security_opt: ['no-new-privileges:true']
+
+  # Nightly logical backups, opt-in:
+  #   docker compose -f docker-compose.prod.yml --profile backup up -d
+  # Restores with:
+  #   gunzip -c backups/onepromag-<date>.sql.gz | docker exec -i onepromag-db-prod \
+  #     psql -U onepromag -d onepromag
+  backup:
+    image: postgres:17-alpine
+    profiles: ['backup']
+    restart: unless-stopped
+    init: true
+    depends_on:
+      db:
+        condition: service_healthy
+    networks: [onepromag-net]
+    # The dump lands in ./backups on the host, so the container has to write as
+    # the same user you are: HOST_UID/HOST_GID from `id -u` / `id -g`. Root would
+    # leave files you cannot delete without sudo (0:0 is the fallback for hosts
+    # that do not care).
+    user: '${HOST_UID:-0}:${HOST_GID:-0}'
+    environment:
+      PGHOST: db
+      PGUSER: ${POSTGRES_USER:-onepromag}
+      PGPASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      PGDATABASE: ${POSTGRES_DB:-onepromag}
+      KEEP_DAYS: ${BACKUP_KEEP_DAYS:-14}
+      BACKUP_INTERVAL_SECONDS: ${BACKUP_INTERVAL_SECONDS:-86400}
+      TZ: ${TZ:-Asia/Jakarta}
+    volumes:
+      - ./backups:/backups
+    entrypoint: ['/bin/sh', '-c']
+    command:
+      - |
+        set -eu
+        # `$$` is a literal `$` in compose: these are shell variables read from
+        # the container's own environment, not values substituted at parse time.
+        echo "backup: writing to /backups every $${BACKUP_INTERVAL_SECONDS}s, keeping $${KEEP_DAYS} days"
+        while :; do
+          stamp=$$(date +%Y-%m-%d-%H%M)
+          out="/backups/onepromag-$$stamp.sql.gz"
+          if pg_dump --no-owner --no-privileges | gzip -9 > "$$out.part"; then
+            mv "$$out.part" "$$out"
+            echo "backup: $$out ($$(du -h "$$out" | cut -f1))"
+          else
+            rm -f "$$out.part"
+            echo "backup: FAILED at $$stamp" >&2
+          fi
+          find /backups -name 'onepromag-*.sql.gz' -mtime +"$$KEEP_DAYS" -delete
+          sleep "$${BACKUP_INTERVAL_SECONDS}"
+        done
+    logging: *logging
+    security_opt: ['no-new-privileges:true']
+
+networks:
+  onepromag-net:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: ${ONEPROMAG_SUBNET:-10.77.0.0/24}
+
+volumes:
+  onepromag-pgdata:
+  onepromag-data:
+  onepromag-caddy:
+  onepromag-caddy-config:

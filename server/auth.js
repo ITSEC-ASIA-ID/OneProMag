@@ -101,12 +101,26 @@ export async function changePassword(userId, currentPassword, newPassword) {
   return true;
 }
 
+/**
+ * `Secure` on the session cookie, switched on with COOKIE_SECURE=1.
+ *
+ * In production the app sits behind a TLS terminator (Caddy), so the browser
+ * only ever talks HTTPS and the cookie must not be allowed to travel on a plain
+ * request to the same host. On a LAN install with no certificate there is no
+ * HTTPS to attach it to, and a `Secure` cookie set over http:// is dropped by
+ * the browser — the login would appear to succeed and then bounce straight
+ * back to the form. Hence: an environment switch, off by default, set by the
+ * production compose file.
+ */
+const COOKIE_SECURE = /^(1|true|yes|on)$/i.test(String(process.env.COOKIE_SECURE || '').trim());
+const COOKIE_FLAGS = `Path=/; HttpOnly; SameSite=Lax${COOKIE_SECURE ? '; Secure' : ''}`;
+
 export function sessionCookie(token, expires) {
-  return `${SESSION_COOKIE}=${token}; Path=/; HttpOnly; SameSite=Lax; Expires=${expires.toUTCString()}`;
+  return `${SESSION_COOKIE}=${token}; ${COOKIE_FLAGS}; Expires=${expires.toUTCString()}`;
 }
 
 export function clearCookie() {
-  return `${SESSION_COOKIE}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0`;
+  return `${SESSION_COOKIE}=; ${COOKIE_FLAGS}; Max-Age=0`;
 }
 
 export async function currentUser(req) {

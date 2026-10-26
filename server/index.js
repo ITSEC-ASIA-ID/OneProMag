@@ -144,6 +144,30 @@ const server = http.createServer(async (req, res) => {
   const method = req.method || 'GET';
 
   try {
+    // ---- health ----------------------------------------------------------
+    // Readiness, not just liveness: the answer includes a database round trip,
+    // because a web server that cannot read its database serves nothing but
+    // errors. The wait is capped at two seconds so a wedged connection pool
+    // reports "down" instead of hanging the probe until Docker's own timeout
+    // kills it — a slow answer and a failed answer should not look the same.
+    if (pathname === '/healthz') {
+      const dbOk = await Promise.race([
+        db.get('SELECT 1 AS ok').then(
+          () => true,
+          () => false,
+        ),
+        new Promise((resolve) => {
+          const timer = setTimeout(() => resolve(false), 2000);
+          timer.unref?.();
+        }),
+      ]);
+      return sendJSON(res, dbOk ? 200 : 503, {
+        ok: dbOk,
+        db: dbOk ? 'ok' : 'down',
+        uptime: Math.round(process.uptime()),
+      });
+    }
+
     // ---- auth endpoints -------------------------------------------------
     if (pathname === '/api/auth/login' && method === 'POST') {
       const body = await readBody(req);

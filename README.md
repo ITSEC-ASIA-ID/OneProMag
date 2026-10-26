@@ -111,6 +111,105 @@ Manager) from the Admin panel. Demo data is only seeded into an empty database.
 
 ---
 
+## Running in production
+
+`docker-compose.yml` is the development file: it publishes `3131` on the host and
+runs the app straight from the working tree. `docker-compose.prod.yml` is the
+deployment file — the same image, wrapped properly:
+
+```bash
+# 1. DNS: point a record at the host. For a LAN install addressed by IP, skip this.
+cp deploy/.env.example .env      # then edit: DOMAIN, ACME_EMAIL, POSTGRES_PASSWORD
+mkdir -p backups                 # only needed if you enable the backup profile
+docker compose -f docker-compose.prod.yml up -d --build
+curl -f https://onepromag.example.com/healthz     # -> {"ok":true,"db":"ok",...}
+```
+
+A password is required, not defaulted: `${POSTGRES_PASSWORD:?…}` makes compose
+refuse to start rather than bring up a cluster whose password is `onepromag`.
+
+### What changes between the two files
+
+| | `docker-compose.yml` (dev) | `docker-compose.prod.yml` |
+| --- | --- | --- |
+| Published ports | app `3131`, db none | proxy `80`/`443` only — app and db publish **nothing** |
+| TLS | none | Caddy, automatic certificate + renewal |
+| Database password | defaults to `onepromag` | required, no default |
+| Session cookie | `HttpOnly; SameSite=Lax` | adds `Secure` (`COOKIE_SECURE=1`) |
+| Root filesystem | writable | app container is **read-only**, only `/tmp` (tmpfs 32 MB) and `/data` writable |
+| Capabilities | default | `cap_drop: ALL` + `no-new-privileges` on every service |
+| Logs | unlimited json-file | 10 MB × 3 files per service |
+| Restart | `unless-stopped` | same, plus `init: true` so SIGTERM reaches node and it closes the listener cleanly |
+| Health | `GET /` | `GET /healthz` — includes a database round trip |
+| Backups | — | opt-in nightly `pg_dump` profile |
+
+### TLS, and the one setting that breaks logins
+
+`COOKIE_SECURE=1` (the prod default) marks the session cookie `Secure`, so a
+browser will not send it over plain HTTP. That is the right behaviour behind
+Caddy — until you put the app behind *your own* proxy and address it as
+`http://…`: the login then appears to succeed and the next request is anonymous
+again, because the browser discarded the cookie. Two correct setups:
+
+- **Caddy in front (default).** `DOMAIN=onepromag.example.com`, `ACME_EMAIL` set,
+  ports 80/443 reachable, `COOKIE_SECURE=1`.
+- **HTTP-only LAN install.** `DOMAIN=:80`, `COOKIE_SECURE=0`. The cookie travels
+  in clear text; that is acceptable only on a network you trust.
+- **Your own reverse proxy.** Drop the `proxy` service, publish the app on the
+  loopback only (`ports: ['127.0.0.1:3131:3131']`) and keep `COOKIE_SECURE=1`.
+
+### Backups
+
+```bash
+docker compose -f docker-compose.prod.yml --profile backup up -d   # start
+docker compose -f docker-compose.prod.yml --profile backup stop     # stop
+```
+
+Every `BACKUP_INTERVAL_SECONDS` (default 86400) the container writes
+`backups/onepromag-YYYY-MM-DD-HHMM.sql.gz` and deletes dumps older than
+`BACKUP_KEEP_DAYS` (default 14). The dump is `--no-owner --no-privileges`, so it
+restores into any cluster with any user:
+
+```bash
+gunzip -c backups/onepromag-2026-10-26-1355.sql.gz \
+  | docker exec -i $(docker compose -f docker-compose.prod.yml ps -q db) \
+      psql -U onepromag -d onepromag
+```
+
+Set `HOST_UID=$(id -u)` and `HOST_GID=$(id -g)` in `.env` so the files land owned
+by you instead of root. Dumps are written to `./backups`, which git ignores —
+copy them off the machine if losing the host is part of your threat model.
+
+### Upgrading
+
+```bash
+git pull
+docker compose -f docker-compose.prod.yml up -d --build
+```
+
+Migrations run on boot and are safe to re-run; sessions live in the database, so
+a rebuild does not log anyone out. Two things worth knowing:
+
+- **One app container.** The property list (categories/statuses) is cached in
+  process memory and cleared by the replica that writes it, so a second replica
+  would serve a stale list until it restarted. Everything else — sessions,
+  passwords, data — is in Postgres, so nothing else depends on which container
+  answers.
+- **`read_only: true`** means a future feature that writes to disk will fail
+  loudly at deploy time rather than silently filling the container layer. If you
+  add one, give it a named volume; **do not enable the SQLite fallback in prod** —
+  it puts the whole database inside a single container's volume with no online
+  backup path.
+
+### Health
+
+`GET /healthz` answers two questions at once: the process is up, *and* `SELECT 1`
+against Postgres succeeded within two seconds. It returns `503` with
+`{"ok":false,"db":"down"}` when the database is unreachable and `200` again once
+it returns — no restart needed. Docker's healthcheck, the Caddy upstream check
+and any external monitor can all use it; it needs no session and reveals nothing
+but a boolean plus an uptime counter.
+
 ## Features
 
 ### Auth
@@ -1066,8 +1165,13 @@ you switch the timestamp columns to `timestamptz`.
 ```
 OneProMag/
 ├── Dockerfile
-├── docker-compose.yml
+├── docker-compose.yml       development: publishes 3131, no TLS
+├── docker-compose.prod.yml  deployment: Caddy + TLS, nothing else published
+├── deploy/
+│   ├── Caddyfile            TLS, compression, security headers, access log
+│   └── .env.example         template for the production .env
 ├── .dockerignore
+├── .gitignore
 ├── package.json
 ├── server/
 │   ├── index.js         HTTP server, routing, static files, boot sequence
@@ -1088,7 +1192,9 @@ OneProMag/
 │       ├── app.js       views, state, interactions, admin panel
 │       ├── api.js       fetch wrapper
 │       ├── ui.js        modal/toast/badge/segmented primitives, team + PM cell
+│       ├── props.js     categories/statuses registry (filled at boot)
 │       └── icons.js     inline SVG icon set, platform/subrole maps
+├── backups/             created when the backup profile runs (git-ignored)
 └── data/app.db          only created in SQLite mode
 ```
 
@@ -1131,6 +1237,7 @@ other session for that user so a stolen cookie dies with the old password.
 | PATCH  | `/api/managers/:id`         | rename / update `{ name, phone, email }` |
 | DELETE | `/api/managers/:id`         | remove (409 while they still own projects) |
 | GET    | `/api/stats`                | dashboard counters + clients/apps; `mineActive`/`mineAll` mirror `?mine=1` |
+| GET    | `/healthz`                  | readiness: process up **and** a database round trip; `503` + `{ok:false,db:"down"}` when Postgres is unreachable |
 | GET    | `/api/properties`           | project categories + statuses (`key`, `label`, `tone`, `position`, `locked`) |
 | POST   | `/api/properties/:kind`     | add a property (`category` \| `status`): `{ label, tone }` — the key is derived |
 | PATCH  | `/api/properties/:kind/:id` | rename / recolour / reposition one property |
@@ -1200,6 +1307,9 @@ PostgreSQL's `LIKE` is case-sensitive by default, SQLite's is not).
 | `APP_PORT`     | `3131`       | *compose only* — host port to publish             |
 | `TZ`           | `Asia/Jakarta` | timezone inside the container. A container defaults to **UTC**, so without this the automatic start/end date stamps would record the wrong day. Set your own zone, e.g. `TZ=Europe/Amsterdam`. |
 | `ONEPROMAG_SUBNET` | `10.77.0.0/24` | *compose only* — Docker subnet for the app network |
+| `COOKIE_SECURE` | `0` | set `1` to add `Secure` to the session cookie — required once the app is served over https (the prod compose file sets it). A `Secure` cookie set over `http://` is dropped by the browser, so a LAN install must leave it `0`. |
+| `POSTGRES_PASSWORD` | `onepromag` (dev) | *compose only* — **required** by `docker-compose.prod.yml` |
+| `HOST_UID` / `HOST_GID` | `0` | *compose only* — owner of the files the backup container writes to `./backups` |
 
 `docker compose up --build` starts both services, so Postgres is what you get out
 of the box. Override the database password for anything beyond local use:
