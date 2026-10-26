@@ -430,7 +430,21 @@ One engagement with two outstanding requests is **three** rows, because they are
 three things to do. Each retest row has **its own status control**, and choosing a
 status there changes *that retest* — not the project, which keeps its own status
 and its own control on its own row. The list header counts them separately
-(`5 projects  +2 retests`), and a status filter applies to each row's own status.
+(`4 projects  +2 retests`), and a status filter applies to each row's own status.
+
+A **finished** engagement is not listed as itself in an active list, even when it
+owes a retest: the pending retest is the row that stands for the work
+
+```
+Retest - Core Banking Web Portal   Retest   Ongoing      ← project is Done
+```
+
+Without that rule a Done project appeared under "Active projects" and the page
+contradicted its own title. The Active counter and the sidebar badge count
+engagements that are not Done (4 above), so the badge, the stat card and the
+project rows always agree; the retest rows are the extra `+N`. Filter the status
+column to **Done** and those engagements are listed normally — the scope stops
+hiding them because you asked for them.
 
 Retest rows appear only in the active lists. **All projects** stays a catalogue of
 engagements and keeps the retest *count* column; **All projects → a project** (and

@@ -736,9 +736,16 @@ function listRows(list) {
   // an open retest is work. All projects stays a catalogue of engagements — it has
   // the retest counts in their own column.
   const expand = state.nav === 'active' || state.nav === 'mineActive';
+  // In an active list a FINISHED engagement is not shown as itself: it is here
+  // only because a retest is still pending, and that retest is the row that
+  // represents the work. Showing both read as "Done project inside Active".
+  // An explicit status filter wins, so asking for Done still lists Done.
+  const hideDone = expand && !state.filters.status;
   const rows = [];
   for (const p of list) {
-    rows.push({ key: `p${p.id}`, kind: 'project', project: p, status: p.status });
+    if (!(hideDone && p.status === 'Done')) {
+      rows.push({ key: `p${p.id}`, kind: 'project', project: p, status: p.status });
+    }
     if (!expand) continue;
     for (const r of p.openRetests || []) {
       rows.push({ key: `r${r.id}`, kind: 'retest', project: p, retest: r, status: r.status });
@@ -1589,8 +1596,9 @@ function bindSidebar() {
 /** Translates the current nav + filters into API query parameters. */
 function currentQuery() {
   const query = { ...state.filters };
-  // Active = still in flight. The server decides this (a Done project with an
-  // open retest is still active), so the client only passes the flag.
+  // Active = still in flight. The server decides this — a finished engagement is
+  // still RETURNED when it owes a retest, because its open retest rows need it,
+  // and listRows() drops the project row itself. The client only passes the flag.
   // An explicit status filter wins: the sidebar's Finished page is gone, so the
   // status select is the only way to reach Done, and the scope must not veto it.
   if ((state.nav === 'active' || state.nav === 'mineActive') && !query.status) query.activeOnly = '1';

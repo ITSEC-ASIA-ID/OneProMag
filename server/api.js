@@ -1248,9 +1248,11 @@ export const api = {
         `SELECT
            COUNT(*) AS total,
            SUM(CASE WHEN p.status = 'Ready' THEN 1 ELSE 0 END) AS ready,
-           SUM(CASE WHEN p.status <> 'Done'
-                      OR EXISTS (SELECT 1 FROM retests r WHERE r.project_id = p.id AND r.status IN ('Incoming','Ongoing'))
-                    THEN 1 ELSE 0 END) AS active,
+           -- Active counts ENGAGEMENTS still in flight. A finished engagement with
+           -- a pending retest is not one of them any more: the retest has its own
+           -- queue counter, and in the list it has its own rows. Counting it here
+           -- made the badge say 5 while the list showed 4 project rows.
+           SUM(CASE WHEN p.status <> 'Done' THEN 1 ELSE 0 END) AS active,
            SUM(CASE WHEN EXISTS (SELECT 1 FROM retests r WHERE r.project_id = p.id AND r.status IN ('Incoming','Ongoing'))
                     THEN 1 ELSE 0 END) AS queue,
            SUM(CASE WHEN p.status = 'Ongoing' THEN 1 ELSE 0 END) AS ongoing,
@@ -1304,28 +1306,21 @@ export const api = {
     const prod = Number(
       (await db.get("SELECT COUNT(*) AS n FROM projects WHERE env = 'Prod'"))?.n ?? 0
     );
-    // "Done" for display purposes means truly finished: the pentest is complete
-    // AND no retest is still open. A Done project awaiting a retest counts as
-    // active (it is still work), so the two numbers never overlap.
-    const doneRows = await db.all(
-      `SELECT COUNT(*) AS n FROM projects p
-        WHERE p.status = 'Done'
-          AND NOT EXISTS (SELECT 1 FROM retests r
-                           WHERE r.project_id = p.id
-                             AND r.status IN ('Incoming', 'Ongoing'))`
+    // Active and Done are one split of the ENGAGEMENTS: everything not Done is
+    // active, everything Done is done. They add up to the total, which is what a
+    // reader of the cards expects.
+    //
+    // A finished engagement that still owes a retest is an engagement that is
+    // Done — the retest is the open work, and it has its own rows in the list and
+    // its own counter in the retest queue card. Counting it as active too made the
+    // badge read 5 while the list showed 4 project rows.
+    const byStatusCounts = await db.all('SELECT status, COUNT(*) AS n FROM projects GROUP BY status');
+    const done = Number(
+      byStatusCounts.filter((r) => r.status === 'Done').reduce((sum, r) => sum + Number(r.n), 0)
     );
-    const done = Number(doneRows[0]?.n ?? 0);
-    // Active = anything still in flight, so both terminal outcomes are excluded.
-    // A project whose pentest is finished but which still has an open retest is
-    // NOT finished: it belongs in Active until the retest is verified too.
-    const activeRows = await db.all(
-      `SELECT COUNT(*) AS n FROM projects p
-        WHERE p.status <> 'Done'
-           OR EXISTS (SELECT 1 FROM retests r
-                       WHERE r.project_id = p.id
-                         AND r.status IN ('Incoming', 'Ongoing'))`
+    const active = Number(
+      byStatusCounts.filter((r) => r.status !== 'Done').reduce((sum, r) => sum + Number(r.n), 0)
     );
-    const active = Number(activeRows[0]?.n ?? 0);
 
     const clients = (
       await db.all('SELECT COUNT(*) AS n FROM clients')
@@ -1435,10 +1430,10 @@ export const api = {
         params.push(...drop);
       }
     }
-    // Active = still in flight. A project whose pentest is Done but which still
-    // has an open client retest is NOT finished, so it stays visible here. This
-    // is the single source of truth for the Active workspace view and matches
-    // the `active` counter in GET /api/stats.
+    // Active = still in flight, PLUS finished engagements that still owe a retest:
+    // the project row itself is filtered out by the client, but its open retest
+    // rows have to come from somewhere. `GET /api/stats` counts only the first
+    // group as Active, which is why the badge and the project rows agree.
     if (activeOnly === '1' || activeOnly === true) {
       where.push(
         `(p.status <> 'Done' OR EXISTS (SELECT 1 FROM retests r2
