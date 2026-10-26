@@ -102,25 +102,38 @@ export async function changePassword(userId, currentPassword, newPassword) {
 }
 
 /**
- * `Secure` on the session cookie, switched on with COOKIE_SECURE=1.
+ * `Secure` on the session cookie.
  *
- * In production the app sits behind a TLS terminator (Caddy), so the browser
- * only ever talks HTTPS and the cookie must not be allowed to travel on a plain
- * request to the same host. On a LAN install with no certificate there is no
- * HTTPS to attach it to, and a `Secure` cookie set over http:// is dropped by
- * the browser — the login would appear to succeed and then bounce straight
- * back to the form. Hence: an environment switch, off by default, set by the
- * production compose file.
+ * Decided from the request, not from how someone remembered to configure it:
+ * the flag is set when the request actually arrived over TLS — either directly
+ * (`req.socket.encrypted`) or as seen by the reverse proxy that terminated it
+ * (`X-Forwarded-Proto`). A cookie marked `Secure` that is issued over plain
+ * http is dropped by the browser, which looks exactly like a broken login, so
+ * guessing wrong here is not a cosmetic mistake.
+ *
+ * COOKIE_SECURE still overrides the guess in either direction: `1` for a setup
+ * where the proxy is expected to lie about the protocol, `0` to force it off
+ * (e.g. a TLS terminator that does not add the header).
  */
-const COOKIE_SECURE = /^(1|true|yes|on)$/i.test(String(process.env.COOKIE_SECURE || '').trim());
-const COOKIE_FLAGS = `Path=/; HttpOnly; SameSite=Lax${COOKIE_SECURE ? '; Secure' : ''}`;
+const COOKIE_SECURE_OVERRIDE = String(process.env.COOKIE_SECURE || '').trim();
 
-export function sessionCookie(token, expires) {
-  return `${SESSION_COOKIE}=${token}; ${COOKIE_FLAGS}; Expires=${expires.toUTCString()}`;
+function cookieFlags(req) {
+  let secure;
+  if (COOKIE_SECURE_OVERRIDE !== '') {
+    secure = /^(1|true|yes|on)$/i.test(COOKIE_SECURE_OVERRIDE);
+  } else {
+    const proto = String(req?.headers?.['x-forwarded-proto'] || '').split(',')[0].trim();
+    secure = proto === 'https' || Boolean(req?.socket?.encrypted);
+  }
+  return `Path=/; HttpOnly; SameSite=Lax${secure ? '; Secure' : ''}`;
 }
 
-export function clearCookie() {
-  return `${SESSION_COOKIE}=; ${COOKIE_FLAGS}; Max-Age=0`;
+export function sessionCookie(token, expires, req) {
+  return `${SESSION_COOKIE}=${token}; ${cookieFlags(req)}; Expires=${expires.toUTCString()}`;
+}
+
+export function clearCookie(req) {
+  return `${SESSION_COOKIE}=; ${cookieFlags(req)}; Max-Age=0`;
 }
 
 export async function currentUser(req) {

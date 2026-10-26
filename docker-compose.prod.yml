@@ -1,20 +1,38 @@
 # OneProMag — production stack
 #
-#   cp deploy/.env.example .env       # DOMAIN, POSTGRES_PASSWORD, ...
+# Runs with NO configuration at all:
+#
 #   docker compose -f docker-compose.prod.yml up -d --build
 #
-# Differences from docker-compose.yml (which stays a developer file):
+# The app is published on ${APP_PORT:-3131}, exactly like the development file,
+# so the address you have been using keeps working. What is different from
+# docker-compose.yml is that this file is meant to stay up unattended:
 #
-#   * TLS is terminated by Caddy in front of the app; only the proxy publishes
-#     ports. The app container is never reachable from the host network.
-#   * The database publishes nothing at all — it is on the compose network,
-#     reachable by the app as `db` and by nothing else.
-#   * POSTGRES_PASSWORD has no default. `${VAR:?}` makes compose refuse to start
-#     instead of quietly creating a cluster with the password "onepromag".
-#   * Every service is capped: no root, no new privileges, no capabilities it
-#     does not need, a read-only root filesystem for the app, and rotated logs.
-#   * restart: unless-stopped + init: true, so a reboot brings the stack back and
-#     SIGTERM reaches node directly (the app closes the listener and exits).
+#   * restart: unless-stopped on every service, so a reboot brings it back;
+#   * init: true, so SIGTERM reaches node and it closes the listener instead of
+#     being killed after the 10 second grace period;
+#   * healthchecks that ask /healthz (which round-trips to Postgres) rather than
+#     just "did the process start";
+#   * the app runs read-only with no capabilities and no new privileges;
+#   * logs are capped at 10 MB × 3 per service, instead of filling the disk;
+#   * the database publishes nothing — it is reachable as `db` on the compose
+#     network and from nowhere else.
+#
+# TLS is opt-in, because it needs something no file can invent: a hostname that
+# resolves to this machine. When you have one:
+#
+#   # .env
+#   DOMAIN=onepromag.example.com
+#   ACME_EMAIL=you@example.com
+#   POSTGRES_PASSWORD=<openssl rand -base64 24>
+#   APP_BIND=127.0.0.1            # the proxy is the only way in
+#   COOKIE_SECURE=1
+#
+#   docker compose -f docker-compose.prod.yml --profile tls up -d --build
+#
+# Without a domain, Caddy cannot obtain a certificate, so there is nothing to
+# switch on — the app stays on http, which is why the session cookie only gets
+# `Secure` when the request actually arrives over TLS (see server/auth.js).
 
 services:
   db:
@@ -25,9 +43,10 @@ services:
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-onepromag}
       POSTGRES_USER: ${POSTGRES_USER:-onepromag}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      # Kept with a default so the file runs with one command; the app prints a
+      # warning in its boot log while it is still this value.
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-onepromag}
       POSTGRES_INITDB_ARGS: '--encoding=UTF8 --locale=C'
-      # Pinned so the date stamps in the app and pg_dump filenames agree.
       TZ: ${TZ:-Asia/Jakarta}
     volumes:
       - onepromag-pgdata:/var/lib/postgresql/data
@@ -40,10 +59,10 @@ services:
       timeout: 5s
       retries: 6
       start_period: 20s
+    security_opt: ['no-new-privileges:true']
     logging: &logging
       driver: json-file
       options: { max-size: '10m', max-file: '3' }
-    security_opt: ['no-new-privileges:true']
 
   onepromag:
     build: .
@@ -62,17 +81,17 @@ services:
       PGHOST: db
       PGPORT: 5432
       PGUSER: ${POSTGRES_USER:-onepromag}
-      PGPASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      PGPASSWORD: ${POSTGRES_PASSWORD:-onepromag}
       PGDATABASE: ${POSTGRES_DB:-onepromag}
       TZ: ${TZ:-Asia/Jakarta}
-      # Cookies carry `Secure` only when this is set: browsers silently drop a
-      # Secure cookie set over plain http, which looks like a broken login. Set
-      # it to 1 when a certificate is in front (the proxy below), leave it 0 for
-      # a LAN install addressed by IP and reached over http://.
-      COOKIE_SECURE: ${COOKIE_SECURE:-1}
-    # Read-only root: the image writes nothing except into /tmp and (for the
-    # SQLite fallback) /data. Catching an accidental write at deploy time is
-    # cheaper than discovering it in a crash loop at 3am.
+      # Empty means "decide from the request": Secure only over https. Set it to
+      # 1 or 0 only when that guess has to be overruled.
+      COOKIE_SECURE: ${COOKIE_SECURE:-}
+    ports:
+      - '${APP_BIND:-0.0.0.0}:${APP_PORT:-3131}:3131'
+    # The image writes only to /tmp and (for the SQLite fallback) /data, so the
+    # rest of the filesystem can be read-only. A future feature that writes to
+    # disk then fails loudly here instead of quietly filling the container layer.
     read_only: true
     tmpfs:
       - /tmp:size=32m
@@ -81,8 +100,6 @@ services:
     cap_drop: [ALL]
     security_opt: ['no-new-privileges:true']
     healthcheck:
-      # Ask the app itself, and ask it about the database: /healthz returns 503
-      # when it cannot reach Postgres.
       test:
         ['CMD', 'node', '-e', "fetch('http://127.0.0.1:3131/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
       interval: 30s
@@ -91,8 +108,10 @@ services:
       start_period: 30s
     logging: *logging
 
+  # TLS, opt-in: needs DOMAIN, ACME_EMAIL and ports 80/443. See the header.
   proxy:
     image: caddy:2-alpine
+    profiles: ['tls']
     restart: unless-stopped
     init: true
     depends_on:
@@ -104,27 +123,26 @@ services:
       - '443:443'
       - '443:443/udp'
     environment:
-      # Caddy uses DOMAIN for both the certificate request and the host match.
-      # `:80` in .env serves plain http for a LAN install with no certificate.
+      # Compose interpolates every service in the file, profiles or not, so this
+      # cannot be a required variable — that would break the no-.env run. The
+      # default is `localhost`, which Caddy serves with its own internal CA,
+      # i.e. a self-signed certificate for testing the profile locally. Set a
+      # real hostname in .env to get a Let's Encrypt certificate.
       DOMAIN: ${DOMAIN:-localhost}
-      # Automatic HTTPS needs an e-mail for the ACME account; it is never shown
-      # to visitors.
       ACME_EMAIL: ${ACME_EMAIL:-}
     volumes:
       - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
-      # Certificates and ACME account keys. Losing this volume means re-issuing
-      # every certificate on the next start, which can hit Let's Encrypt rate
-      # limits — do not put it in a tmpfs.
+      # Certificates and the ACME account key. Losing this volume re-issues every
+      # certificate, which can hit Let's Encrypt rate limits — never a tmpfs.
       - onepromag-caddy:/data
       - onepromag-caddy-config:/config
-    logging: *logging
     security_opt: ['no-new-privileges:true']
+    logging: *logging
 
   # Nightly logical backups, opt-in:
+  #   mkdir -p backups
   #   docker compose -f docker-compose.prod.yml --profile backup up -d
-  # Restores with:
-  #   gunzip -c backups/onepromag-<date>.sql.gz | docker exec -i onepromag-db-prod \
-  #     psql -U onepromag -d onepromag
+  # Restores with the command in the README (Database → Backups).
   backup:
     image: postgres:17-alpine
     profiles: ['backup']
@@ -134,15 +152,14 @@ services:
       db:
         condition: service_healthy
     networks: [onepromag-net]
-    # The dump lands in ./backups on the host, so the container has to write as
-    # the same user you are: HOST_UID/HOST_GID from `id -u` / `id -g`. Root would
-    # leave files you cannot delete without sudo (0:0 is the fallback for hosts
-    # that do not care).
+    # The dump lands in ./backups on the host, so the container writes as the
+    # user who owns it: HOST_UID/HOST_GID from `id -u`/`id -g`. Root would leave
+    # files you cannot delete without sudo, hence the 0:0 fallback.
     user: '${HOST_UID:-0}:${HOST_GID:-0}'
     environment:
       PGHOST: db
       PGUSER: ${POSTGRES_USER:-onepromag}
-      PGPASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      PGPASSWORD: ${POSTGRES_PASSWORD:-onepromag}
       PGDATABASE: ${POSTGRES_DB:-onepromag}
       KEEP_DAYS: ${BACKUP_KEEP_DAYS:-14}
       BACKUP_INTERVAL_SECONDS: ${BACKUP_INTERVAL_SECONDS:-86400}
@@ -169,8 +186,8 @@ services:
           find /backups -name 'onepromag-*.sql.gz' -mtime +"$$KEEP_DAYS" -delete
           sleep "$${BACKUP_INTERVAL_SECONDS}"
         done
-    logging: *logging
     security_opt: ['no-new-privileges:true']
+    logging: *logging
 
 networks:
   onepromag-net:

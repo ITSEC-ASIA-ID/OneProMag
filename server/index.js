@@ -176,13 +176,13 @@ const server = http.createServer(async (req, res) => {
       const user = await login(body.username, body.password);
       if (!user) return sendJSON(res, 401, { error: 'Invalid username or password' });
       const { token, expires } = await createSession(user.id);
-      return sendJSON(res, 200, { user }, { 'Set-Cookie': sessionCookie(token, expires) });
+      return sendJSON(res, 200, { user }, { 'Set-Cookie': sessionCookie(token, expires, req) });
     }
 
     if (pathname === '/api/auth/logout' && method === 'POST') {
       const token = parseCookies(req).opm_session;
       await destroySession(token);
-      return sendJSON(res, 200, { ok: true }, { 'Set-Cookie': clearCookie() });
+      return sendJSON(res, 200, { ok: true }, { 'Set-Cookie': clearCookie(req) });
     }
 
     if (pathname === '/api/auth/register' && method === 'POST') {
@@ -201,7 +201,7 @@ const server = http.createServer(async (req, res) => {
         email: body.email,
       });
       const { token, expires } = await createSession(user.id);
-      return sendJSON(res, 201, { user }, { 'Set-Cookie': sessionCookie(token, expires) });
+      return sendJSON(res, 201, { user }, { 'Set-Cookie': sessionCookie(token, expires, req) });
     }
 
     if (pathname === '/api/auth/me' && method === 'GET') {
@@ -289,6 +289,13 @@ server.listen(PORT, HOST, () => {
     console.log(`  Data volume    → ${process.env.DATA_DIR || './data'}`);
   }
   if (IS_DOCKER) console.log('  Logs           → docker compose logs -f');
+  // The production file runs with no configuration at all on purpose, so the
+  // one thing that must not pass unnoticed is the database password. The boot
+  // log is where a deployment gets inspected; say it there.
+  if (info.engine === 'postgres' && String(process.env.PGPASSWORD || '') === 'onepromag') {
+    console.log('  Warning        → database password is still the default "onepromag"');
+    console.log('                   set POSTGRES_PASSWORD in .env before exposing this');
+  }
   // Only advertise credentials that actually exist in this database: on an
   // existing install the seed is skipped, so the demo logins would be a lie.
   if (info.seeded) {
