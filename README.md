@@ -415,6 +415,25 @@ Besides `Pentester` and `Admin` there is a third role, **`Project Manager`**
   **My all projects**, plus a separate **Admin panel** group for privileged users
   (and **Team status**, **Users** and **Devices** above the scopes)
 
+#### Paging
+
+The four project lists — **Active projects**, **All projects**, **My active
+projects**, **My all projects** — page at **50 rows by default**, with 50 / 100 /
+200 / All in the bar under the results. The choice is remembered per browser, so
+a team that prefers 100 does not say so every day; `All` is an explicit option
+rather than a magic number.
+
+- The bar states the range and the total (`Showing 51–100 of 137`) and offers
+  `« First · ‹ Prev · Page 2 of 3 · Next › · Last »`; on a phone only the
+  step-by-step pair remains, because four buttons do not fit.
+- Paging counts **rows**, so a page of 50 in an active list includes the retest
+  rows that belong to it.
+- Changing the scope, a filter or the search returns to page 1; saving a status
+  does not, because the query did not change — you stay on the page you were
+  reading.
+- On a single page the navigation buttons are dropped and only the range plus the
+  size picker remain.
+
 #### Retests get their own rows in the active lists
 
 An open retest is work, so **Active projects** and **My active projects** list it as

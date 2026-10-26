@@ -132,6 +132,14 @@ const state = {
   devicesLoading: false,
   // Rows-per-page for the wide EDC sheet; 0 means "show everything".
   deviceLimit: 50,
+  // Paging for the four project lists. 50 is the default; the choice is
+  // remembered per browser because a team that wants 100 should not say so daily.
+  pageSize: Number(localStorage.getItem('opm-page-size') || 50) || 50,
+  page: 1,
+  // Signature of the query the current page belongs to: any change to the scope,
+  // the filters or the search resets to page 1, while a status change or a save
+  // (same query, new data) keeps you where you were.
+  pageSig: null,
   // Bulk grid edit: null when viewing. Otherwise
   //   { ids: [deviceId], draft: { [deviceId]: { [colKey]: string } } }
   // The draft is seeded from the rows on screen and only written on Save, so an
@@ -933,6 +941,71 @@ function emptyHTML() {
   </div>`;
 }
 
+const PAGE_SIZES = [50, 100, 200, 0];
+
+/**
+ * The slice of rows the current page shows, and the bookkeeping the pager needs.
+ *
+ * Paging is applied to the ROWS, not to the projects: a page of 50 means fifty
+ * lines of work, retest rows included, which is what the operator counts when
+ * they scroll. `0` in the size picker means "all" and is kept as an explicit
+ * choice rather than a magic large number.
+ */
+function pageSlice(rows) {
+  const size = state.pageSize > 0 ? state.pageSize : rows.length || 1;
+  const pages = Math.max(1, Math.ceil(rows.length / size));
+  const page = Math.min(Math.max(1, state.page || 1), pages);
+  state.page = page;
+  const from = (page - 1) * size;
+  return { slice: rows.slice(from, from + size), page, pages, total: rows.length, from, size };
+}
+
+/**
+ * Prev / next / first / last, the page count, and the rows-per-page picker.
+ *
+ * One page of results needs no controls at all: showing "Page 1 of 1" over three
+ * rows is noise, so the bar only appears when there is something to page — but the
+ * size picker stays, because that is how someone gets back to a smaller page after
+ * choosing "All".
+ */
+function pagerHTML({ total, page, pages, from, size }) {
+  const shown = Math.min(total - from, size);
+  const range = total ? `${from + 1}–${from + shown}` : '0';
+  const nav = (target, label, disabled, title) =>
+    `<button class="btn btn-sm pager-btn" data-page="${target}" ${
+      disabled ? 'disabled' : ''
+    } aria-label="${title}" title="${title}">${label}</button>`;
+
+  return `<div class="pager">
+      <span class="pager-info">Showing <strong>${range}</strong> of <strong>${total}</strong></span>
+      <span class="spacer"></span>
+      <label class="pager-size">
+        Rows per page
+        <select id="page-size" class="select select-sm">
+          ${[...new Set([...PAGE_SIZES, state.pageSize])]
+            .sort((a, b) => (a === 0 ? 1 : b === 0 ? -1 : a - b))
+            .map(
+              (n) => `<option value="${n}" ${n === state.pageSize ? 'selected' : ''}>${
+                n === 0 ? 'All' : n
+              }</option>`
+            )
+            .join('')}
+        </select>
+      </label>
+      ${
+        pages > 1
+          ? `<div class="pager-nav">
+               ${nav(1, '« First', page === 1, 'First page')}
+               ${nav(page - 1, '‹ Prev', page === 1, 'Previous page')}
+               <span class="pager-page">Page <strong>${page}</strong> of ${pages}</span>
+               ${nav(page + 1, 'Next ›', page === pages, 'Next page')}
+               ${nav(pages, 'Last »', page === pages, 'Last page')}
+             </div>`
+          : ''
+      }
+    </div>`;
+}
+
 function resultsHTML() {
   const statusFilterForRows = state.filters.status;
   // The server filters the engagements by status; a retest row carries its OWN
@@ -943,6 +1016,7 @@ function resultsHTML() {
   );
   const retestRows = rows.filter((r) => r.kind === 'retest').length;
   const projectRows = rows.length - retestRows;
+  const paged = pageSlice(rows);
   // A status filter overrides the scope both in the payload and in the copy, so
   // the heading can never advertise "Active projects" while showing Done rows.
   const statusFilter = state.filters.status;
@@ -967,9 +1041,10 @@ function resultsHTML() {
         : rows.length === 0
         ? emptyHTML()
         : state.view === 'grid'
-        ? `<div class="project-grid">${rows.map(projectCardHTML).join('')}</div>`
-        : projectTableHTML(rows)
-    }`;
+        ? `<div class="project-grid">${paged.slice.map(projectCardHTML).join('')}</div>`
+        : projectTableHTML(paged.slice)
+    }
+    ${rows.length ? pagerHTML(paged) : ''}`;
 }
 
 /* Mounts the stable chrome (stats + filters) once, or the admin panel. */
@@ -1104,6 +1179,30 @@ function renderResults() {
   });
   document.getElementById('clear-filters')?.addEventListener('click', clearFilters);
   document.getElementById('empty-new')?.addEventListener('click', () => openProjectForm());
+
+  // Paging. The pager lives inside #results, which is re-created on every render,
+  // so its listeners are bound here with the rest of the list's controls.
+  host.querySelectorAll('[data-page]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const next = Number(btn.dataset.page);
+      if (!Number.isFinite(next) || next < 1) return;
+      // `'next'`-style targets are resolved in pagerHTML, so this is always a
+      // concrete page number — no wrapping logic needed here.
+      state.page = next;
+      renderResults();
+      // A phone user paging from the bottom of a long list should land on the top
+      // of the next page, not halfway down it.
+      document.getElementById('results')?.scrollIntoView({ block: 'start', behavior: 'smooth' });
+    });
+  });
+
+  host.querySelector('#page-size')?.addEventListener('change', (e) => {
+    const size = Number(e.target.value);
+    state.pageSize = Number.isFinite(size) && size >= 0 ? size : 50;
+    localStorage.setItem('opm-page-size', String(state.pageSize));
+    state.page = 1;
+    renderResults();
+  });
 }
 
 /**
@@ -1636,7 +1735,13 @@ async function loadProjects() {
   }
   document.getElementById('results')?.classList.add('is-refreshing');
   try {
-    const res = await api.projects(currentQuery());
+    const query = currentQuery();
+    const sig = JSON.stringify(query);
+    if (sig !== state.pageSig) {
+      state.pageSig = sig;
+      state.page = 1;
+    }
+    const res = await api.projects(query);
     state.projects = res.projects;
   } catch (err) {
     toast(err.message, 'err');

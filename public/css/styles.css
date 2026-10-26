@@ -2333,6 +2333,53 @@ svg { display: block; }
 /* A retest card is the SAME engagement seen through an open request, not another
    project: dashed edge, matching the retest chips on the team board, so the two
    lines read as a pair at a glance. */
+/* Paging bar under the project lists. Same visual weight as .result-bar above the
+   results, so the two read as the frame around the page rather than as content. */
+.pager {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 14px;
+  padding: 10px 14px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  font-size: 12.5px;
+  color: var(--muted);
+}
+.pager-info strong { color: var(--ink); font-weight: 620; }
+.pager .spacer { margin-left: auto; }
+.pager-size {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  white-space: nowrap;
+}
+.pager-size .select-sm {
+  height: 28px;
+  padding: 0 6px;
+  font-size: 12px;
+}
+.pager-nav {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.pager-page {
+  padding: 0 4px;
+  white-space: nowrap;
+}
+.pager-page strong { color: var(--ink); font-weight: 620; }
+.pager-btn { white-space: nowrap; }
+.pager-btn:disabled { opacity: 0.4; cursor: default; }
+@media (max-width: 560px) {
+  /* On a phone the four jump buttons do not fit; keep step-by-step paging. */
+  .pager { gap: 8px; }
+  .pager-nav .pager-btn:first-child,
+  .pager-nav .pager-btn:last-child { display: none; }
+  .pager .spacer { display: none; }
+}
 .pcard-retest { border-style: dashed; }
 .prow-retest .cell-name { font-weight: 500; }
 .board-chip-retest {
