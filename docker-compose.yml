@@ -1,0 +1,90 @@
+# OneProMag — PostgreSQL (default) with a working SQLite fallback.
+#
+#   docker compose up --build                 -> Postgres backend on :3131
+#   APP_PORT=8080 docker compose up --build   -> same, published on :8080
+#   DB=sqlite docker compose up --build onepromag
+#                                             -> SQLite backend, app only
+#
+# Networking note: Compose normally creates a user-defined network, but on
+# hosts whose Docker address pool is exhausted that fails with "all predefined
+# address pools have been fully subnetted". Pinning an explicit subnet on our
+# own network avoids the pool entirely and still gives us embedded DNS, so the
+# app can reach `db` by service name. Override ONEPROMAG_SUBNET if 10.77.0.0/24
+# collides with something on your network.
+
+services:
+  db:
+    image: postgres:17-alpine
+    container_name: onepromag-db
+    restart: unless-stopped
+    networks:
+      - onepromag-net
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-onepromag}
+      POSTGRES_USER: ${POSTGRES_USER:-onepromag}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-onepromag}
+      # Keep collation/encoding predictable across host locales.
+      POSTGRES_INITDB_ARGS: '--encoding=UTF8 --locale=C'
+    volumes:
+      - onepromag-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-onepromag} -d ${POSTGRES_DB:-onepromag}']
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+
+  onepromag:
+    build: .
+    image: onepromag:latest
+    container_name: onepromag
+    restart: unless-stopped
+    networks:
+      - onepromag-net
+    # No depends_on: the Postgres driver retries the connection on boot, so the
+    # app can start in parallel with the database and still succeed.
+    environment:
+      PORT: 3131
+      HOST: 0.0.0.0
+      DB: ${DB:-postgres}
+      # Used only when DB=sqlite.
+      DATA_DIR: /data
+      # Used only when DB=postgres.
+      PGHOST: db
+      PGPORT: 5432
+      PGUSER: ${POSTGRES_USER:-onepromag}
+      PGPASSWORD: ${POSTGRES_PASSWORD:-onepromag}
+      PGDATABASE: ${POSTGRES_DB:-onepromag}
+      # A container defaults to UTC, so "today" (used for the automatic
+      # start/end date stamps) would be wrong for anyone east or west of UTC.
+      # Default to the host-style Indonesian zone; override with TZ=...
+      TZ: ${TZ:-Asia/Jakarta}
+    ports:
+      - '${APP_PORT:-3131}:3131'
+    volumes:
+      # Only mounted for the SQLite fallback; harmless with Postgres.
+      - onepromag-data:/data
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "fetch('http://127.0.0.1:'+(process.env.PORT||3131)+'/').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 30s
+      timeout: 5s
+      start_period: 10s
+      retries: 3
+
+networks:
+  onepromag-net:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: ${ONEPROMAG_SUBNET:-10.77.0.0/24}
+
+volumes:
+  onepromag-pgdata:
+  onepromag-data:

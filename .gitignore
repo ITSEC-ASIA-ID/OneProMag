@@ -1,0 +1,75 @@
+# ============================================================
+# OneProMag — what must never be committed
+# ============================================================
+# The rule this file follows: anything that can hold a credential, a session,
+# a real client's data or a transcript of our own work is ignored by pattern,
+# not by habit. The app's source, schema and demo seed ARE tracked — the demo
+# passwords in server/db.js are fixtures for an empty database, not secrets.
+
+# ---- 1. Secrets and local configuration --------------------------------
+# Real credentials live in the environment, never in the tree: docker-compose
+# reads POSTGRES_PASSWORD / PGPASSWORD from .env or the shell.
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+*.jks
+secrets/
+.secrets
+
+# ---- 2. Databases, dumps and anything a "backup" command writes ---------
+# The SQLite fallback writes data/app.db (+ WAL). The Postgres data dir is a
+# named Docker volume, but a bind mount (./pgdata) would land here.
+data/
+pgdata/
+*.db
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite3
+# Dumps sit in the repo root by convention: pg_dump > onepromag-2026-10-26.sql
+/*.sql
+*.sql.gz
+*.dump
+*.backup
+backups/
+# The schema itself is source, not data — never ignore it.
+!server/schema/*.sql
+
+# ---- 3. Session material ------------------------------------------------
+# Sessions are signed cookies stored in the database, so nothing on disk holds
+# one — except the tooling below, which quotes them verbatim.
+.pi/
+.cookies
+cookies.txt
+
+# ---- 4. Client data -----------------------------------------------------
+# Uploaded/exported engagement data, if someone ever drops it beside the code.
+uploads/
+exports/
+clients-data/
+
+# ---- 5. Dependencies, build and cache -----------------------------------
+node_modules/
+npm-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.cache/
+coverage/
+dist/
+build/
+
+# ---- 6. Logs, editors, operating systems --------------------------------
+*.log
+logs/
+*.tmp
+*~
+*.swp
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+desktop.ini

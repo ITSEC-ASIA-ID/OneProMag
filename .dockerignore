@@ -1,0 +1,39 @@
+# What the Docker build does NOT need to see.
+#
+# The image is built from exactly three things — package.json (+ lock),
+# server/ and public/. Everything else is noise, and some of it is heavy:
+# sending the whole directory as build context made every `up --build`
+# upload a few hundred MB before the first instruction ran.
+node_modules
+data
+pgdata
+*.log
+.DS_Store
+
+# Secrets and local overrides are never part of an image.
+.env
+.env.*
+
+# Local databases, dumps and backups.
+*.db
+*.sqlite
+*.sqlite3
+/*.sql
+*.sql.gz
+*.dump
+*.backup
+backups
+
+# Agent transcripts and task logs: 260 MB of them, and they quote session
+# cookies and demo passwords. Also excluded from git (.gitignore).
+.pi
+
+# Docker/compose/git plumbing itself.
+Dockerfile
+docker-compose.yml
+.dockerignore
+.gitignore
+.git
+README.md
+.vscode
+.idea

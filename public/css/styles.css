@@ -1,0 +1,5492 @@
+/* ============================================================
+   OneProMag — design tokens
+   ============================================================ */
+:root {
+  --bg: #f4f6fb;
+  --bg-grad-1: #eef2fb;
+  --bg-grad-2: #f7f5ff;
+  --surface: #ffffff;
+  --surface-2: #fafbfe;
+  --surface-3: #f1f4fa;
+  --border: #e4e9f2;
+  --border-strong: #d3dbe8;
+  /* Empty track of the password meter. Every other border token sits at
+     1.1-1.9:1 against the surface, which is fine for a hairline but makes fill
+     segments look like they appear out of nowhere; 3:1 is the WCAG floor for
+     non-text UI. */
+  --meter-track: #8e94a0;
+  --ink: #0d1526;
+  --ink-2: #37445c;
+  --muted: #525f76;
+  --faint: #606e86;
+
+  --primary: #4f46e5;
+  --primary-hover: #4338ca;
+  --primary-soft: #eef0ff;
+  --primary-ring: rgba(79, 70, 229, 0.18);
+  --violet: #7c3aed;
+  --violet-soft: color-mix(in srgb, var(--violet) 13%, transparent);
+  --primary-fg: #4f46e5;
+
+  --blue: #1d4ed8;
+  --blue-soft: #e8efff;
+  --amber: #b45309;
+  /* Text colour for amber on an amber-tinted background: the tint lifts the
+     background, so the plain --amber drops to 4.39:1 and needs a darker ink. */
+  --amber-ink: #92400e;
+  --amber-soft: #fef3e2;
+  --green: #047857;
+  --green-soft: #e6f7f1;
+  --slate: #475569;
+  --slate-soft: #eef1f6;
+  --rose: #be123c;
+  --rose-soft: #ffe9ef;
+  /* Text on a rose TINT needs more depth than --rose: the tint lifts the
+     background and plain --rose drops below 4.5:1 there. */
+  --rose-ink: #9f1239;
+  --cyan: #0e7490;
+  --cyan-strong: #0a6177;
+  --cyan-soft: #e2f6fb;
+
+  --shadow-xs: 0 1px 2px rgba(13, 21, 38, 0.05);
+  --shadow-sm: 0 1px 3px rgba(13, 21, 38, 0.06), 0 1px 2px rgba(13, 21, 38, 0.04);
+  --shadow-md: 0 6px 20px -6px rgba(13, 21, 38, 0.14), 0 2px 6px rgba(13, 21, 38, 0.05);
+  --shadow-lg: 0 24px 60px -18px rgba(13, 21, 38, 0.28), 0 8px 20px -10px rgba(13, 21, 38, 0.12);
+
+  --r-sm: 8px;
+  --r-md: 12px;
+  --r-lg: 16px;
+  --r-xl: 22px;
+  --r-full: 999px;
+
+  --sidebar-w: 244px;
+  --font: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  --mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+[data-theme='dark'] {
+  --bg: #0a0e17;
+  --bg-grad-1: #0b111c;
+  --bg-grad-2: #0d1220;
+  --surface: #131c2d;
+  --surface-2: #182237;
+  --surface-3: #1f2b42;
+  --border: #2a3750;
+  --border-strong: #3a4864;
+  --meter-track: #5f6977;
+  --ink: #f1f5fb;
+  --ink-2: #c3cddf;
+  --muted: #93a2ba;
+  --faint: #8d9cb4;
+
+  --primary: #5b54e8;
+  --primary-hover: #6a63f0;
+  --primary-soft: #1d2140;
+  --primary-fg: #8f8aff;
+  --primary-ring: rgba(127, 123, 255, 0.3);
+
+  --blue: #6ea8ff;
+  --blue-soft: #14243d;
+  --amber: #f0b355;
+  --amber-ink: #f7c877;
+  --amber-soft: #2d2313;
+  --green: #4ade9f;
+  --green-soft: #102a22;
+  --slate: #a8b6cc;
+  --slate-soft: #1b2436;
+  --rose: #ff7a95;
+  --rose-soft: #33131e;
+  --rose-ink: #ffb0c1;
+  --cyan: #56d9f2;
+  --cyan-strong: #56d9f2;
+  --cyan-soft: #0e2b34;
+
+  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.35);
+  --shadow-md: 0 8px 24px -8px rgba(0, 0, 0, 0.6);
+  --shadow-lg: 0 30px 70px -20px rgba(0, 0, 0, 0.8);
+}
+
+/* ============================================================
+   base
+   ============================================================ */
+*,
+*::before,
+*::after { box-sizing: border-box; }
+
+html, body { height: 100%; }
+
+body {
+  margin: 0;
+  font-family: var(--font);
+  background: var(--bg);
+  color: var(--ink);
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+button, input, select, textarea { font: inherit; color: inherit; }
+button { cursor: pointer; }
+a { color: inherit; text-decoration: none; }
+h1, h2, h3, h4, p { margin: 0; }
+svg { display: block; }
+
+::selection { background: var(--primary-ring); }
+
+/* scrollbar */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border-radius: 99px;
+  border: 3px solid transparent;
+  background-clip: content-box;
+}
+::-webkit-scrollbar-thumb:hover { background-clip: content-box; background-color: var(--faint); }
+
+/* ============================================================
+   primitives
+   ============================================================ */
+.btn {
+  --btn-bg: var(--surface);
+  --btn-fg: var(--ink-2);
+  --btn-border: var(--border-strong);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 38px;
+  padding: 0 14px;
+  border-radius: var(--r-md);
+  border: 1px solid var(--btn-border);
+  background: var(--btn-bg);
+  color: var(--btn-fg);
+  font-weight: 550;
+  font-size: 13.5px;
+  white-space: nowrap;
+  box-shadow: var(--shadow-xs);
+  transition: background 0.15s, border-color 0.15s, transform 0.1s, box-shadow 0.15s, color 0.15s;
+}
+.btn:hover { background: var(--surface-3); }
+.btn:active { transform: translateY(1px); }
+.btn[disabled] { opacity: 0.55; cursor: not-allowed; }
+
+.btn-primary {
+  --btn-bg: linear-gradient(180deg, var(--primary), var(--primary-hover));
+  --btn-fg: #fff;
+  --btn-border: transparent;
+  box-shadow: 0 1px 2px rgba(13, 21, 38, 0.18), 0 6px 16px -8px var(--primary-ring);
+}
+.btn-primary:hover { filter: brightness(1.06); background: var(--primary-hover); }
+
+
+.btn-ghost {
+  --btn-bg: transparent;
+  --btn-border: transparent;
+  box-shadow: none;
+}
+.btn-ghost:hover { background: var(--surface-3); }
+
+.btn-danger {
+  --btn-bg: var(--rose-soft);
+  --btn-fg: var(--rose);
+  --btn-border: transparent;
+  box-shadow: none;
+}
+.btn-danger:hover { filter: brightness(0.97); background: var(--rose-soft); }
+
+.btn-sm { height: 32px; padding: 0 10px; font-size: 12.5px; border-radius: var(--r-sm); }
+.btn-icon {
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border-radius: var(--r-md);
+  --btn-bg: transparent;
+  --btn-border: transparent;
+  box-shadow: none;
+  color: var(--muted);
+}
+.btn-icon:hover { background: var(--surface-3); color: var(--ink); }
+/* A destructive icon sitting next to a benign one has to look destructive at a
+   glance, otherwise Delete reads as a second Edit. Rose only tints the glyph and
+   its hover wash — the icon stays quiet until you mean it. */
+.btn-icon-danger { color: var(--rose); }
+.btn-icon-danger:hover {
+  background: var(--rose-soft);
+  color: var(--rose);
+}
+
+.field { display: flex; flex-direction: column; gap: 6px; }
+/* `hidden` must win over the flex display above (form rows toggle this). */
+.field[hidden] { display: none; }
+.field > label,
+.field-label {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ink-2);
+  letter-spacing: 0.01em;
+}
+.field .hint { font-size: 11.5px; color: var(--faint); }
+.required { color: var(--rose); }
+
+.input, .select, .textarea {
+  width: 100%;
+  height: 38px;
+  padding: 0 12px;
+  border-radius: var(--r-md);
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 13.5px;
+  transition: border-color 0.15s, box-shadow 0.15s, background 0.15s;
+  appearance: none;
+}
+.textarea {
+  height: auto;
+  min-height: 84px;
+  padding: 10px 12px;
+  resize: vertical;
+  line-height: 1.55;
+}
+.input::placeholder, .textarea::placeholder { color: var(--faint); }
+.input:focus, .select:focus, .textarea:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3.5px var(--primary-ring);
+}
+
+.select {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%236b7a94' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  padding-right: 32px;
+  cursor: pointer;
+}
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-sm);
+}
+
+/* badges ------------------------------------------------------ */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 22px;
+  padding: 0 9px;
+  border-radius: var(--r-full);
+  font-size: 11.5px;
+  font-weight: 650;
+  letter-spacing: 0.01em;
+  background: var(--slate-soft);
+  color: var(--slate);
+  white-space: nowrap;
+}
+.badge .dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+
+.badge[data-tone='blue']   { background: var(--blue-soft);  color: var(--blue); }
+.badge[data-tone='amber']  { background: var(--amber-soft); color: var(--amber); }
+.badge[data-tone='green']  { background: var(--green-soft); color: var(--green); }
+.badge[data-tone='slate']  { background: var(--slate-soft); color: var(--slate); }
+.badge[data-tone='rose']   { background: var(--rose-soft);  color: var(--rose); }
+.badge[data-tone='cyan']   { background: var(--cyan-soft);  color: var(--cyan); }
+.badge[data-tone='violet'] { background: var(--primary-soft); color: var(--primary-fg); }
+
+.badge-outline {
+  background: transparent;
+  border: 1px solid var(--border-strong);
+  color: var(--muted);
+  font-weight: 550;
+}
+
+.pulse .dot { animation: pulse 1.8s ease-in-out infinite; }
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.25; } }
+
+/* avatar ------------------------------------------------------ */
+.avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  font-size: 11px;
+  font-weight: 700;
+  color: #fff;
+  background: linear-gradient(140deg, var(--primary), var(--violet));
+  flex: 0 0 auto;
+  letter-spacing: 0.02em;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.16);
+}
+.avatar.lg { width: 36px; height: 36px; font-size: 13px; }
+.avatar.sm { width: 24px; height: 24px; font-size: 10px; }
+.avatar-stack { display: inline-flex; }
+/* Overlap is a visual cue only: the ring must never cross the initials of the
+   avatar beneath it, so the offset stays just wide enough for the glyphs. */
+.avatar-stack .avatar { margin-left: -3px; box-shadow: 0 0 0 1.5px var(--surface); }
+.avatar-stack .avatar:hover { z-index: 2; transform: translateY(-1px); }
+.avatar-stack .avatar:first-child { margin-left: 0; }
+
+/* ============================================================
+   login
+   ============================================================ */
+.auth-wrap {
+  position: relative;
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background:
+    radial-gradient(900px 520px at 12% -10%, rgba(79, 70, 229, 0.13), transparent 60%),
+    radial-gradient(760px 480px at 92% 8%, rgba(14, 116, 144, 0.12), transparent 62%),
+    radial-gradient(700px 600px at 50% 115%, rgba(124, 58, 237, 0.14), transparent 60%),
+    linear-gradient(180deg, var(--bg-grad-1), var(--bg-grad-2));
+  overflow: hidden;
+}
+.auth-wrap::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(var(--border) 1px, transparent 1px),
+    linear-gradient(90deg, var(--border) 1px, transparent 1px);
+  background-size: 44px 44px;
+  mask-image: radial-gradient(circle at 50% 45%, #000 0%, transparent 72%);
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+.auth-card {
+  position: relative;
+  width: min(404px, 100%);
+  padding: 30px;
+  border-radius: var(--r-xl);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-lg);
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+}
+.brand-mark {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 11px;
+  background: linear-gradient(145deg, var(--primary), var(--violet));
+  color: #fff;
+  box-shadow: 0 8px 18px -8px var(--primary-ring), inset 0 1px 0 rgba(255, 255, 255, 0.28);
+  flex: 0 0 auto;
+}
+.brand-name { font-size: 15px; font-weight: 750; letter-spacing: -0.015em; line-height: 1.15; }
+.brand-sub { font-size: 11px; color: var(--faint); font-weight: 500; letter-spacing: 0.03em; text-transform: uppercase; }
+
+.auth-head { margin: 26px 0 20px; }
+.auth-head h1 { font-size: 21px; font-weight: 720; letter-spacing: -0.025em; }
+.auth-head p { margin-top: 5px; color: var(--muted); font-size: 13px; }
+
+.auth-form { display: flex; flex-direction: column; gap: 14px; }
+.pw-wrap { position: relative; }
+.pw-wrap .input { padding-right: 42px; }
+.pw-toggle {
+  position: absolute;
+  right: 4px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 32px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--faint);
+}
+.pw-toggle:hover { color: var(--ink-2); background: var(--surface-3); }
+
+.auth-error {
+  display: none;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 12px;
+  border-radius: var(--r-md);
+  background: var(--rose-soft);
+  color: var(--rose);
+  font-size: 12.5px;
+  font-weight: 550;
+}
+.auth-error.show { display: flex; }
+
+.auth-alt {
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px dashed var(--border);
+  font-size: 12.5px;
+  color: var(--muted);
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.link-btn {
+  border: 0;
+  background: none;
+  padding: 0;
+  color: var(--primary);
+  font-weight: 600;
+  font-size: 12.5px;
+}
+.link-btn:hover { text-decoration: underline; }
+
+.demo-box {
+  margin-top: 20px;
+  padding: 12px 14px;
+  border-radius: var(--r-md);
+  background: var(--surface-2);
+  border: 1px dashed var(--border-strong);
+}
+.demo-box p {
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  font-weight: 700;
+  color: var(--faint);
+  margin-bottom: 8px;
+}
+.demo-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 5px 0;
+  font-size: 12.5px;
+}
+.demo-row + .demo-row { border-top: 1px solid var(--border); }
+.demo-row code { font-family: var(--mono); font-size: 11.5px; color: var(--ink-2); }
+.demo-row .btn { height: 26px; font-size: 11.5px; padding: 0 8px; }
+
+/* ============================================================
+   app shell
+   ============================================================ */
+.app {
+  display: grid;
+  grid-template-columns: var(--sidebar-w) minmax(0, 1fr);
+  min-height: 100vh;
+}
+
+.sidebar {
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 18px 14px;
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  z-index: 30;
+}
+.sidebar .brand { padding: 4px 8px 18px; }
+
+.nav-label {
+  padding: 14px 10px 6px;
+  font-size: 10px;
+  font-weight: 750;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  height: 38px;
+  padding: 0 10px;
+  border-radius: var(--r-md);
+  border: 0;
+  width: 100%;
+  background: transparent;
+  color: var(--ink-2);
+  font-size: 13.5px;
+  font-weight: 550;
+  transition: background 0.15s, color 0.15s;
+  text-align: left;
+}
+.nav-item svg { color: var(--faint); flex: 0 0 auto; transition: color 0.15s; }
+.nav-item:hover { background: var(--surface-3); }
+.nav-item.active {
+  background: var(--primary-soft);
+  color: var(--primary-fg);
+  font-weight: 650;
+}
+.nav-item.active svg { color: var(--primary-fg); }
+.nav-item .count {
+  margin-left: auto;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--muted);
+  background: var(--surface-3);
+  border-radius: var(--r-full);
+  min-width: 21px;
+  height: 19px;
+  display: grid;
+  place-items: center;
+  padding: 0 6px;
+}
+.nav-item.active .count { background: var(--surface); color: var(--primary); }
+
+.sidebar-foot { margin-top: auto; display: flex; flex-direction: column; gap: 8px; }
+
+.user-chip {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px;
+  border-radius: var(--r-md);
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  width: 100%;
+  text-align: left;
+}
+.user-chip:hover { background: var(--surface-3); }
+.user-chip .meta { min-width: 0; flex: 1; }
+.user-chip .meta strong {
+  display: block;
+  font-size: 12.5px;
+  font-weight: 650;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.user-chip .meta span { display: block; font-size: 11px; color: var(--faint); }
+
+/* main -------------------------------------------------------- */
+.main { min-width: 0; display: flex; flex-direction: column; }
+
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 28px;
+  background: color-mix(in srgb, var(--bg) 82%, transparent);
+  backdrop-filter: blur(14px) saturate(1.4);
+  border-bottom: 1px solid var(--border);
+}
+.topbar-title { display: flex; flex-direction: column; min-width: 0; }
+.topbar-title h1 { font-size: 17px; font-weight: 720; letter-spacing: -0.022em; }
+.topbar-title p { font-size: 12px; color: var(--muted); }
+.topbar-actions { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+
+.search {
+  position: relative;
+  width: 260px;
+}
+.search svg { position: absolute; left: 11px; top: 50%; transform: translateY(-50%); color: var(--faint); }
+.search .input { padding-left: 34px; height: 36px; background: var(--surface); }
+.search kbd {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-family: var(--font);
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--faint);
+  border: 1px solid var(--border-strong);
+  border-bottom-width: 2px;
+  border-radius: 5px;
+  padding: 1px 5px;
+  background: var(--surface-2);
+}
+
+.content {
+  flex: 1;
+  padding: 24px 28px 60px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+/* mobile nav */
+.hamburger { display: none; }
+.scrim { display: none; }
+
+/* ============================================================
+   stats
+   ============================================================ */
+/* Scope marker sitting above the four summary cards. It exists because the
+   cards report company-wide numbers on a company scope and personal numbers on
+   a "My ..." scope — identical styling, different meaning. A small right-aligned
+   label explains the change without adding another competing number. */
+.stat-head {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 6px;
+}
+.stat-scope {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  color: var(--faint);
+  padding: 2px 8px;
+  border-radius: var(--r-full);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+}
+.stat-scope[data-scope='mine'] {
+  color: var(--primary-fg);
+  background: var(--primary-soft);
+  border-color: transparent;
+}
+
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(168px, 1fr));
+  gap: 14px;
+}
+.stat {
+  position: relative;
+  padding: 16px 16px 14px;
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+}
+.stat::after {
+  content: '';
+  position: absolute;
+  inset: auto 0 0 0;
+  height: 3px;
+  background: var(--accent, var(--primary));
+  opacity: 0.85;
+}
+.stat .lbl {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 11.5px;
+  font-weight: 650;
+  color: var(--muted);
+  letter-spacing: 0.01em;
+}
+.stat .lbl svg { color: var(--accent, var(--primary)); }
+.stat .val {
+  margin-top: 8px;
+  font-size: 27px;
+  font-weight: 750;
+  letter-spacing: -0.035em;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+.stat .sub { margin-top: 5px; font-size: 11.5px; color: var(--faint); }
+
+/* ============================================================
+   filters
+   ============================================================ */
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  padding: 12px;
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-sm);
+}
+.filters .search { flex: 1 1 220px; width: auto; min-width: 180px; }
+.filters .select { width: auto; min-width: 118px; height: 36px; background-color: var(--surface-2); }
+.filters .filter-advanced { display: contents; }
+.filters .filter-advanced .select { width: auto; min-width: 118px; }
+.filters .filter-toggle { display: none; }
+.show-sm { display: none; }
+
+.chips { display: flex; gap: 6px; flex-wrap: wrap; }
+.chip {
+  height: 30px;
+  padding: 0 11px;
+  border-radius: var(--r-full);
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 12.5px;
+  font-weight: 600;
+  transition: all 0.15s;
+}
+.chip:hover { border-color: var(--faint); color: var(--ink-2); }
+.chip.active {
+  background: var(--ink);
+  border-color: var(--ink);
+  color: var(--surface);
+}
+[data-theme='dark'] .chip.active { background: var(--primary); border-color: var(--primary); color: #0b0e17; }
+.chip .n { margin-left: 5px; font-variant-numeric: tabular-nums; opacity: 0.65; }
+
+.toggle-group {
+  display: inline-flex;
+  padding: 3px;
+  gap: 2px;
+  background: var(--surface-3);
+  border-radius: var(--r-md);
+  border: 1px solid var(--border);
+}
+.toggle-group button {
+  border: 0;
+  background: transparent;
+  height: 28px;
+  width: 30px;
+  display: grid;
+  place-items: center;
+  border-radius: 7px;
+  color: var(--faint);
+  transition: all 0.15s;
+}
+.toggle-group button.active {
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: var(--shadow-xs);
+}
+[data-theme='dark'] .toggle-group { background: var(--surface-2); }
+[data-theme='dark'] .toggle-group button.active { background: var(--surface-3); }
+
+.switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 12.5px;
+  font-weight: 550;
+  color: var(--ink-2);
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+}
+.switch input { position: absolute; opacity: 0; pointer-events: none; }
+.switch .track {
+  width: 34px;
+  height: 20px;
+  border-radius: var(--r-full);
+  background: var(--border-strong);
+  position: relative;
+  transition: background 0.18s;
+  flex: 0 0 auto;
+}
+.switch .track::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+  transition: transform 0.18s;
+}
+.switch input:checked + .track { background: var(--primary); }
+.switch input:checked + .track::after { transform: translateX(14px); }
+.switch input:focus-visible + .track { box-shadow: 0 0 0 3px var(--primary-ring); }
+
+/* ============================================================
+   project grid + cards
+   ============================================================ */
+.result-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  font-size: 12.5px;
+  color: var(--muted);
+}
+.result-bar strong { color: var(--ink); font-weight: 650; }
+
+.project-grid {
+  display: grid;
+  /* minmax(0, …) not 1fr: `1fr` means `minmax(auto, 1fr)`, so a single long
+     nowrap child (the "Client - App" line) would floor the track at its
+     min-content width and push the whole grid past the viewport. */
+  grid-template-columns: repeat(auto-fill, minmax(min(320px, 100%), 1fr));
+  gap: 14px;
+}
+
+.pcard {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-sm);
+  cursor: pointer;
+  transition: transform 0.16s, box-shadow 0.16s, border-color 0.16s;
+  text-align: left;
+  width: 100%;
+}
+.pcard:focus-visible {
+  outline: none;
+  border-color: var(--primary-fg);
+  box-shadow: 0 0 0 3px var(--primary-ring);
+}
+.pcard:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+  border-color: var(--border-strong);
+}
+.pcard::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 14px;
+  bottom: 14px;
+  width: 3px;
+  border-radius: 0 3px 3px 0;
+  background: var(--cat-color, var(--primary));
+  opacity: 0.9;
+}
+
+.pcard-top { display: flex; align-items: flex-start; gap: 10px; }
+.cat-icon {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  background: var(--cat-soft, var(--primary-soft));
+  color: var(--cat-color, var(--primary));
+}
+.pcard-title { flex: 1; min-width: 0; }
+.pcard-title h3 {
+  font-size: 14.5px;
+  font-weight: 680;
+  letter-spacing: -0.012em;
+  line-height: 1.35;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.pcard-title .meta { margin-top: 3px; font-size: 11.5px; color: var(--faint); display: flex; gap: 6px; align-items: center; }
+.pcard-title .meta.client-line { color: var(--muted); font-weight: 520; }
+.pcard-title .meta.client-line svg { flex: 0 0 auto; opacity: 0.75; }
+.pcard-title .meta.client-line span { min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.pcard-badges { display: flex; flex-wrap: wrap; gap: 6px; }
+.pcard-foot {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+  margin-top: auto;
+}
+.pcard-foot .foot-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11.5px;
+  color: var(--muted);
+  font-weight: 550;
+}
+.pcard-foot .foot-item svg { color: var(--faint); }
+.pcard-foot .foot-item.has-open {
+  color: var(--cyan-strong, var(--cyan));
+  background: var(--cyan-soft);
+  padding: 0 8px;
+  height: 20px;
+  border-radius: var(--r-full);
+  font-weight: 600;
+}
+.pcard-foot .foot-item.has-open svg { color: currentColor; opacity: 0.8; }
+.pcard-foot .spacer { margin-left: auto; }
+
+/* table view */
+.ptable-wrap {
+  border-radius: var(--r-lg);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+}
+.ptable { width: 100%; border-collapse: collapse; table-layout: auto; }
+/* Auto table layout shares the spare width out across EVERY column, which left
+   the project name narrower than Category even though Category only holds two
+   short badges. A percentage width on the first column does not fix that either
+   — a percentage is a floor, so the name cell grows to fit its content and
+   stops, while the surplus keeps being sprinkled over the badges.
+   Width:100% makes every other column a shrink-to-fit cell, so the project name
+   absorbs all of the remaining space as long as it is the only column with an
+   auto width. Hence: name auto, everything else sized down to its content. */
+.ptable thead th:first-child { width: auto; min-width: 240px; }
+.ptable thead th:not(:first-child) { width: 1%; white-space: nowrap; }
+.ptable-wrap { overflow-x: auto; }
+.ptable thead th {
+  text-align: left;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--faint);
+  padding: 11px 16px;
+  background: var(--surface-2);
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+.ptable tbody tr { cursor: pointer; transition: background 0.12s; }
+.ptable tbody tr:hover { background: var(--surface-2); }
+.ptable tbody td {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+  vertical-align: middle;
+}
+.ptable tbody tr:last-child td { border-bottom: 0; }
+.ptable .cell-name {
+  font-weight: 620;
+  letter-spacing: -0.008em;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+  min-width: 220px;
+}
+/* The PM column is a single avatar and the team column an avatar stack, so both
+   need a floor of their own — without it the auto layout starves them and the
+   avatars end up touching the neighbouring cell. */
+.ptable .cell-pm { min-width: 64px; }
+.ptable .cell-team { min-width: 96px; }
+/* Between 1000 and 1340 the eight columns no longer fit at 16px gutters; the
+   row is allowed to breathe by tightening the padding rather than by scrolling
+   the table sideways on a laptop. */
+@media (max-width: 1340px) {
+  .ptable thead th { padding: 10px 11px; }
+  .ptable tbody td { padding: 11px 11px; }
+}
+/* Below ~1240 the project column gives up the spare width it hoards on a wide
+   screen, which is what keeps the remaining seven columns from needing a
+   sideways scroll on a 1180-wide laptop. */
+@media (max-width: 1240px) {
+  .ptable thead th:first-child { min-width: 200px; }
+  .ptable .cell-name { min-width: 0; }
+  .ptable thead th { padding: 10px 9px; }
+  .ptable tbody td { padding: 11px 9px; }
+}
+.ptable .dash { color: var(--faint); }
+.ptable .cell-name .sub {
+  font-size: 11.5px;
+  color: var(--faint);
+  font-weight: 450;
+  margin-top: 2px;
+  /* Wrapping rather than overflowing: an unwrapped "Bank Nusantara - Qitta"
+     sub-line would otherwise set a min-content width the name column can never
+     go below, which is what kept the name narrow on a laptop. */
+  overflow-wrap: anywhere;
+}
+.ptable .cell-actions { text-align: right; width: 1%; white-space: nowrap; }
+
+/* empty state */
+.empty {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 64px 24px;
+  text-align: center;
+  border-radius: var(--r-lg);
+  border: 1px dashed var(--border-strong);
+  background: var(--surface-2);
+}
+.empty .icon {
+  width: 52px;
+  height: 52px;
+  border-radius: 15px;
+  display: grid;
+  place-items: center;
+  background: var(--primary-soft);
+  color: var(--primary);
+}
+.empty h3 { font-size: 14.5px; font-weight: 680; }
+.empty p { font-size: 12.5px; color: var(--muted); max-width: 340px; }
+
+/* skeleton */
+.skeleton { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-lg); height: 152px; overflow: hidden; position: relative; }
+.skeleton::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, var(--surface-3), transparent);
+  transform: translateX(-100%);
+  animation: shimmer 1.4s infinite;
+}
+@keyframes shimmer { to { transform: translateX(100%); } }
+
+/* ============================================================
+   drawer (project detail)
+   ============================================================ */
+.drawer-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(9, 14, 26, 0.42);
+  backdrop-filter: blur(2px);
+  z-index: 60;
+  opacity: 0;
+  animation: fadeIn 0.18s forwards;
+}
+@keyframes fadeIn { to { opacity: 1; } }
+
+.drawer {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: min(620px, 100%);
+  background: var(--surface);
+  border-left: 1px solid var(--border);
+  box-shadow: var(--shadow-lg);
+  z-index: 61;
+  display: flex;
+  flex-direction: column;
+  transform: translateX(24px);
+  opacity: 0;
+  animation: slideIn 0.22s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+@keyframes slideIn { to { transform: translateX(0); opacity: 1; } }
+
+.drawer-client {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: 10px;
+  font-size: 12.5px;
+  font-weight: 550;
+  color: var(--ink-2);
+}
+.drawer-client svg { color: var(--faint); flex: 0 0 auto; }
+.drawer-client .sep { color: var(--border-strong); margin: 0 2px; font-weight: 400; }
+
+.drawer-head {
+  padding: 18px 22px 0;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+.drawer-head .row { display: flex; align-items: flex-start; gap: 12px; }
+.drawer-head h2 {
+  font-size: 17px;
+  font-weight: 720;
+  letter-spacing: -0.02em;
+  line-height: 1.3;
+  flex: 1;
+  min-width: 0;
+}
+.drawer-head .meta { margin-top: 6px; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.drawer-head .actions { display: flex; gap: 6px; }
+
+.tabs {
+  display: flex;
+  gap: 2px;
+  margin-top: 16px;
+}
+.tab {
+  position: relative;
+  padding: 9px 12px 11px;
+  border: 0;
+  background: none;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  transition: color 0.15s, border-color 0.15s;
+}
+.tab:hover { color: var(--ink); }
+.tab.active { color: var(--primary); border-bottom-color: var(--primary); }
+.tab .n {
+  margin-left: 6px;
+  font-size: 10.5px;
+  font-weight: 700;
+  background: var(--surface-3);
+  color: var(--muted);
+  border-radius: var(--r-full);
+  padding: 1px 6px;
+}
+.tab.active .n { background: var(--primary-soft); color: var(--primary-fg); }
+
+.drawer-body { flex: 1; overflow-y: auto; overscroll-behavior: contain; padding: 20px 22px 40px; }
+.drawer-foot {
+  padding: 12px 22px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  background: var(--surface-2);
+}
+.drawer-foot .spacer { margin-left: auto; }
+
+/* info grid in overview */
+.info-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+.info-item .k {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--faint);
+  margin-bottom: 5px;
+}
+.info-item .v { font-size: 13px; font-weight: 550; color: var(--ink-2); }
+/* Client names are longer than the other values; giving it a full row keeps the
+   2-column grid balanced (otherwise 7 items leaves one orphan cell) */
+.info-item.span-2 { grid-column: 1 / -1; }
+.notes-block {
+  margin-top: 16px;
+  padding: 13px 15px;
+  border-radius: var(--r-md);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  font-size: 12.8px;
+  color: var(--ink-2);
+  white-space: pre-wrap;
+  line-height: 1.6;
+}
+
+.section-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+.section-head h3 { font-size: 13px; font-weight: 700; letter-spacing: -0.01em; }
+.section-head .spacer { margin-left: auto; }
+
+/* retest timeline */
+.retest-list { display: flex; flex-direction: column; gap: 12px; }
+.retest {
+  position: relative;
+  padding: 14px 15px 14px 17px;
+  border-radius: var(--r-md);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-xs);
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.retest::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  border-radius: 3px 0 0 3px;
+  background: var(--st-color, var(--slate));
+}
+.retest:hover { border-color: var(--border-strong); box-shadow: var(--shadow-sm); }
+.retest-top { display: flex; align-items: flex-start; gap: 8px; }
+.retest-top .title { flex: 1; min-width: 0; }
+.retest-top .title h4 { font-size: 13.5px; font-weight: 650; line-height: 1.35; letter-spacing: -0.008em; }
+.retest-top .title .code {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  color: var(--faint);
+  margin-top: 2px;
+  letter-spacing: 0.01em;
+}
+.retest-body {
+  margin-top: 9px;
+  font-size: 12.3px;
+  color: var(--muted);
+  white-space: pre-wrap;
+  line-height: 1.55;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.retest-foot {
+  margin-top: 10px;
+  padding-top: 9px;
+  border-top: 1px dashed var(--border);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  font-size: 11.5px;
+  color: var(--faint);
+}
+.retest-foot .spacer { margin-left: auto; }
+.retest-foot .who { display: inline-flex; align-items: center; gap: 5px; }
+
+/* ============================================================
+   modal
+   ============================================================ */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(9, 14, 26, 0.45);
+  backdrop-filter: blur(2px);
+  z-index: 80;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  opacity: 0;
+  animation: fadeIn 0.16s forwards;
+  overflow-y: auto;
+}
+.modal {
+  width: min(560px, 100%);
+  max-height: calc(100vh - 40px);
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+  border-radius: var(--r-xl);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-lg);
+  transform: scale(0.97) translateY(6px);
+  opacity: 0;
+  animation: popIn 0.2s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+.modal.wide { width: min(680px, 100%); }
+/* A dialog whose body is a table needs table width. At 680px the import preview
+   broke "rina.kusuma" and an e-mail address across two lines each, which is exactly
+   the content the preview exists to make readable. */
+.modal.xwide { width: min(940px, 100%); }
+@keyframes popIn { to { transform: scale(1) translateY(0); opacity: 1; } }
+
+.modal-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 18px 20px 14px;
+  border-bottom: 1px solid var(--border);
+}
+.modal-head h2 { font-size: 15.5px; font-weight: 720; letter-spacing: -0.02em; flex: 1; }
+.modal-head p { font-size: 12px; color: var(--muted); margin-top: 2px; }
+.modal-body {
+  padding: 18px 20px 26px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  /* Room under the last field so content never looks sliced off by the footer. */
+  scroll-padding-bottom: 26px;
+}
+.modal-foot {
+  position: relative;
+  padding: 13px 20px;
+  border-top: 1px solid var(--border);
+  background: var(--surface-2);
+  display: flex;
+  gap: 8px;
+  border-radius: 0 0 var(--r-xl) var(--r-xl);
+}
+/* A form with many fields is taller than the dialog and scrolls. This soft
+   gradient lifts off the action bar so the cut is obviously "more below"
+   rather than looking like clipped content. */
+.modal-foot::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 100%;
+  height: 22px;
+  background: linear-gradient(to top, var(--surface-2), transparent);
+  pointer-events: none;
+}
+.modal-foot .spacer { margin-left: auto; }
+
+.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.form-row.three { grid-template-columns: 1fr; }
+
+/* multi-select pentesters */
+.picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  padding: 9px;
+  border-radius: var(--r-md);
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
+  min-height: 44px;
+}
+.pick {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 30px;
+  padding: 0 10px 0 4px;
+  border-radius: var(--r-full);
+  border: 1px solid var(--border-strong);
+  background: var(--surface-2);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+  transition: all 0.13s;
+}
+.pick:hover { border-color: var(--faint); }
+.pick.on {
+  background: var(--primary-soft);
+  border-color: transparent;
+  color: var(--primary-fg);
+  box-shadow: inset 0 0 0 1px var(--primary-ring);
+}
+.pick .avatar { width: 22px; height: 22px; font-size: 9px; }
+
+/* segmented control (status / method) */
+.segmented {
+  display: flex;
+  gap: 3px;
+  padding: 3px;
+  background: var(--surface-3);
+  border-radius: var(--r-md);
+  border: 1px solid var(--border);
+  flex-wrap: wrap;
+}
+[data-theme='dark'] .segmented { background: var(--surface-2); }
+.segmented button {
+  flex: 1 1 0;
+  min-width: 66px;
+  height: 30px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+  transition: all 0.14s;
+  white-space: nowrap;
+  padding: 0 6px;
+}
+.segmented button:hover { color: var(--ink); }
+.segmented button.on {
+  background: var(--primary-soft);
+  color: var(--primary-fg);
+  box-shadow: inset 0 0 0 1px var(--primary-ring);
+}
+[data-theme='dark'] .segmented button.on { background: var(--primary-soft); }
+
+/* ============================================================
+   toast
+   ============================================================ */
+.toast-host {
+  position: fixed;
+  bottom: 22px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 200;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: center;
+  pointer-events: none;
+}
+.toast {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 10px 16px;
+  border-radius: var(--r-full);
+  background: var(--ink);
+  color: var(--bg);
+  font-size: 12.8px;
+  font-weight: 550;
+  box-shadow: var(--shadow-lg);
+  animation: toastIn 0.24s cubic-bezier(0.22, 1, 0.36, 1);
+  pointer-events: auto;
+  max-width: min(92vw, 440px);
+}
+[data-theme='dark'] .toast { background: var(--surface-3); color: var(--ink); border: 1px solid var(--border-strong); }
+.toast.err { background: var(--rose); color: #fff; }
+.toast.out { animation: toastOut 0.2s forwards; }
+@keyframes toastIn { from { opacity: 0; transform: translateY(10px) scale(0.96); } }
+@keyframes toastOut { to { opacity: 0; transform: translateY(6px) scale(0.97); } }
+
+/* ============================================================
+   misc
+   ============================================================ */
+.sr-only {
+  position: absolute;
+  width: 1px; height: 1px;
+  padding: 0; margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.danger-zone {
+  margin-top: 8px;
+  padding: 13px 15px;
+  border-radius: var(--r-md);
+  border: 1px solid var(--rose-soft);
+  background: var(--rose-soft);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.danger-zone .txt { flex: 1; }
+.danger-zone strong { display: block; font-size: 12.5px; color: var(--rose); font-weight: 650; }
+.danger-zone span { font-size: 11.5px; color: var(--muted); }
+
+
+/* ============================================================
+   pentester hierarchy + platform badges
+   ============================================================ */
+.badge.subrole {
+  height: 18px;
+  padding: 0 7px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+.badge.platform-badge { gap: 4px; }
+.badge.platform-badge svg { flex: 0 0 auto; }
+
+.prow {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 30px;
+  padding: 0 10px 0 4px;
+  border-radius: var(--r-full);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  font-size: 12px;
+  font-weight: 600;
+}
+.prow-name { color: var(--ink-2); }
+
+/* hierarchy groups in the drawer */
+.team-groups { display: flex; flex-direction: column; gap: 12px; }
+.team-group { display: flex; flex-direction: column; gap: 7px; }
+.tg-label { display: flex; align-items: center; gap: 7px; }
+.tg-label > span:last-child {
+  font-size: 11px; font-weight: 650; color: var(--faint);
+  background: var(--surface-3); border-radius: var(--r-full); padding: 0 6px; height: 17px; display: inline-flex; align-items: center;
+}
+.tg-people { display: flex; flex-wrap: wrap; gap: 7px; }
+
+/* role card in the account menu */
+.role-line { display: flex; align-items: center; gap: 8px; margin-bottom: 14px; }
+.hierarchy { display: flex; flex-direction: column; gap: 6px; }
+.hier-row {
+  display: grid;
+  grid-template-columns: 14px 74px 1fr;
+  align-items: center;
+  gap: 9px;
+  padding: 9px 11px;
+  border-radius: var(--r-md);
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  font-size: 12px;
+}
+.hier-row strong { font-size: 12px; font-weight: 650; color: var(--ink-2); }
+.hier-row span:last-child { font-size: 11.5px; color: var(--faint); }
+.hier-dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: var(--border-strong); justify-self: center;
+}
+.hier-row.on {
+  border-color: transparent;
+  background: var(--primary-soft);
+  box-shadow: inset 0 0 0 1px var(--primary-ring);
+}
+.hier-row.on .hier-dot { background: var(--primary); box-shadow: 0 0 0 3px var(--primary-ring); }
+.hier-row.on strong { color: var(--primary-fg); }
+.hier-row.on span:last-child { color: var(--primary-fg); opacity: 0.85; }
+
+/* pentester search inside the project form */
+.psearch { position: relative; margin-bottom: 8px; }
+.psearch svg {
+  position: absolute; left: 11px; top: 50%; transform: translateY(-50%);
+  color: var(--faint); pointer-events: none;
+}
+.psearch .input { padding-left: 33px; height: 36px; }
+.pick .pick-name { max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.picker-empty {
+  display: flex; align-items: center; gap: 7px;
+  padding: 12px 4px; font-size: 12px; color: var(--faint);
+}
+.picker-empty[hidden] { display: none; }
+.pick[hidden] { display: none; }
+
+/* callout — used for the retest-queue explanation */
+.nowrap { white-space: nowrap; }
+/* A hint that sits directly under a .form-row, aligned with the two fields. */
+.form-hint { display: block; margin-top: -6px; }
+
+.callout {
+  display: flex;
+  gap: 11px;
+  padding: 12px 14px;
+  border-radius: var(--r-md);
+  background: var(--blue-soft);
+  border: 1px solid transparent;
+  margin-bottom: 16px;
+}
+.callout.queue { background: var(--cyan-soft); }
+.callout svg { flex: 0 0 auto; color: var(--blue); margin-top: 1px; }
+.callout.queue svg { color: var(--cyan-strong); }
+.callout strong { display: block; font-size: 12.5px; font-weight: 650; color: var(--ink-2); margin-bottom: 2px; }
+.callout span { font-size: 11.8px; color: var(--muted); line-height: 1.45; display: block; }
+
+/* ============================================================
+   admin panel — clients & applications
+   ============================================================ */
+.admin-head {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+/* The page is already named in the topbar, so this is supporting copy only. */
+.admin-head p { font-size: 12.5px; color: var(--muted); margin: 0; flex: 1 1 220px; }
+.admin-head .btn { margin-left: auto; flex: 0 0 auto; }
+
+.client-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+  gap: 14px;
+}
+.client-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  padding: 15px 16px 14px;
+  box-shadow: var(--shadow-sm);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.client-card-head { display: flex; align-items: center; gap: 11px; }
+.cc-avatar {
+  width: 38px; height: 38px; flex: 0 0 auto;
+  border-radius: 11px;
+  display: grid; place-items: center;
+  background: linear-gradient(135deg, var(--primary), var(--violet));
+  color: #fff; font-size: 12.5px; font-weight: 700; letter-spacing: 0.02em;
+}
+.cc-title { min-width: 0; flex: 1; }
+.cc-title h3 { font-size: 14px; font-weight: 650; letter-spacing: -0.012em; }
+.cc-meta {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  font-size: 11.5px; color: var(--faint); margin-top: 3px;
+}
+.cc-meta .tag {
+  background: var(--surface-3); color: var(--ink-2);
+  border-radius: var(--r-full); padding: 0 7px; height: 18px;
+  display: inline-flex; align-items: center;
+  font-family: var(--mono); font-size: 10.5px; font-weight: 600;
+}
+.cc-actions { display: flex; gap: 4px; flex: 0 0 auto; }
+.cc-actions .btn-icon { width: 30px; height: 30px; }
+.cc-actions .danger:hover { color: var(--rose); border-color: var(--rose); background: var(--rose-soft); }
+
+.app-list { display: flex; flex-direction: column; gap: 4px; }
+.app-row {
+  display: flex; align-items: center; gap: 8px;
+  padding: 7px 8px;
+  border-radius: var(--r-sm);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  font-size: 12.5px;
+}
+.app-glyph { display: inline-flex; color: var(--faint); flex: 0 0 auto; }
+.app-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink-2); font-weight: 550; }
+.app-count { font-size: 11px; color: var(--faint); flex: 0 0 auto; }
+.app-act {
+  width: 22px; height: 22px; border: 0; background: transparent;
+  color: var(--faint); border-radius: 5px; display: grid; place-items: center;
+  opacity: 0; transition: all 0.12s; flex: 0 0 auto;
+}
+.app-row:hover .app-act { opacity: 1; }
+.app-row:focus-within .app-act { opacity: 1; }
+/* Touch devices have no hover, so the row actions must always be visible or
+   they would be unreachable on phones and tablets. */
+@media (hover: none), (pointer: coarse) {
+  .app-act { opacity: 1; }
+}
+.app-act:hover { background: var(--surface-3); color: var(--ink-2); }
+.app-act.danger:hover { background: var(--rose-soft); color: var(--rose); }
+.app-empty {
+  padding: 12px 10px; font-size: 12px; color: var(--faint);
+  border: 1px dashed var(--border-strong); border-radius: var(--r-sm);
+  text-align: center;
+}
+.app-add { align-self: flex-start; }
+
+.loading-line {
+  height: 2px;
+  border-radius: 2px;
+  background: linear-gradient(90deg, transparent, var(--primary), transparent);
+  background-size: 40% 100%;
+  background-repeat: no-repeat;
+  animation: loadSlide 1s linear infinite;
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  z-index: 300;
+}
+@keyframes loadSlide { from { background-position: -40% 0; } to { background-position: 140% 0; } }
+
+/* ============================================================
+   responsive
+   ============================================================ */
+@media (max-width: 1000px) {
+  .app { grid-template-columns: 1fr; }
+  .sidebar {
+    position: fixed;
+    left: 0; top: 0; bottom: 0;
+    width: 264px;
+    transform: translateX(-100%);
+    transition: transform 0.22s cubic-bezier(0.22, 1, 0.36, 1);
+    box-shadow: var(--shadow-lg);
+  }
+  .app.nav-open .sidebar { transform: translateX(0); }
+  .app.nav-open .scrim {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgba(9, 14, 26, 0.4);
+    z-index: 29;
+  }
+  .hamburger { display: inline-flex; }
+  .topbar { padding: 12px 16px; }
+  .hide-md { display: none !important; }
+  .content { padding: 18px 16px 48px; }
+  .search { width: 100%; }
+  .topbar .search { display: none; }
+}
+
+@media (max-width: 620px) {
+  .project-grid { grid-template-columns: minmax(0, 1fr); }
+  .stat-grid { grid-template-columns: repeat(4, 1fr); gap: 8px; }
+  .stat { padding: 10px 9px 9px; border-radius: var(--r-md); }
+  .stat::after { height: 2px; }
+  .stat .lbl { font-size: 10px; gap: 4px; letter-spacing: 0; }
+  .stat .lbl svg { width: 13px; height: 13px; }
+  .stat .val { font-size: 19px; margin-top: 4px; }
+  .stat .sub { display: none; }
+  .form-row, .form-row.three { grid-template-columns: 1fr; }
+  .client-grid { grid-template-columns: 1fr; }
+  .admin-head h2 { font-size: 16px; }
+  .client-card { padding: 13px 13px 12px; }
+  .cc-avatar { width: 34px; height: 34px; border-radius: 10px; font-size: 11.5px; }
+  .pcards-col .hier-row { grid-template-columns: 14px 66px 1fr; }
+  .hier-row span:last-child { display: none; }
+  .drawer { width: 100%; border-radius: 0; }
+  .auth-card { padding: 22px; }
+  .filters .select { flex: 1 1 44%; min-width: 0; }
+  /* mobile: advanced filters collapse behind a toggle so the list stays visible */
+  .filters .filter-advanced { display: none; }
+  .filters.open .filter-advanced {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    width: 100%;
+  }
+  .filters.open .filter-advanced .select { flex: 1 1 44%; min-width: 0; }
+  .filters.open .filter-advanced .switch { flex: 1 1 100%; }
+  .filters .filter-toggle { display: inline-flex; }
+  .filters .toggle-group { margin-left: auto !important; }
+  .hide-sm { display: none !important; }
+  /* keep every column reachable on a phone, scroll the table itself */
+  .ptable { min-width: 760px; }
+  .ptable thead th, .ptable tbody td { padding: 10px 12px; }
+  .show-sm { display: inline !important; }
+  .topbar-title p { display: none; }
+  .drawer-foot { padding: 10px 16px; }
+  .drawer-foot .btn { flex: 1; justify-content: center; }
+  .drawer-foot .spacer { display: none; }
+  .drawer-body { padding: 16px 16px 32px; }
+  /* keep 2 metadata columns on phones; 6 rows in one column made the drawer very tall */
+  .info-grid { gap: 12px 10px; }
+  .info-item .k { font-size: 9.5px; letter-spacing: 0.05em; }
+  .info-item .v { font-size: 12.5px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    transition-duration: 0.001ms !important;
+  }
+}
+
+/* ============================================================
+   searchable combobox (client / application pickers)
+   ============================================================ */
+.combo { position: relative; }
+
+.combo-toggle {
+  width: 100%;
+  height: 38px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 10px 0 12px;
+  border-radius: var(--r-md);
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 13px;
+  font-family: inherit;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.14s, box-shadow 0.14s;
+}
+.combo-toggle:hover { border-color: var(--muted); }
+.combo-toggle:focus-visible {
+  outline: none;
+  border-color: var(--primary-fg);
+  box-shadow: 0 0 0 3px var(--primary-ring);
+}
+.combo-toggle svg { margin-left: auto; color: var(--faint); flex: 0 0 auto; }
+.combo-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.combo-label.is-placeholder { color: var(--faint); font-weight: 450; }
+
+.combo-panel {
+  position: absolute;
+  z-index: 40;
+  top: calc(100% + 5px);
+  left: 0;
+  right: 0;
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-md);
+  box-shadow: var(--shadow-md);
+  overflow: hidden;
+}
+.combo-panel[hidden] { display: none; }
+
+.combo-search { position: relative; padding: 8px; border-bottom: 1px solid var(--border); }
+.combo-search svg {
+  position: absolute; left: 19px; top: 50%; transform: translateY(-50%);
+  color: var(--faint); pointer-events: none;
+}
+.combo-search .input { padding-left: 32px; height: 34px; }
+
+.combo-list { max-height: 218px; overflow-y: auto; padding: 5px; overscroll-behavior: contain; }
+.combo-item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 9px;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--ink-2);
+  font-family: inherit;
+  font-size: 12.8px;
+  font-weight: 520;
+  text-align: left;
+  cursor: pointer;
+}
+.combo-item:hover { background: var(--surface-3); color: var(--ink); }
+.combo-item.on { background: var(--primary-soft); color: var(--primary-fg); }
+.combo-item-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.combo-item-sub { font-size: 11px; color: var(--faint); flex: 0 0 auto; }
+.combo-check { display: inline-flex; color: currentColor; flex: 0 0 auto; }
+.combo-empty {
+  display: flex; align-items: center; gap: 7px;
+  padding: 13px 12px; font-size: 12px; color: var(--faint);
+}
+.combo-empty[hidden] { display: none; }
+
+/* ============================================================
+   quick status — one-click status change from a list row or card
+   ============================================================ */
+.quick-status { position: relative; display: inline-flex; }
+/* The card holding an open menu must outrank its neighbours in the grid. */
+.pcard.menu-open { z-index: 30; }
+
+.quick-status-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  border-radius: var(--r-full);
+  cursor: pointer;
+  color: var(--faint);
+  font-family: inherit;
+}
+.quick-status-toggle:hover { color: var(--ink-2); }
+.quick-status-toggle:hover .badge { filter: brightness(0.97); }
+.quick-status-toggle:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--primary-ring);
+  border-radius: var(--r-full);
+}
+.quick-status-toggle > svg { flex: 0 0 auto; }
+.quick-status-toggle .badge { pointer-events: none; }
+
+.quick-status-menu {
+  /* Fixed, not absolute: the menu is opened from inside .ptable-wrap (which has
+     overflow-x:auto) and from inside cards, and an absolutely positioned child
+     of a scroll container is clipped by it. In table view that made every item
+     unclickable. Fixed positioning escapes every clipping ancestor; app.js
+     computes the coordinates from the toggle's rect. */
+  position: fixed;
+  z-index: 200;
+  top: 0;
+  left: 0;
+  min-width: 152px;
+  padding: 5px;
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-md);
+  /* Lift the menu well clear of the cards underneath: a popover that only
+     shadows a little reads as "covering" the content rather than floating. */
+  box-shadow: var(--shadow-lg), 0 0 0 1px var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  animation: quick-status-in 0.12s ease-out;
+}
+@keyframes quick-status-in {
+  from { opacity: 0; transform: translateY(-4px) scale(0.98); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes quick-status-in-up {
+  from { opacity: 0; transform: translateY(4px) scale(0.98); }
+  to { opacity: 1; transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .quick-status-menu { animation: none; }
+}
+.quick-status-menu[hidden] { display: none; }
+/* Placement is written as inline top/left by app.js so the menu can escape
+   scroll containers. The modifier classes only drive the entrance animation. */
+.quick-status-menu.up { animation-name: quick-status-in-up; }
+
+.quick-status-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 5px 6px;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: transparent;
+  cursor: pointer;
+  font-family: inherit;
+  text-align: left;
+}
+.quick-status-item:hover { background: var(--surface-3); }
+.quick-status-item.on { background: var(--primary-soft); }
+.quick-status-item .badge { pointer-events: none; }
+.qs-check { margin-left: auto; display: inline-flex; color: var(--primary-fg); }
+
+/* ============================================================
+   Pentester hierarchy tree (admin panel)
+   ============================================================ */
+.tree { display: flex; flex-direction: column; gap: 14px; }
+
+.tree-lead {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+}
+
+.tree-head,
+.ts-head {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 13px 14px;
+}
+.tree-head { border-bottom: 1px solid var(--border); background: var(--surface-2); }
+.ts-head { padding: 10px 14px; }
+
+.th-avatar {
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: var(--primary-soft);
+  color: var(--primary-fg);
+  font-size: 12.5px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+.th-avatar.sm { width: 27px; height: 27px; font-size: 11px; }
+
+.th-title { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.th-title strong {
+  font-size: 14px;
+  font-weight: 640;
+  color: var(--ink);
+  letter-spacing: -0.01em;
+}
+.th-title > span { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
+.th-title em {
+  font-style: normal;
+  font-size: 11.5px;
+  color: var(--faint);
+  font-variant-numeric: tabular-nums;
+}
+
+.th-actions { display: flex; align-items: center; gap: 5px; flex: 0 0 auto; }
+/* The tree's action buttons belong at the far right, like every other row action in
+   the app. Every one of these rows carries a `<span class="spacer">` for exactly that
+   purpose, but `.spacer` only grows where a rule says so and these three headers had
+   none — so "Sub lead / edit / delete" crowded the name and left the row's right half
+   empty. */
+.tree-head .spacer,
+.ts-head .spacer,
+.member-row .spacer { margin-left: auto; }
+
+/* Contact details belong on the person's row, not only inside the edit dialog: a field
+   nobody can see from the list reads as a field that does not exist. A row has one line
+   to spend, so a long address ends in an ellipsis and the full pair moves to `title`. */
+.th-contact {
+  margin-top: 1px;
+  font-size: 11.5px;
+  color: var(--muted);
+  min-width: 0;
+}
+.th-contact .contact-line,
+.mr-contact .contact-line { flex-wrap: nowrap; min-width: 0; }
+.th-contact .contact-item,
+.mr-contact .contact-item { min-width: 0; }
+.th-contact .ci-text,
+.mr-contact .ci-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 34ch;
+}
+.member-row .mr-contact {
+  display: inline-flex;
+  min-width: 0;
+  font-size: 11.5px;
+  color: var(--muted);
+}
+/* Below this the row is already tight (name + level + project count + two buttons),
+   and the contact line is the newest and least load-bearing thing on it. */
+@media (max-width: 1100px) {
+  .member-row .mr-contact { display: none; }
+}
+
+.tree-body { display: flex; flex-direction: column; }
+.tree-sub + .tree-sub { border-top: 1px solid var(--border); }
+.tree-empty {
+  padding: 15px 14px;
+  font-size: 12.5px;
+  color: var(--faint);
+}
+
+.tree-rail {
+  flex: 0 0 auto;
+  width: 14px;
+  height: 1px;
+  background: var(--border-strong);
+  position: relative;
+}
+.tree-rail::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: -9px;
+  width: 1px;
+  height: 19px;
+  background: var(--border-strong);
+}
+
+.ts-members {
+  display: flex;
+  flex-direction: column;
+  padding: 0 14px 10px 27px;
+}
+.member-row {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 7px 8px;
+  border-radius: var(--r-sm);
+  font-size: 13px;
+}
+.member-row:hover { background: var(--surface-2); }
+.member-row strong { font-weight: 580; color: var(--ink-2); }
+.member-row .mr-meta {
+  font-size: 11.5px;
+  color: var(--faint);
+  font-variant-numeric: tabular-nums;
+}
+.member-row .btn-icon { width: 27px; height: 27px; }
+.empty-row {
+  padding: 4px 14px 12px 41px;
+  font-size: 12.5px;
+  color: var(--faint);
+}
+
+@media (max-width: 620px) {
+  .tree-head, .ts-head { flex-wrap: wrap; }
+  .th-actions { margin-left: auto; }
+  .th-title { flex: 1 1 130px; }
+  .member-row .mr-meta { display: none; }
+  .member-row { flex-wrap: nowrap; }
+  .member-row strong {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    min-width: 0;
+  }
+}
+
+/* ---------------------------------------------------------------
+   Refresh affordance
+   Results stay on screen while a new query is in flight; a soft
+   dim communicates "working" without destroying and rebuilding the
+   grid, which is what previously made interactions feel laggy.
+   --------------------------------------------------------------- */
+#results.is-refreshing {
+  opacity: 0.55;
+  transition: opacity 0.12s ease-out;
+  pointer-events: none;
+}
+#results {
+  transition: opacity 0.16s ease-out;
+}
+
+/* The topbar's backdrop-filter re-blurs a large area on every scroll and
+   paint, which shows up as sluggish scrolling on low-power machines. */
+@media (prefers-reduced-transparency: reduce) {
+  .topbar { backdrop-filter: none; background: var(--bg); }
+}
+
+/* Quiet inline action used inside dense bars (e.g. Clear in the result bar). */
+.btn-quiet {
+  border-color: transparent;
+  background: transparent;
+  color: var(--muted);
+  gap: 5px;
+}
+.btn-quiet:hover { background: var(--surface-3); color: var(--ink); border-color: transparent; }
+
+/* A form taller than the dialog scrolls; this soft edge makes that obvious
+   instead of letting the last field look clipped by the action bar. */
+.modal-body::after {
+  content: '';
+  display: block;
+  height: 2px;
+  flex: 0 0 auto;
+}
+
+/* ---------------------------------------------------------------
+   Table team cell
+   Keeps the avatar stack and the quick-assign button on one line,
+   with the button quiet until the row is hovered/focused so the
+   column stays visually calm.
+   --------------------------------------------------------------- */
+.ptable .team-cell,
+.pcard-foot .team-cell {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+/* The card footer reuses the table's quick-assign button, so it needs the same
+   sizing — the .btn base would otherwise give it a much larger padding. */
+.pcard-foot .team-add {
+  width: 24px;
+  height: 24px;
+  min-width: 24px;
+  padding: 0;
+  border-radius: var(--r-full);
+  color: var(--ink-2);
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
+  box-shadow: none;
+  transition: background 0.12s, color 0.12s, border-color 0.12s;
+}
+.pcard-foot .team-add:hover,
+.pcard-foot .team-add:focus-visible {
+  color: var(--primary-fg);
+  border-color: var(--primary-fg);
+}
+/* Always visible (this is a quick action — hiding it until hover defeated the
+   point), but quiet: a soft filled circle that only gains emphasis on hover. */
+.ptable .team-add {
+  width: 22px;
+  height: 22px;
+  min-width: 22px;
+  padding: 0;
+  border-radius: var(--r-full);
+  color: var(--ink-2);
+  border: 1px solid var(--border-strong);
+  background: var(--surface-2);
+  box-shadow: none;
+  transition: background 0.12s, color 0.12s, border-color 0.12s;
+}
+.ptable tr:hover .team-add {
+  color: var(--primary-fg);
+  border-color: var(--primary-fg);
+  background: var(--primary-soft);
+}
+.ptable .team-add:hover,
+.ptable .team-add:focus-visible {
+  color: #fff;
+  border-color: var(--primary);
+  background: var(--primary);
+}
+.ptable .team-add:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--primary-ring);
+}
+/* Touch devices have no hover, so the control must always be visible there. */
+@media (hover: none), (pointer: coarse) {
+  .ptable .team-add { opacity: 1; }
+}
+
+/* The board hides the project search: it is not a project list. */
+.topbar.board-mode .search { display: none; }
+
+/* ============================================================
+   Team status board
+   ============================================================ */
+.board-summary {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.bs-card {
+  position: relative;
+  overflow: hidden;
+  padding: 13px 15px 12px;
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-sm);
+}
+.bs-card::before {
+  content: '';
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 3px;
+  background: var(--accent, var(--primary));
+}
+.bs-card[data-tone='amber'] { --accent: var(--amber); }
+.bs-card[data-tone='green'] { --accent: var(--green); }
+.bs-card[data-tone='violet'] { --accent: var(--violet); }
+.bs-card[data-tone='slate'] { --accent: var(--slate); }
+.bs-label {
+  display: block;
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+.bs-val {
+  display: block;
+  margin-top: 3px;
+  font-size: 24px;
+  font-weight: 680;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+}
+.bs-sub { display: block; margin-top: 2px; font-size: 11.5px; color: var(--muted); }
+
+.board-wrap {
+  border-radius: var(--r-lg);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+  overflow-x: auto;
+}
+.board-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.board-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  padding: 11px 14px;
+  text-align: left;
+  font-size: 11.5px;
+  font-weight: 620;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--faint);
+  background: var(--surface-2);
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+/* Assigned project carries the longest text on the board, so it gets the most
+   room; the other columns are sized to their content. */
+.board-table th.col-person { width: 18%; }
+.board-table th.col-avail { width: 12%; }
+.board-table th.col-idle { width: 12%; }
+.board-table th.col-note { width: 20%; }
+.board-table tbody tr { border-bottom: 1px solid var(--border); }
+.board-table tbody tr:last-child { border-bottom: 0; }
+.board-table tbody tr:hover { background: var(--surface-2); }
+.board-table td { padding: 12px 14px; vertical-align: top; }
+
+.board-person { display: flex; align-items: center; gap: 9px; }
+.bp-meta { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.bp-meta strong { font-size: 13px; font-weight: 600; color: var(--ink); }
+.board-muted { color: var(--faint); }
+.board-projects { display: flex; flex-direction: column; gap: 5px; align-items: flex-start; }
+.board-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  max-width: 100%;
+  padding: 3px 10px;
+  border-radius: var(--r-full);
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--ink-2);
+  font: inherit;
+  font-size: 12.5px;
+  line-height: 1.35;
+  cursor: pointer;
+  /* Long engagement names wrap rather than being cut off: reading the project
+     is the whole point of this column. */
+  overflow-wrap: anywhere;
+  white-space: normal;
+  text-align: left;
+}
+.board-chip:hover {
+  border-color: var(--primary-ring);
+  background: var(--primary-soft);
+  color: var(--primary-fg);
+}
+.board-chip em {
+  flex: 0 0 auto;
+  font-style: normal;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--faint);
+}
+.board-chip:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--primary-ring); }
+.board-more { font-size: 11.5px; color: var(--muted); padding-left: 3px; }
+
+.idle-days {
+  display: inline-block;
+  font-size: 17px;
+  font-weight: 660;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+}
+.idle-days em { font-style: normal; font-size: 12px; font-weight: 600; color: var(--faint); margin-left: 1px; }
+
+.board-note {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--ink-2);
+  font: inherit;
+  font-size: 12.5px;
+  cursor: text;
+  border-radius: var(--r-sm);
+}
+.board-note:hover { color: var(--ink); background: var(--surface-3); }
+.board-note:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--primary-ring); }
+
+/* availability pill + menu */
+.avail-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  cursor: pointer;
+  border-radius: var(--r-full);
+}
+.avail-btn:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--primary-ring); }
+.avail-btn svg { color: var(--faint); }
+.avail-badge .avail-auto {
+  font-style: normal;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  opacity: 0.72;
+  margin-left: 5px;
+  padding-left: 5px;
+  border-left: 1px solid currentColor;
+}
+.avail-menu {
+  position: fixed;
+  z-index: 210;
+  min-width: 246px;
+  padding: 6px;
+  border-radius: var(--r-lg);
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
+  box-shadow: var(--shadow-lg);
+  animation: quick-status-in 0.12s ease-out;
+}
+.avail-menu-head {
+  padding: 6px 8px 8px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 5px;
+}
+.avail-menu-head strong { display: block; font-size: 12.5px; color: var(--ink); }
+.avail-menu-head span { display: block; font-size: 11px; color: var(--faint); margin-top: 2px; }
+.avail-menu-group { padding: 2px 0; }
+.avail-group-label {
+  display: block;
+  padding: 5px 8px 3px;
+  font-size: 10.5px;
+  font-weight: 640;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+.avail-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 5px 8px;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: transparent;
+  font: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+.avail-item:hover { background: var(--surface-2); }
+.avail-item.on { background: var(--primary-soft); }
+.avail-item .qs-check { margin-left: auto; color: var(--primary-fg); display: inline-flex; }
+.avail-reset {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  margin-top: 4px;
+  padding: 7px 8px;
+  border: 0;
+  border-top: 1px solid var(--border);
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  border-radius: 0 0 var(--r-sm) var(--r-sm);
+}
+.avail-reset:hover { color: var(--ink); background: var(--surface-2); }
+
+@media (max-width: 1000px) {
+  /* The top search is the first thing to go: the filter bar has its own. */
+  .topbar .search { display: none; }
+  .board-summary { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 620px) {
+  /* Two rows: identity + actions on top, the page tabs underneath as a
+     full-width segmented strip. Without the wrap the tabs push the action
+     buttons past the right edge and the whole page scrolls sideways. */
+  .topbar { flex-wrap: wrap; row-gap: 10px; }
+  .topbar-title { flex: 1 1 auto; }
+  /* Five columns cannot fit a phone. Rather than a sideways scroll nobody
+     notices (the table looked cut off), each row becomes a stacked card with
+     its own field labels, so every value is visible without scrolling. */
+  .board-table, .board-table tbody, .board-table tr, .board-table td { display: block; width: auto; }
+  .board-table thead { display: none; }
+  .board-table tbody tr {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 6px 12px;
+    padding: 12px 14px 13px;
+    border-bottom: 1px solid var(--border);
+  }
+  .board-table td { padding: 0; }
+  /* Person and status share the first line: the status pill belongs beside
+     the name, not on a line of its own. */
+  .board-table .cell-person { grid-column: 1; min-width: 0; }
+  .board-table .cell-avail { grid-column: 2; justify-self: end; align-self: center; }
+  .board-table .cell-doing,
+  .board-table .cell-idle,
+  .board-table .cell-note { grid-column: 1 / -1; }
+  .board-table td[data-label]::before {
+    content: attr(data-label);
+    display: block;
+    margin-bottom: 2px;
+    font-size: 10.5px;
+    font-weight: 640;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--faint);
+  }
+  .board-table td:empty { display: none; }
+  .board-table .board-note { text-align: left; }
+  .board-table .board-chip { max-width: 100%; }
+  .board-table .board-assign { margin-top: 2px; }
+  .board-wrap { overflow-x: visible; }
+  .board-summary { gap: 9px; }
+  .bs-val { font-size: 20px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .avail-menu { animation: none; }
+}
+
+/* ---------- board: quick assign (v8.1) ---------- */
+.nav-divider {
+  height: 1px;
+  margin: 8px 10px;
+  background: var(--border);
+}
+.board-assign {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 9px 3px 7px;
+  border-radius: var(--r-full);
+  border: 1px dashed var(--border-strong);
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 11.5px;
+  font-weight: 560;
+  cursor: pointer;
+}
+.board-assign:hover,
+.board-assign:focus-visible {
+  outline: none;
+  color: var(--primary-fg);
+  border-color: var(--primary-ring);
+  background: var(--primary-soft);
+}
+.assign-menu {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 215;
+  width: 330px;
+  max-width: calc(100vw - 16px);
+  border-radius: var(--r-lg);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  box-shadow: var(--shadow-lg), 0 0 0 1px var(--border);
+  overflow: hidden;
+  animation: quick-status-in 0.12s ease-out;
+}
+.assign-list {
+  max-height: 288px;
+  overflow-y: auto;
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.assign-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 7px 8px;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: 12.5px;
+  text-align: left;
+  cursor: pointer;
+}
+.assign-item:hover { background: var(--surface-2); }
+.assign-item.on { color: var(--primary-fg); }
+.assign-item .assign-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  line-height: 1.35;
+}
+.assign-check {
+  flex: 0 0 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--primary-fg);
+}
+.assign-item .badge { flex: 0 0 auto; }
+@media (hover: none), (pointer: coarse) {
+  .board-assign { color: var(--ink-2); border-color: var(--border-strong); }
+}
+
+/* ============================================================
+   Project managers (v9)
+   ============================================================ */
+
+/* --- card line: PM under client/application --- */
+.pcard .pm-line span {
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+.pcard .pm-line .avatar { margin-left: 1px; }
+.pcard .pm-line {
+  align-items: center;
+}
+.pcard .pm-line em {
+  font-style: normal;
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--primary-fg);
+  background: var(--primary-soft);
+  border-radius: 4px;
+  padding: 1px 4px;
+  margin-left: 4px;
+}
+
+/* --- table cell --- */
+.pm-cell {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  max-width: 100%;
+}
+.pm-cell { justify-content: center; }
+.pm-cell.pm-empty { gap: 6px; }
+.pm-cell .pm-name {
+  font-size: 13px;
+  font-weight: 560;
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pm-cell.pm-empty {
+  color: var(--faint);
+  font-size: 12.5px;
+  font-style: italic;
+}
+.pm-cell.pm-empty svg { opacity: 0.7; }
+
+/* --- contacts --- */
+.contact-line {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 12px;
+  min-width: 0;
+}
+.contact-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  color: var(--muted);
+  text-decoration: none;
+  border-radius: 5px;
+  padding: 1px 3px;
+  margin: -1px -3px;
+  overflow-wrap: anywhere;
+}
+.contact-item:hover { color: var(--primary-fg); background: var(--primary-soft); }
+.contact-item svg { flex: 0 0 auto; opacity: 0.85; }
+
+.info-item .v-sub { margin-top: 5px; font-weight: 500; }
+
+/* --- client card: default PM row --- */
+.cc-managers {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px 10px;
+  padding: 9px 0 2px;
+  border-top: 1px dashed var(--border);
+  margin-top: 2px;
+}
+.cc-m-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--faint);
+  flex: 0 0 auto;
+}
+.cc-m-list { display: inline-flex; flex-wrap: wrap; gap: 5px; }
+.cc-m-chip {
+  font-size: 11.5px;
+  font-weight: 560;
+  color: var(--ink-2);
+  background: var(--surface-3);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 2px 9px;
+}
+.cc-m-empty { font-size: 11.5px; color: var(--faint); font-style: italic; }
+
+/* --- manager cards --- */
+.pm-card .cc-avatar.pm-avatar {
+  background: linear-gradient(135deg, var(--violet), var(--blue));
+  color: #fff;
+}
+.pm-contacts { padding: 2px 0 10px; }
+.pm-no-contact { font-size: 12px; color: var(--faint); font-style: italic; }
+.pm-clients { border-top: 1px dashed var(--border); padding-top: 10px; }
+.pm-block-label {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--faint);
+  margin-bottom: 6px;
+}
+.pm-chips { display: flex; flex-wrap: wrap; gap: 5px; }
+.pm-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11.5px;
+  font-weight: 500;
+  color: var(--ink-2);
+  background: var(--surface-3);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 3px 8px;
+}
+.pm-chip svg { color: var(--faint); flex: 0 0 auto; }
+
+.picker-note { font-size: 12.5px; color: var(--faint); margin: 0; }
+
+/* --- auto-pick hint states --- */
+.hint.hint-warn {
+  /* Amber text on the page background is 5.0:1, so the colour itself was never
+     the problem — the hint simply read as fine print. It is now boxed and
+     slightly bolder so an automatic choice is unmistakably called out. */
+  color: var(--amber-ink);
+  font-size: 11.5px;
+  font-weight: 560;
+  line-height: 1.45;
+  background: color-mix(in srgb, var(--amber) 8%, transparent);
+  border-left: 2px solid var(--amber);
+  border-radius: 0 6px 6px 0;
+  padding: 6px 9px;
+  display: block;
+  margin-top: 2px;
+}
+.hint.hint-auto { color: var(--muted); font-weight: 500; }
+.hint.hint-err { color: var(--rose); font-weight: 550; }
+
+/* ---------------------------------------------------------------
+   Change-password strength meter
+   Three segments that fill as the password gets longer. It reports
+   length only, because length is the only rule the server enforces —
+   pretending to demand symbols the API accepts anyway would be a lie.
+   --------------------------------------------------------------- */
+.pw-meter {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 4px;
+  margin-top: 7px;
+}
+.pw-meter span {
+  height: 3px;
+  border-radius: var(--r-full);
+  /* The unfilled track must be VISIBLE (≥3:1 against the dialog): with the
+     old --surface-3 it sat at 1.1:1 and the meter looked like it appeared out
+     of nowhere as you typed. --border-strong is the same token the inputs use
+     for their visible edge, so the empty state reads as "three slots, none
+     filled yet". */
+  background: var(--meter-track);
+  transition: background 0.15s;
+}
+.pw-meter[data-level='1'] span:nth-child(1) { background: var(--rose); }
+.pw-meter[data-level='2'] span:nth-child(-n + 2) { background: var(--amber); }
+.pw-meter[data-level='3'] span { background: var(--green); }
+
+@media (max-width: 620px) {
+  .pm-cell .pm-name { max-width: 110px; }
+  .contact-line { gap: 3px 10px; }
+  .contact-item { font-size: 11.5px; }
+}
+
+/* ============================================================
+   clickable avatars + person card (v10)
+   ============================================================ */
+/* An avatar that opens a person card. The ring is drawn with box-shadow so no
+   layout shifts on hover, and the same ring is used for keyboard focus. */
+.avatar-link {
+  cursor: pointer;
+  transition: transform 0.12s, box-shadow 0.12s;
+  /* The disc is only 24px, well under the 44px minimum touch target. A
+     transparent ::after expands the hit area to 44px without moving a single
+     pixel of layout — the avatar still looks like a 24px face, but a thumb has
+     something to land on. */
+  position: relative;
+}
+.avatar-link::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 44px;
+  height: 44px;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+}
+/* Inside an overlapping stack a wide hit area would cover the neighbour's disc,
+   so the expanded target grows vertically only — a thumb still lands, and the
+   avatar you tap is always the one under your finger. */
+.avatar-stack .avatar-link::after {
+  width: 100%;
+  height: 44px;
+}
+.avatar-link:hover,
+.avatar-link:focus-visible {
+  transform: translateY(-1px);
+  box-shadow: 0 0 0 2px var(--primary-ring);
+  outline: none;
+}
+/* Inside an overlapping stack the ring must stay above the neighbour, otherwise
+   the hovered disc looks cut in half. */
+.avatar-stack .avatar-link:hover,
+.avatar-stack .avatar-link:focus-visible { z-index: 3; }
+.pm-cell .avatar-link:hover { box-shadow: 0 0 0 2px var(--primary-ring); transform: none; }
+.bp-meta strong[data-person] { cursor: pointer; }
+.bp-meta strong[data-person]:hover { color: var(--primary-fg); text-decoration: underline; }
+
+.person-loading { padding: 26px 0; }
+
+.person-card { display: flex; flex-direction: column; gap: 16px; }
+.pc-head { display: flex; align-items: center; gap: 12px; }
+.pc-head .avatar.lg { width: 46px; height: 46px; font-size: 15px; }
+.pc-id { flex: 1; min-width: 0; }
+.pc-id h3 { margin: 0; font-size: 15.5px; font-weight: 660; letter-spacing: -0.012em; color: var(--ink); }
+.pc-role { font-size: 12px; color: var(--muted); margin-top: 2px; }
+.pc-user { color: var(--faint); font-family: 'JetBrains Mono', ui-monospace, monospace; font-size: 11px; }
+
+.pc-contacts { padding-bottom: 2px; }
+.pc-contacts .contact-line { gap: 6px 14px; }
+.pc-contacts .contact-item { font-size: 12.5px; }
+.pc-none { font-size: 12px; color: var(--faint); font-style: italic; }
+.pc-note {
+  display: flex;
+  gap: 7px;
+  align-items: flex-start;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--muted);
+  background: var(--surface-2);
+  border-left: 2px solid var(--border-strong);
+  border-radius: 0 6px 6px 0;
+  padding: 8px 10px;
+}
+.pc-note svg { flex: 0 0 auto; margin-top: 2px; color: var(--faint); }
+
+.pc-block { display: flex; flex-direction: column; gap: 8px; }
+.pc-block-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+.pc-block-label svg { opacity: 0.8; }
+.pc-block-label em {
+  font-style: normal;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+  font-size: 11px;
+  color: var(--muted);
+  background: var(--surface-3);
+  border-radius: 20px;
+  padding: 1px 7px;
+  margin-left: auto;
+}
+.pc-projects { display: flex; flex-wrap: wrap; gap: 6px; }
+.person-proj {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  max-width: 100%;
+  font: inherit;
+  font-size: 12px;
+  color: var(--ink);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 5px 6px 5px 9px;
+  cursor: pointer;
+  transition: border-color 0.12s, background 0.12s;
+}
+.person-proj:hover { border-color: var(--primary-ring); background: var(--surface); }
+.person-proj .pp-name { font-weight: 560; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.person-proj .badge { flex: 0 0 auto; font-size: 10px; padding: 1px 6px; }
+.pc-empty { font-size: 12px; color: var(--faint); }
+.pc-reports { display: flex; flex-direction: column; gap: 4px; }
+.pc-report {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  font: inherit;
+  font-size: 12.5px;
+  color: var(--ink);
+  background: transparent;
+  border: 0;
+  border-radius: 8px;
+  padding: 4px 6px;
+  cursor: pointer;
+  text-align: left;
+}
+.pc-report:hover { background: var(--surface-2); }
+.pc-report span:nth-child(2) { flex: 1; min-width: 0; }
+
+/* ---------------------------------------------------------------
+   Information center (v15)
+   Two panes: a target list and the note library. The left list is
+   sticky so scrolling a long note keeps your place in the tree.
+   --------------------------------------------------------------- */
+.info-layout {
+  display: grid;
+  grid-template-columns: 258px minmax(0, 1fr);
+  gap: 18px;
+  align-items: start;
+}
+.info-nav {
+  position: sticky;
+  top: 84px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  padding: 10px;
+  max-height: calc(100vh - 108px);
+  overflow: auto;
+}
+.info-nav-label {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--faint);
+  padding: 4px 8px 8px;
+}
+.info-targets { display: flex; flex-direction: column; gap: 1px; }
+.info-target {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 7px 8px;
+  border: 0;
+  border-radius: var(--r-md);
+  background: none;
+  color: var(--ink-2);
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+.info-target:hover { background: var(--surface-2); }
+.info-target.on { background: var(--primary-soft); color: var(--primary-fg); font-weight: 580; }
+.info-target.is-app { padding-left: 22px; }
+.it-glyph { display: grid; place-items: center; color: var(--faint); flex: none; }
+.info-target.on .it-glyph { color: var(--primary-fg); }
+.it-text { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+.it-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.it-sub { font-size: 11px; color: var(--faint); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.it-count {
+  flex: none;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: var(--r-full);
+  background: var(--surface-3);
+  color: var(--muted);
+  font-size: 10.5px;
+  font-weight: 650;
+  display: grid;
+  place-items: center;
+}
+.info-target.on .it-count { background: color-mix(in srgb, var(--primary) 18%, transparent); color: var(--primary-fg); }
+
+.info-pane { min-width: 0; }
+.info-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+.info-head h2 { margin: 0; font-size: 18px; font-weight: 650; letter-spacing: -0.01em; }
+.info-sub { margin: 4px 0 0; font-size: 12.5px; color: var(--faint); display: flex; align-items: center; gap: 5px; }
+.info-empty { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-lg); }
+
+.info-entries { display: flex; flex-direction: column; gap: 12px; }
+.info-card {
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  padding: 14px 16px;
+}
+.ic-head { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; }
+.ic-cat {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 2px 7px;
+  border-radius: var(--r-full);
+}
+.ic-cat[data-tone='rose'] { background: var(--rose-soft); color: var(--rose); }
+.ic-cat[data-tone='amber'] { background: var(--amber-soft); color: var(--amber); }
+.ic-cat[data-tone='cyan'] { background: var(--cyan-soft); color: var(--cyan); }
+.ic-cat[data-tone='violet'] { background: var(--violet-soft); color: var(--violet); }
+.ic-cat[data-tone='blue'] { background: var(--blue-soft); color: var(--blue); }
+.ic-cat[data-tone='slate'] { background: var(--surface-3); color: var(--muted); }
+.ic-title { margin: 0; font-size: 14px; font-weight: 620; flex: 1; min-width: 0; }
+.ic-pin { color: var(--amber); display: grid; place-items: center; }
+/* 0.55 measured 2.4:1 against the card, under the 3:1 floor for UI icons —
+   dimmed enough to read as "disabled". 0.9 keeps the quiet resting state while
+   still passing. */
+.ic-actions { display: flex; gap: 2px; margin-left: auto; opacity: 0.9; transition: opacity 0.12s; }
+.info-card:hover .ic-actions, .info-card:focus-within .ic-actions { opacity: 1; }
+.ic-body {
+  margin: 10px 0 0;
+  padding: 10px 12px;
+  border-radius: var(--r-md);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 12px;
+  line-height: 1.62;
+  color: var(--ink-2);
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-x: auto;
+}
+.ic-foot {
+  display: flex;
+  gap: 6px;
+  margin-top: 10px;
+  font-size: 11px;
+  color: var(--faint);
+}
+
+@media (max-width: 1000px) {
+  /* minmax(0, 1fr), not 1fr: a bare 1fr floors at the item's min-content, and the
+     nowrap chip strip has a min-content of every chip side by side — which made
+     the nav 2632px wide and gave the phone a 2.2k-pixel horizontal scroll. */
+  .info-layout { grid-template-columns: minmax(0, 1fr); }
+  .info-nav { position: static; max-height: none; min-width: 0; }
+  .info-targets { flex-direction: row; flex-wrap: wrap; }
+  .info-target { width: auto; }
+  .info-target.is-app { padding-left: 10px; }
+}
+
+/* On a phone the tree cannot wrap: 17 targets wrapped into a 593px block and
+   pushed the first note below the fold, so the page opened on a list of
+   filenames instead of its content. A single scrollable strip keeps the notes
+   visible immediately and still reaches every target. */
+@media (max-width: 620px) {
+  .info-nav { padding: 8px; overflow: visible; }
+  .info-nav-label { padding: 0 2px 6px; }
+  .info-targets {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    gap: 6px;
+    padding-bottom: 4px;
+    scrollbar-width: thin;
+    -webkit-overflow-scrolling: touch;
+  }
+  .info-target {
+    flex: none;
+    max-width: 210px;
+    border: 1px solid var(--border);
+    border-radius: var(--r-full);
+    padding: 5px 10px;
+  }
+  .info-target.on { border-color: var(--primary); }
+  .info-target.is-app { padding-left: 10px; }
+  .it-sub { display: none; }
+  .info-head h2 { font-size: 16px; }
+
+  /* A plain overflow strip on a phone looks like content that got cut off. The
+     fading right edge (masked only while there is more to scroll to) is the cue
+     that says "swipe" instead of "truncated". */
+  .info-targets {
+    -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 26px), transparent 100%);
+    mask-image: linear-gradient(to right, #000 calc(100% - 26px), transparent 100%);
+  }
+
+  /* The chip and the four action buttons together ate the whole first row, so
+     the title was left ~80px wide and wrapped to five lines ("Common 500 on
+     /transfer"). Give the title its own full-width line and let the chip and
+     the actions share the row above it. */
+  .ic-head {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    grid-template-areas:
+      'cat actions'
+      'title title';
+    align-items: center;
+    gap: 8px;
+  }
+  .ic-cat { grid-area: cat; justify-self: start; }
+  .ic-actions { grid-area: actions; justify-self: end; margin-left: 0; }
+  .ic-title { grid-area: title; width: 100%; }
+}
+
+/* ---------- table notes (v16) ---------- */
+/* Rendered grid on a card: a real table so columns line up by themselves. */
+/* The Information center's table USED to be styled here, on its own `.ic-table`
+   classes. That meant two rule sets describing the same grid, and the two drifted:
+   the sheet's rows were 47px against the Devices sheet's 40px, its headers aligned
+   `top` against `middle`, and every cell carried `pre-wrap` and `tabular-nums` that
+   the inventory never got. The sheet now emits the inventory's view-mode markup
+   (see infoTableHTML), so these declarations are gone: there is one table style.
+   Only `.ic-table` remains, as a hook for the phone rules below. */
+.ic-tempty {
+  padding: 18px;
+  text-align: center;
+  font-size: 12.5px;
+  color: var(--faint);
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--r-md);
+}
+
+/* Grid editor inside the note modal. */
+.te { display: flex; flex-direction: column; gap: 10px; }
+.te-scroll { overflow-x: auto; border: 1px solid var(--border-strong); border-radius: var(--r-md); }
+.te-grid { border-collapse: separate; border-spacing: 0; width: 100%; min-width: 100%; }
+.te-grid th,
+.te-grid td { padding: 0; border-bottom: 1px solid var(--border); border-right: 1px solid var(--border); }
+.te-grid td[data-cell] { min-width: 150px; }
+.te-grid th:last-child,
+.te-grid td:last-child { border-right: none; }
+.te-grid tbody tr:last-child td { border-bottom: none; }
+.te-grid thead th { background: var(--surface-2); }
+/* Auto layout, NOT fixed. `fixed` divided the width equally across every column,
+   so a 8-column sheet gave each 50px and every header and value was clipped
+   ("Userna", "Passwo") — the grid scrolled, but there was nothing worth reading
+   inside it. Auto layout lets each column size to its own content, and the
+   per-column min-width stops a genuinely short column from collapsing. */
+.te-grid { table-layout: auto; }
+.te-grid thead th { min-width: 150px; }
+.te-grid thead th:last-child { min-width: 0; }
+/* Name on its own line, controls beneath it: side by side, four headers of
+   controls squeezed the names themselves ("USERNAM", "PASSWOR"). */
+.te-th {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 1px;
+  padding: 4px 5px 3px 7px;
+  min-width: 0;
+}
+.te-cinput {
+  flex: 1 1 auto;
+  width: 100%;
+  min-width: 0;
+  border: none;
+  background: transparent;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-2);
+  padding: 3px 0;
+}
+.te-cinput:focus { outline: none; box-shadow: inset 0 -2px 0 var(--primary); }
+/* Was opacity 0 until hover: on a touch screen there is no hover, so the move and
+   delete controls were simply invisible. A dim resting state (measured 6.2:1) keeps
+   them quiet without hiding the fact that columns are rearrangeable. */
+.te-th-acts { display: flex; gap: 1px; justify-content: flex-end; opacity: 0.75; transition: opacity 0.12s; }
+.te-grid thead th:hover .te-th-acts,
+.te-grid thead th:focus-within .te-th-acts { opacity: 1; }
+.te-input {
+  width: 100%;
+  /* The input is width:100% of its cell, so the CELL needs the floor: without
+     this, auto layout still squeezes a column down to its narrowest word and a
+     password like `Pt#Brilink24` renders as `Pt#Bril`. */
+  min-width: 0;
+  border: none;
+  background: transparent;
+  font: inherit;
+  font-size: 12.5px;
+  color: var(--ink);
+  padding: 8px 9px;
+  font-variant-numeric: tabular-nums;
+}
+.te-input:focus { outline: none; background: var(--primary-soft); box-shadow: inset 0 0 0 2px var(--primary); border-radius: 3px; }
+.te-th-row { width: 74px; }
+.te-rowacts { display: flex; align-items: center; gap: 1px; padding: 2px 4px; }
+.te-mini {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  flex: none;
+}
+.te-mini:hover:not(:disabled) { background: var(--primary-soft); color: var(--primary); }
+.te-mini-danger:hover:not(:disabled) { background: var(--rose-soft); color: var(--rose); }
+.te-mini:disabled { opacity: 0.25; cursor: default; }
+.te-actions { display: flex; align-items: center; gap: 8px; }
+.te-count { margin-left: auto; font-size: 11.5px; color: var(--faint); }
+
+/* Type switch reuses .segmented, whose buttons are already targeted by
+   `.segmented button`. This is only the icon+label alignment. */
+.segmented .seg { display: inline-flex; align-items: center; justify-content: center; gap: 5px; }
+
+@media (max-width: 620px) {
+  /* On a phone a four-column credentials grid cannot fit, so it scrolls — but the
+     cells get a floor so the columns stay readable while scrolling. */
+  .te-grid { min-width: 520px; }
+  .te-th { min-width: 0; }
+  .te-input { min-width: 0; padding: 7px 7px; font-size: 12px; }
+  .te-th-acts { opacity: 1; }
+  /* The sheet keeps its table on a phone (a credentials grid means nothing as a
+     stack of cards — the row/column relationship IS the information), so unlike the
+     inventory it cannot switch to the card layout below. It keeps the Devices rhythm
+     and only tightens the cell padding so a four-column sheet fits without mangling
+     every value. The overflow cue comes from the shared `.dev-scrollfx` edges; the
+     extra mask that used to live here duplicated that cue. */
+  .ic-table { min-width: 420px; }
+  .ic-table th, .ic-table td { padding: 8px 10px; }
+}
+
+/* ---------- cross-client note search (v16) ---------- */
+.info-search { display: flex; align-items: center; gap: 0; position: relative; margin-bottom: 14px; }
+.info-search .is-glyph {
+  position: absolute;
+  left: 11px;
+  display: inline-flex;
+  color: var(--faint);
+  pointer-events: none;
+}
+.info-search .input { padding-left: 34px; padding-right: 76px; }
+/* .btn sets display:inline-flex, which overrides the user-agent [hidden] rule,
+   so the Clear button stayed visible with an empty field. */
+.info-search .is-clear { position: absolute; right: 6px; }
+.info-search .is-clear[hidden] { display: none; }
+.is-count { font-size: 11.5px; font-weight: 600; color: var(--faint); margin-bottom: 9px; }
+.is-results { display: flex; flex-direction: column; gap: 7px; }
+.is-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+  text-align: left;
+  padding: 11px 13px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  cursor: pointer;
+  transition: border-color 0.12s, box-shadow 0.12s;
+  font: inherit;
+}
+.is-row:hover { border-color: var(--primary-ring); box-shadow: var(--shadow-sm); }
+.is-row-top { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.is-row-title { font-size: 13.5px; font-weight: 650; color: var(--ink); }
+.is-kind {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--faint);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.is-row-where {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11.5px;
+  color: var(--muted);
+}
+.is-row-snip {
+  font-size: 12px;
+  color: var(--faint);
+  line-height: 1.5;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+/* Fixed per-target documents (v17): one free-text sheet + one table, both
+   read-only until Edit. They sit above the note list and must not compete with
+   the note cards, so they use a quieter surface and no hover lift. */
+.doc-block {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+  margin-bottom: 14px;
+  overflow: hidden;
+}
+.doc-block.is-editing { border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-ring); }
+.doc-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 11px 13px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-2);
+}
+.doc-title { display: flex; align-items: center; gap: 9px; min-width: 0; }
+.doc-title h3 { margin: 0; font-size: 13.5px; font-weight: 640; color: var(--ink); letter-spacing: -0.01em; }
+.doc-sub { margin: 1px 0 0; font-size: 11.5px; color: var(--faint); }
+.doc-glyph {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 27px;
+  height: 27px;
+  flex: none;
+  border-radius: 8px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--muted);
+}
+.doc-actions { display: flex; gap: 6px; flex: none; }
+.doc-body { padding: 12px 13px; }
+/* Deliberately NOT reusing .ic-body: that class belongs to note cards, and a
+   shared class made `.ic-body` ambiguous (a test selector, and any future style,
+   would hit both). Same look, its own name. */
+.doc-pre {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: var(--r-md);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 12px;
+  line-height: 1.62;
+  color: var(--ink-2);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.doc-text { max-height: 340px; overflow: auto; }
+.doc-textarea { width: 100%; min-height: 190px; }
+.doc-empty { text-align: center; padding: 10px 0 4px; }
+.doc-empty p { margin: 0 0 9px; font-size: 12.5px; color: var(--faint); }
+.doc-foot { padding: 0 13px 11px; font-size: 11.5px; color: var(--faint); }
+.doc-skel { padding: 14px; }
+.doc-skel .skeleton { height: 12px; margin-bottom: 8px; border-radius: 6px; }
+.doc-skel .skeleton:last-child { width: 60%; margin-bottom: 0; }
+
+@media (max-width: 620px) {
+  .doc-head { padding: 10px 11px; }
+  .doc-body { padding: 10px 11px; }
+  .doc-sub { display: none; }
+  .doc-title h3 { font-size: 13px; }
+  .doc-foot { padding: 0 11px 10px; }
+}
+
+/* ============================================================
+   v18 — markdown notes, drag handles, client/app tree
+   ============================================================ */
+
+/* --- markdown rendering (.doc-md) ---------------------------------------
+   Scoped to the document block so it can never restyle note cards, and it
+   deliberately does NOT set a background: the block already supplies one. */
+.doc-md {
+  font-size: 13.5px;
+  line-height: 1.68;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+.doc-md > :first-child { margin-top: 0; }
+.doc-md > :last-child { margin-bottom: 0; }
+.doc-md h2,
+.doc-md h3,
+.doc-md h4,
+.doc-md h5,
+.doc-md h6 {
+  margin: 18px 0 6px;
+  font-weight: 660;
+  letter-spacing: -0.01em;
+  line-height: 1.32;
+}
+.doc-md h2 { font-size: 15px; }
+.doc-md h3 { font-size: 14px; }
+.doc-md h4,
+.doc-md h5,
+.doc-md h6 { font-size: 13px; color: var(--ink-2); }
+.doc-md p { margin: 0 0 9px; }
+.doc-md ul,
+.doc-md ol { margin: 0 0 9px; padding-left: 20px; }
+.doc-md li { margin: 2px 0; }
+.doc-md li > p { margin: 0; }
+.doc-md strong { font-weight: 660; }
+.doc-md em { font-style: italic; }
+.doc-md code {
+  font-family: var(--mono, ui-monospace, 'JetBrains Mono', monospace);
+  font-size: 0.9em;
+  background: var(--surface-3, var(--surface-2));
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 1px 4px;
+}
+.doc-md pre {
+  margin: 0 0 10px;
+  padding: 10px 12px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow-x: auto;
+  font-family: var(--mono, ui-monospace, 'JetBrains Mono', monospace);
+  font-size: 12px;
+  line-height: 1.6;
+  tab-size: 2;
+}
+.doc-md pre code {
+  background: none;
+  border: 0;
+  padding: 0;
+  font-size: inherit;
+}
+.doc-md blockquote {
+  margin: 0 0 10px;
+  padding: 2px 0 2px 12px;
+  border-left: 2px solid var(--border-strong, var(--border));
+  color: var(--muted);
+}
+.doc-md a {
+  /* --primary-fg, not --primary: the dark theme's --primary (#5b54e8) only
+     reaches 3.15:1 as body text. --primary-fg is the same hue, lifted for
+     text contrast, and is the token every other readable accent already uses. */
+  color: var(--primary-fg);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.doc-md a:hover { color: var(--primary-hover); text-decoration-thickness: 2px; }
+.doc-md hr {
+  margin: 14px 0;
+  border: 0;
+  border-top: 1px solid var(--border);
+}
+.doc-md table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 0 0 10px;
+  font-size: 12.5px;
+}
+.doc-md th,
+.doc-md td {
+  border: 1px solid var(--border);
+  padding: 5px 8px;
+  text-align: left;
+}
+.doc-md th { background: var(--surface-2); font-weight: 620; }
+
+/* --- drag handle on table-editor columns ------------------------------- */
+.te-grip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 22px;
+  margin-right: 3px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: none;
+  /* --ink-2, not --faint: at 12px the dots were too pale to read as a control,
+     and the reviewer could not tell them apart from the arrow buttons beside
+     them. A hover background plus the grab cursor finishes the job. */
+  color: var(--ink-2);
+  cursor: grab;
+  flex: none;
+  align-self: flex-start;
+}
+.te-grip:hover {
+  color: var(--ink);
+  background: var(--surface-3, var(--surface-2));
+  border-color: var(--border-strong);
+}
+.te-grip:focus-visible { outline: 2px solid var(--primary); outline-offset: -1px; }
+.te-grip:active { cursor: grabbing; }
+.te-th { display: flex; align-items: flex-start; gap: 2px; }
+.te-th .te-cinput { flex: 1 1 auto; min-width: 0; }
+
+/* Drop feedback. The dragged header dims, the hovered target grows an edge
+   marker on the side the column will land. */
+.te-grid th[draggable='true'] { cursor: grab; }
+/* A 2px inset shadow was invisible at a glance. The dragged column now fades and
+   greys out, and the drop target gets a full-height accent bar on the landing
+   side plus a tinted cell, so "where will this land" is answerable from the image
+   alone rather than from remembering which side the cursor was on. */
+.te-grid th.is-dragging { opacity: 0.55; }
+/* The browser's drag ghost follows the cursor, but it is invisible in a static
+   screenshot and easy to lose on a busy screen. Naming the operation on the
+   source header makes "which column am I moving" answerable from the image
+   alone, and doubles as a live confirmation that the drag actually started. */
+.te-grid th.is-dragging .te-cinput { color: var(--muted); text-decoration: line-through; }
+.te-grid th.is-dragging::before {
+  content: 'moving';
+  position: absolute;
+  top: 2px;
+  right: 4px;
+  padding: 1px 5px;
+  border-radius: 999px;
+  background: var(--primary);
+  color: var(--btn-fg, #fff);
+  font-size: 8.5px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  pointer-events: none;
+}
+.te-grid th.is-drop-before { box-shadow: inset 3px 0 0 0 var(--primary); background: var(--primary-soft); }
+.te-grid th.is-drop-after { box-shadow: inset -3px 0 0 0 var(--primary); background: var(--primary-soft); }
+.te-grid th.is-drop-before::after,
+.te-grid th.is-drop-after::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: var(--primary);
+}
+.te-grid th.is-drop-before::after { left: -2px; }
+.te-grid th.is-drop-after::after { right: -2px; }
+.te-grid thead th { position: relative; }
+.te-grid th.is-drop-before .te-cinput,
+.te-grid th.is-drop-after .te-cinput { color: var(--primary-fg); }
+
+/* --- client / application tree ---------------------------------------- */
+.info-group { display: flex; flex-direction: column; }
+.ig-row { display: flex; align-items: center; gap: 2px; }
+.ig-row .info-target.is-client { flex: 1 1 auto; min-width: 0; }
+.ig-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  flex: none;
+  padding: 0;
+  border: 0;
+  border-radius: 5px;
+  background: none;
+  color: var(--faint);
+  cursor: pointer;
+  transition: color 0.15s, background 0.15s;
+}
+.ig-toggle:hover { color: var(--ink); background: var(--surface-3, var(--surface-2)); }
+.ig-chev { display: inline-flex; transition: transform 0.16s ease; }
+.info-group.is-open .ig-chev { transform: rotate(0deg); }
+:root .info-group:not(.is-open) .ig-chev { transform: rotate(-90deg); }
+.ig-apps {
+  display: none;
+  flex-direction: column;
+  gap: 1px;
+  /* The client button is already pushed right by its 22px toggle, so a small
+     margin here would make apps line up WITH clients instead of under them.
+     30px keeps the tree rail clear of the toggle and puts app rows ~14px
+     further right than their parent, which is what reads as nesting. */
+  margin: 1px 0 3px 30px;
+  padding-left: 8px;
+  border-left: 1px solid var(--border);
+}
+.info-group.is-open .ig-apps { display: flex; }
+.ig-apps .info-target.is-app { padding-left: 8px; }
+.ig-none {
+  display: none;
+  padding: 4px 0 6px 28px;
+  font-size: 11.5px;
+  color: var(--faint);
+}
+.info-group.is-open .ig-none { display: block; }
+
+@media (max-width: 620px) {
+  .doc-md { font-size: 13px; }
+  .doc-md pre { font-size: 11.5px; }
+  .ig-apps { margin-left: 26px; padding-left: 7px; }
+}
+
+/* ============================================================
+   Devices (v19)
+   ============================================================
+   A per-kind sheet: one renderer serves four tables whose column
+   counts differ (Misc 3, EDC 9). The table is allowed to scroll
+   horizontally because an EDC sheet legitimately needs the width,
+   but the Notes column wraps instead of pushing the table wider —
+   one long sentence must not decide the layout for the other eight
+   columns.
+   ============================================================ */
+.dev-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 14px;
+}
+.dev-head h2 {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+}
+.dev-sub {
+  margin: 3px 0 0;
+  font-size: 12.5px;
+  color: var(--muted);
+}
+
+.dev-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+.dev-tabs {
+  /* Four tabs with counts: shrink-to-fit so the search box keeps its width. */
+  flex: 0 0 auto;
+}
+.dev-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.dev-count {
+  font-style: normal;
+  font-size: 10.5px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  padding: 1px 5px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  color: var(--faint);
+}
+.dev-tab.on .dev-count {
+  background: var(--primary-soft);
+  color: var(--primary-fg);
+}
+.dev-search {
+  flex: 1 1 220px;
+  min-width: 180px;
+  max-width: 340px;
+  margin-left: auto;
+}
+.dev-clear {
+  flex: 0 0 auto;
+}
+.dev-skel .skeleton {
+  height: 44px;
+  margin-bottom: 8px;
+  border-radius: 8px;
+}
+.is-hidden {
+  display: none;
+}
+
+.dev-tablewrap {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow-x: auto;
+  /* Horizontal scrolling is expected on the wide kinds; keeping the box
+     scrollable rather than letting the page scroll sideways preserves the
+     sidebar and topbar while the sheet moves. */
+  box-shadow: var(--shadow-sm);
+}
+.dev-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12.5px;
+}
+.dev-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  text-align: left;
+  white-space: nowrap;
+  padding: 10px 12px;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--faint);
+  background: var(--surface-2);
+  border-bottom: 1px solid var(--border);
+}
+.dev-table tbody td {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+  color: var(--ink-2);
+  vertical-align: top;
+}
+.dev-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+.dev-table tbody tr:hover td {
+  background: var(--surface-2);
+}
+.dev-name {
+  font-weight: 620;
+  color: var(--ink);
+  min-width: 150px;
+}
+/* Identifiers (serials, UUIDs, kernels) read better monospaced: they are
+   transcribed character by character, not read as words. */
+.dev-mono-cell {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  color: var(--ink-2);
+  overflow-wrap: anywhere;
+  min-width: 96px;
+}
+.dev-notes {
+  min-width: 170px;
+  max-width: 300px;
+  color: var(--muted);
+  /* Wrap: a long sentence in the last column must not widen the sheet. */
+  overflow-wrap: break-word;
+  white-space: normal;
+}
+.dev-empty-cell {
+  color: var(--faint);
+}
+.dev-h-acts,
+.dev-acts {
+  width: 1%;
+  white-space: nowrap;
+  text-align: right;
+}
+/* `display: flex` on a <td> removes it from the table's column model, so the
+   cell collapsed to 24px and its buttons floated LEFT of the column they belong
+   to. The buttons are wrapped in an inline-flex span instead, which lays them out
+   without touching the cell's box. */
+.dev-acts {
+  padding-left: 4px;
+}
+.dev-acts-inner {
+  display: inline-flex;
+  gap: 4px;
+  vertical-align: middle;
+}
+.dev-acts .btn-icon,
+.dev-acts-inner .btn-icon {
+  width: 26px;
+  height: 26px;
+}
+
+/* Field grid inside the add/edit modal: two columns, notes spanning both. */
+.dev-fields {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+.dev-field-wide {
+  grid-column: 1 / -1;
+}
+.req {
+  color: var(--rose);
+  font-style: normal;
+}
+
+/* Card view for phones — a nine-column sheet cannot be read at 390px. */
+.dev-mobile {
+  display: none;
+}
+.dev-cards {
+  display: grid;
+  gap: 10px;
+}
+.dev-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px;
+  box-shadow: var(--shadow-sm);
+}
+.dc-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+.dc-head h4 {
+  margin: 0;
+  font-size: 13.5px;
+  font-weight: 640;
+}
+.dc-ident {
+  margin: 2px 0 0;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--faint);
+  overflow-wrap: anywhere;
+}
+.dc-acts {
+  display: flex;
+  gap: 4px;
+  flex: 0 0 auto;
+}
+.dc-fields {
+  display: grid;
+  gap: 5px;
+  margin: 0;
+}
+.dc-row {
+  display: grid;
+  grid-template-columns: 96px 1fr;
+  gap: 8px;
+  align-items: baseline;
+}
+.dc-row dt {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+.dc-row dd {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--ink-2);
+  overflow-wrap: anywhere;
+}
+.dc-notes {
+  margin: 9px 0 0;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+  font-size: 12px;
+  color: var(--muted);
+  overflow-wrap: break-word;
+}
+
+@media (max-width: 760px) {
+  .dev-desktop {
+    display: none;
+  }
+  .dev-mobile {
+    display: block;
+  }
+  .dev-search {
+    max-width: none;
+    flex-basis: 100%;
+    margin-left: 0;
+    order: 3;
+  }
+  .dev-fields {
+    grid-template-columns: 1fr;
+  }
+  .dev-head {
+    align-items: center;
+  }
+  .dev-head h2 {
+    font-size: 15.5px;
+  }
+}
+
+/* ---- v19.1: wide inventory sheets ----
+   The EDC sheet carries nine columns and cannot always fit the pane. Keep it
+   scrollable, but SAY SO: a shadow on the edge that can scroll is the standard
+   cue, and without it the right-hand columns simply look cut off. The classes
+   are toggled from JS because a pure-CSS shadow needs the table to be
+   transparent, which these cells are not. */
+.dev-tablewrap {
+  position: relative;
+}
+.dev-scrollfx {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 26px;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+  z-index: 2;
+}
+.dev-scrollfx.right {
+  right: 0;
+  background: linear-gradient(to right, transparent, color-mix(in srgb, var(--ink) 13%, transparent));
+  border-radius: 0 12px 12px 0;
+}
+.dev-scrollfx.left {
+  left: 0;
+  background: linear-gradient(to left, transparent, color-mix(in srgb, var(--ink) 13%, transparent));
+  border-radius: 12px 0 0 12px;
+}
+.dev-tablewrap.can-right .dev-scrollfx.right {
+  opacity: 1;
+}
+.dev-tablewrap.can-left .dev-scrollfx.left {
+  opacity: 1;
+}
+/* A short line under the sheet, only while it actually overflows. */
+.dev-scrollhint {
+  display: none;
+  align-items: center;
+  gap: 6px;
+  margin: 8px 2px 0;
+  font-size: 11.5px;
+  color: var(--faint);
+}
+.dev-tablewrap.can-right ~ .dev-scrollhint,
+.dev-tablewrap.can-left ~ .dev-scrollhint {
+  display: flex;
+}
+
+/* Below 1440 the nine-column sheet has to give somewhere; shave the floors
+   rather than let Notes squeeze the identifiers to unreadable stubs. */
+@media (max-width: 1340px) {
+  .dev-table thead th,
+  .dev-table tbody td {
+    padding: 9px 9px;
+  }
+  .dev-name {
+    min-width: 128px;
+  }
+  .dev-mono-cell {
+    min-width: 74px;
+  }
+  .dev-notes {
+    min-width: 132px;
+    max-width: 200px;
+  }
+}
+
+/* ---- v19.2: two reviewed nits ----
+   1. On a phone the Clear button wrapped onto its own line under the input,
+      detached from the field it clears. Pin it INSIDE the search box instead.
+   2. At 1180px the nine EDC columns were squeezed hard enough that Supplier
+      wrapped mid-word. Below 1280 the sheet is already scrolling, so give the
+      identifier columns back their breathing room — a taller row that scrolls
+      reads far better than a short row whose every cell is a fragment. */
+/* The Clear button sits INSIDE the search box on every width. It was previously
+   fixed only below 620px, so on desktop it wrapped onto a second line under the
+   input and pushed the toolbar to 68px tall. */
+.dev-search {
+  position: relative;
+}
+.dev-search .input {
+  /* Room for the button so typed text never runs underneath it. */
+  padding-right: 60px;
+}
+.dev-search .dev-clear {
+  position: absolute;
+  top: 50%;
+  right: 4px;
+  transform: translateY(-50%);
+  height: 28px;
+  padding: 0 9px;
+  font-size: 11.5px;
+}
+@media (max-width: 620px) {
+  .dev-search {
+    width: 100%;
+  }
+}
+@media (max-width: 1280px) {
+  /* The sheet is scrollable here anyway, so stop compressing: these floors are
+     what stop "Supplier" and "Kernel" breaking mid-word. */
+  .dev-table thead th,
+  .dev-table tbody td {
+    padding: 9px 10px;
+  }
+  .dev-name {
+    min-width: 150px;
+  }
+  .dev-mono-cell {
+    min-width: 92px;
+  }
+  .dev-notes {
+    min-width: 170px;
+    max-width: 260px;
+  }
+}
+
+/* ---- v19.3: give the technical columns the room they need ----
+   Rejected `white-space: nowrap` on the identifier columns: measured at 1440px
+   it bought 19px of row height for 159px of new horizontal scrolling, because
+   the sheet no longer fits without a scroll. Wrapping is the cheaper cost.
+   What WAS wrong is the distribution — Notes held 260px while a kernel string
+   broke over four lines. A kernel or serial is transcribed character by
+   character and must not fragment, so at narrow desktop the prose column gives
+   its width back to the data columns. */
+@media (max-width: 1280px) {
+  .dev-notes {
+    min-width: 132px;
+    max-width: 168px;
+  }
+  .dev-mono-cell {
+    min-width: 104px;
+  }
+  /* Prefer breaking at a space; only split a word when there is no other way
+     (a long serial with no separators still has to fit its column). */
+  .dev-mono-cell {
+    overflow-wrap: break-word;
+  }
+}
+
+/* ---- v19.4: Devices column editing + row dragging ----
+   The drag handlers existed but had no styling at all, so a draggable row looked
+   exactly like a static one. A grip nobody can see is a feature nobody can find. */
+.dev-table th.dev-h-grip,
+.dev-table td.dev-grip {
+  width: 1%;
+  padding: 0 2px 0 6px;
+  cursor: grab;
+  color: var(--faint);
+  vertical-align: middle;
+}
+.dev-table td.dev-grip {
+  user-select: none;
+}
+.dev-grip-dots {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 26px;
+  border-radius: 6px;
+  transition: background 0.12s, color 0.12s;
+}
+.dev-table tbody tr:hover .dev-grip-dots {
+  background: var(--surface-2);
+  color: var(--ink-2);
+}
+.dev-table td.dev-grip:active {
+  cursor: grabbing;
+}
+/* Keyboard users never press a mouse; :focus-visible makes the grip reachable. */
+.dev-table td.dev-grip:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: -2px;
+  border-radius: 6px;
+}
+
+.dev-table tbody tr.is-dragging {
+  opacity: 0.45;
+}
+.dev-table tbody tr.is-dragging td {
+  background: var(--primary-soft);
+}
+/* A 2px inset shadow was invisible against the row borders; a solid bar plus a
+   tinted row says unambiguously which side of the target the row will land. */
+.dev-table tbody tr.is-drop-before td {
+  box-shadow: inset 0 3px 0 0 var(--primary);
+  background: var(--primary-soft);
+}
+.dev-table tbody tr.is-drop-after td {
+  box-shadow: inset 0 -3px 0 0 var(--primary);
+  background: var(--primary-soft);
+}
+
+/* Column editor */
+.dev-head-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.dc-editor .hint {
+  margin-bottom: 12px;
+}
+.dc-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 46vh;
+  overflow-y: auto;
+}
+.dc-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+}
+.dc-item.is-dragging {
+  opacity: 0.55;
+  border-color: var(--primary);
+}
+.dc-item.is-drop-before {
+  box-shadow: inset 0 3px 0 0 var(--primary);
+}
+.dc-item.is-drop-after {
+  box-shadow: inset 0 -3px 0 0 var(--primary);
+}
+.dc-item-grip {
+  display: inline-flex;
+  color: var(--faint);
+  cursor: grab;
+}
+.dc-item .dc-label {
+  flex: 1 1 auto;
+  min-width: 90px;
+  height: 32px;
+}
+.dc-item-key {
+  flex: 0 0 auto;
+  padding: 2px 6px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--surface-2);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--muted);
+  white-space: nowrap;
+}
+/* Text alone was not enough to scan: both tags read as small grey words, so the
+   distinction only landed after reading them. A filled tag for the columns the app
+   owns, an outline one for the user's own, separates them at a glance. */
+.dc-item.is-builtin .dc-item-key {
+  border-color: transparent;
+  background: var(--primary-soft);
+  color: var(--primary-fg);
+}
+.dc-hide {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11.5px;
+  color: var(--muted);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.dc-item-move {
+  display: inline-flex;
+  gap: 2px;
+}
+.dc-add {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+.dc-add .input {
+  flex: 1 1 auto;
+  height: 34px;
+}
+@media (max-width: 620px) {
+  .dc-item {
+    flex-wrap: wrap;
+  }
+  .dc-item .dc-label {
+    flex: 1 1 100%;
+  }
+  .dc-add {
+    flex-wrap: wrap;
+  }
+}
+
+/* ---- v19.5: make the drag affordances and the actions area legible ----
+   Reviewed: the grip sat at --faint and read as a stray mark; the drop bar read
+   as a row underline rather than an insertion point; and with an sr-only header
+   the action buttons looked like a tail of the Notes column. */
+.dev-grip-dots {
+  /* Was var(--faint) — technically visible, practically invisible. */
+  color: var(--ink-2);
+}
+.dev-table td.dev-grip {
+  /* Hover anywhere on the row and the handle lights up, so the whole row reads as
+     draggable instead of one tiny glyph. */
+  border-left: 2px solid transparent;
+}
+.dev-table tbody tr:hover td.dev-grip {
+  border-left-color: var(--primary);
+}
+.dev-table tbody tr:hover .dev-grip-dots {
+  background: var(--primary-soft);
+  color: var(--primary-fg);
+}
+
+/* A bar alone looked like an underline. A small triangle at the leading edge
+   turns it into an arrow pointing at the slot the row will occupy. */
+.dev-table tbody tr.is-drop-before {
+  position: relative;
+}
+.dev-table tbody tr.is-drop-before td.dev-grip::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: -4px;
+  border-style: solid;
+  border-width: 4px 0 4px 6px;
+  border-color: transparent transparent transparent var(--primary);
+}
+.dev-table tbody tr.is-drop-after {
+  position: relative;
+}
+.dev-table tbody tr.is-drop-after td.dev-grip::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  bottom: -4px;
+  border-style: solid;
+  border-width: 4px 0 4px 6px;
+  border-color: transparent transparent transparent var(--primary);
+}
+
+/* Give the action buttons their own edge so they stop reading as a tail of the
+   last data column. The header is sr-only, so the rule does the labelling. */
+.dev-table th.dev-h-acts,
+.dev-table td.dev-acts {
+  border-left: 1px solid var(--border);
+  background: var(--surface-2);
+}
+.dev-table tbody tr:hover td.dev-acts {
+  background: var(--surface-3, var(--surface-2));
+}
+.dev-table td.dev-acts .btn-icon {
+  color: var(--ink-2);
+}
+.dev-table td.dev-acts .btn-icon-danger {
+  color: var(--rose);
+}
+
+/* ---- v19.6: the affordances were still too small to survive a screenshot ----
+   The insertion triangle rendered at 6x8px and the grip glyph at 12px. Both were
+   correct and both were invisible: measured, the triangle shrank to under 5px once
+   the page was downscaled for review, and a user on a 1440px screen is looking at
+   the same proportions. Size is the fix, not more colour. */
+.dev-table td.dev-grip {
+  padding-left: 8px;
+}
+.dev-grip-dots {
+  width: 26px;
+  height: 28px;
+  border: 1px solid transparent;
+  border-radius: 7px;
+}
+.dev-table tbody tr:hover .dev-grip-dots {
+  border-color: var(--border-strong);
+}
+/* A real handle chip, always visible, so the column reads as a control column
+   even before anyone hovers. */
+.dev-table td.dev-grip .dev-grip-dots {
+  border-color: var(--border);
+  background: var(--surface-2);
+}
+
+.dev-table tbody tr.is-drop-before td.dev-grip::before,
+.dev-table tbody tr.is-drop-after td.dev-grip::before {
+  /* 10x14 with a 2px offset so it is not clipped by the cell edge. */
+  border-width: 7px 0 7px 10px;
+  left: -1px;
+}
+.dev-table tbody tr.is-drop-before td.dev-grip::before {
+  top: -7px;
+}
+.dev-table tbody tr.is-drop-after td.dev-grip::before {
+  bottom: -7px;
+}
+/* The bar was 3px and read as an underline. 4px plus the arrow reads as a slot. */
+.dev-table tbody tr.is-drop-before td {
+  box-shadow: inset 0 4px 0 0 var(--primary);
+}
+.dev-table tbody tr.is-drop-after td {
+  box-shadow: inset 0 -4px 0 0 var(--primary);
+}
+
+/* ---- v19.7: the editor list clipped a row and its controls were too small ----
+   `.dc-list` capped at 46vh = 377px at 820px tall, but nine rows need ~462px, so
+   the tenth row was sliced mid-height by the scroll edge — it read as a rendering
+   bug rather than "there is more below". The cap exists so a 20-column sheet
+   cannot push the modal off screen, so it stays, but it now snaps to whole rows
+   (`--dc-row` = row box + gap) and adds a fade that only appears while the list
+   actually overflows. */
+.dc-list {
+  max-height: min(56vh, 560px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-right: 2px;
+}
+/* Keep the scrollbar visible rather than overlay-hidden: its presence is half of
+   how a user knows the list continues past the fade. */
+.dc-list::-webkit-scrollbar {
+  width: 10px;
+}
+.dc-list::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border-radius: 999px;
+}
+/* The controls were 22px and --muted; reviewers could not tell they were
+   available. Sized and coloured to match the device table's action buttons. */
+.dc-item .te-mini {
+  width: 26px;
+  height: 26px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--ink-2);
+}
+.dc-item .te-mini:hover:not(:disabled) {
+  border-color: var(--primary);
+}
+.dc-item .te-mini.te-mini-danger {
+  color: var(--rose);
+}
+.dc-item .te-mini.te-mini-danger:hover:not(:disabled) {
+  border-color: var(--rose);
+  background: var(--rose-soft);
+  color: var(--rose);
+}
+.dc-item-key {
+  /* 9.5px was legible in theory; FIELD/custom is a meaningful distinction, so it
+     gets real size and weight. */
+  font-size: 10.5px;
+  letter-spacing: 0.04em;
+}
+
+/* Whole-row cap is computed in JS (openColumnEditor#fitRows) because the row
+   pitch changes when a row wraps on narrow screens. This is only the fallback. */
+.dc-list {
+  max-height: 50vh;
+}
+
+/* A fade on the scroll edge, so even a row snapped flush to the boundary still
+   tells the user the list continues. Only present while the list overflows. */
+.dc-list-wrap {
+  position: relative;
+}
+.dc-list.is-scrollable {
+  -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 18px), transparent 100%);
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 18px), transparent 100%);
+}
+
+/* ---- v19.8: the editor's overflow cue was invisible, so say it in words ----
+   Two reviews in a row called the bottom of the column list "visibly clipped",
+   even after the row height was snapped to whole rows. The reason is that neither
+   of the two cues I tried survives normal viewing: a soft mask fade is too subtle,
+   and the overlay scrollbar draws nothing until it is scrolled. An explicit
+   "Show more columns (N more)" button is the only version that cannot be missed. */
+.dc-list.is-scrollable {
+  /* Keep the fade as a secondary hint now that the button carries the message. */
+  -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 14px), transparent 100%);
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 14px), transparent 100%);
+}
+.dc-more {
+  display: block;
+  width: 100%;
+  margin-top: 6px;
+  padding: 7px 10px;
+  border: 1px dashed var(--border-strong);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--primary-fg);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.dc-more:hover {
+  background: var(--primary-soft);
+  border-style: solid;
+}
+/* The UA sheet's `[hidden] { display: none }` loses to the `display: block` above,
+   so the button stayed on screen at the end of the list even though JS had marked it
+   hidden — an affordance that lies. This rule is the one that actually hides it. */
+.dc-more[hidden] {
+  display: none !important;
+}
+.dc-help {
+  margin: 0 0 12px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--surface-2);
+  color: var(--muted);
+  font-size: 12.5px;
+  line-height: 1.55;
+}
+.dc-help strong {
+  color: var(--ink);
+  font-weight: 650;
+}
+/* The controls were 22px with 12px glyphs and --muted ink, which read as decoration
+   next to full-strength column inputs. */
+.dc-item .te-mini {
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  /* Opaque fill so the buttons read as controls sitting on the row rather than
+     transparent glyphs floating in it. */
+  background: var(--surface-2);
+  color: var(--ink);
+}
+.dc-item .te-mini.te-mini-danger {
+  color: var(--rose);
+}
+.dc-item .te-mini:disabled {
+  opacity: 0.35;
+}
+
+/* ---- v19.12: column drag + inline add affordances ----
+   The user asked for two things the table could not do: move a column without
+   opening a modal, and add a row/column from where they were looking. Both are
+   now in the table itself. */
+.dev-table th[data-dev-colhead] {
+  cursor: grab;
+  user-select: none;
+}
+.dev-table th[data-dev-colhead]:active {
+  cursor: grabbing;
+}
+.dev-h-inner {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  max-width: 100%;
+}
+.dev-h-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* A horizontal grip says "moves sideways" — the vertical one used on rows reads as
+   a row handle, and reusing it here would misdescribe the axis. */
+.dev-col-grip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 16px;
+  height: 18px;
+  border-radius: 4px;
+  color: var(--faint);
+  opacity: 0;
+  transition: opacity 0.12s ease;
+}
+.dev-table thead th[data-dev-colhead]:hover .dev-col-grip,
+.dev-table thead th[data-dev-colhead]:focus-within .dev-col-grip {
+  opacity: 1;
+}
+/* ...but never on a touch screen, where there is no hover to reveal it. Show it
+   permanently there so the affordance is discoverable. */
+@media (hover: none) {
+  .dev-col-grip {
+    opacity: 1;
+  }
+}
+.dev-table th[data-dev-colhead].is-col-dragging {
+  opacity: 0.5;
+  background: var(--primary-soft);
+}
+.dev-table th[data-dev-colhead].is-col-drop-before {
+  box-shadow: inset 3px 0 0 0 var(--primary);
+  background: var(--primary-soft);
+}
+.dev-table th[data-dev-colhead].is-col-drop-after {
+  box-shadow: inset -3px 0 0 0 var(--primary);
+  background: var(--primary-soft);
+}
+
+/* Trailing "+ Add device" row: the primary action, at the end of the data where a
+   user finishing a scan of the table already is. */
+.dev-table tr.dev-addrow .dev-addrow-grip {
+  border-left: 2px solid transparent;
+}
+.dev-table tr.dev-addrow .dev-addrow-cell {
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--border);
+}
+.dev-addrow-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border: none;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--primary-fg);
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.dev-addrow-btn:hover {
+  background: var(--primary-soft);
+}
+.dev-addrow-btn:focus-visible {
+  outline: 2px solid var(--primary-ring);
+  outline-offset: 1px;
+}
+.dev-table tbody tr.dev-addrow:hover td.dev-acts,
+.dev-table tbody tr.dev-addrow:hover .dev-grip-dots {
+  background: transparent;
+}
+.dev-table tbody tr.dev-addrow:hover td.dev-grip {
+  border-left-color: transparent;
+}
+
+/* ---- v19.13: the column drag was not legible in a still frame ----
+   Both complaints were the same one I had already fixed for row drag: a grip that
+   only appears on hover cannot be found without hovering, and an opacity change
+   alone does not say WHICH column is moving. The column header now keeps its grip
+   permanently (it is a header control, not a hover secret) and the dragged header
+   names the operation, exactly as the grid editor does. */
+.dev-table th[data-dev-colhead] .dev-col-grip {
+  opacity: 1;
+  color: var(--muted);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+}
+.dev-table th[data-dev-colhead] .dev-col-grip:hover {
+  color: var(--primary-fg);
+  border-color: var(--primary);
+  background: var(--primary-soft);
+}
+.dev-table th[data-dev-colhead].is-col-dragging {
+  position: relative;
+  opacity: 0.6;
+  background: var(--primary-soft);
+}
+.dev-table th[data-dev-colhead].is-col-dragging .dev-h-label {
+  text-decoration: line-through;
+  color: var(--muted);
+}
+/* A pill on the source header: "which column am I moving" must be answerable from a
+   static image, since the browser's drag ghost does not appear in screenshots. */
+.dev-table th[data-dev-colhead].is-col-dragging::after {
+  content: 'moving';
+  position: absolute;
+  top: 1px;
+  right: 2px;
+  padding: 1px 5px;
+  border-radius: 999px;
+  background: var(--primary);
+  color: var(--btn-fg, #fff);
+  font-size: 8.5px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  pointer-events: none;
+}
+
+/* ---- v20: environment switch on the Information center ----
+   Every application carries two independent sheets, Dev and Prod. Dev is the
+   default because production testing is the exception; the Prod tab is tinted so
+   that being on production is visible at a glance rather than only stated. */
+.doc-env {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin: 0 0 12px;
+  padding: 7px 9px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface-2);
+}
+.doc-env-tabs {
+  display: inline-flex;
+  gap: 2px;
+  padding: 2px;
+  border-radius: 8px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+}
+.doc-env-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 11px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 12.5px;
+  font-weight: 560;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.doc-env-tab:hover {
+  color: var(--ink);
+  background: var(--surface-2);
+}
+.doc-env-tab.on {
+  background: var(--primary-soft);
+  color: var(--primary-fg);
+}
+/* Production is not just another tab: it gets the warning tint so the state is
+   legible without reading the label. */
+.doc-env-tab[data-doc-env='Prod'].on {
+  background: color-mix(in srgb, var(--rose) 12%, transparent);
+  color: var(--rose-ink, var(--rose));
+}
+.doc-env-tab:focus-visible {
+  outline: 2px solid var(--primary-ring);
+  outline-offset: 1px;
+}
+.doc-env-note {
+  font-size: 12px;
+  color: var(--faint);
+}
+.doc-env-note[data-env='Prod'] {
+  color: var(--rose-ink, var(--rose));
+  font-weight: 560;
+}
+@media (max-width: 620px) {
+  .doc-env {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 7px;
+  }
+  .doc-env-tabs {
+    width: 100%;
+  }
+  .doc-env-tab {
+    flex: 1;
+    justify-content: center;
+  }
+  .doc-env-note {
+    text-align: center;
+  }
+}
+
+/* ---- v20.1: a sheet heading must state its environment ----
+   The Dev/Prod switch sits above both sheets, so a reader who has scrolled into
+   the table had no way to tell whether those were production credentials. The
+   pill repeats the environment next to each heading, and the heading rule turns
+   rose for Prod so the distinction survives peripheral vision, not just reading. */
+.doc-title h3 {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+.doc-env-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 1px 6px 1px 4px;
+  border-radius: 999px;
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--faint);
+  background: var(--surface);
+  border: 1px solid var(--border);
+}
+.doc-env-pill[data-env='Prod'] {
+  color: var(--rose-ink);
+  background: color-mix(in srgb, var(--rose) 12%, transparent);
+  border-color: color-mix(in srgb, var(--rose) 34%, transparent);
+}
+.doc-head[data-env='Prod'] {
+  border-bottom-color: color-mix(in srgb, var(--rose) 30%, transparent);
+  box-shadow: inset 3px 0 0 0 var(--rose);
+}
+
+/* ---- v20.2: a note is filed on one sheet, and search results say which ---- */
+.is-env {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 5px;
+  border-radius: 999px;
+  font-size: 8.5px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  vertical-align: 1px;
+  color: var(--faint);
+  border: 1px solid var(--border);
+  background: var(--surface);
+}
+.is-env[data-env='Prod'] {
+  color: var(--rose-ink);
+  border-color: color-mix(in srgb, var(--rose) 34%, transparent);
+  background: color-mix(in srgb, var(--rose) 12%, transparent);
+}
+
+/* ---- v20.2: the card list is its own section, not a rival to the Notes doc ---- */
+.entries-block {
+  margin-top: 18px;
+}
+.entries-head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 0 2px 8px;
+  margin-bottom: 10px;
+  border-bottom: 1px solid var(--border);
+}
+.entries-head h3 {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+}
+.entries-count {
+  display: inline-block;
+  min-width: 17px;
+  padding: 0 5px;
+  margin-left: 4px;
+  border-radius: 999px;
+  font-size: 10.5px;
+  font-weight: 700;
+  line-height: 16px;
+  text-align: center;
+  color: var(--muted);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+}
+.entries-head > span {
+  font-size: 11.5px;
+  color: var(--faint);
+}
+.ic-env {
+  margin-left: 0;
+}
+
+/* ---- v20.3: an insertion line, not a lit-up row -----------------------------
+   Measured in both themes, the drop target and the row being carried painted the
+   SAME colour (dark rgb(29,33,64), light rgb(238,240,255)): the marker tinted the
+   entire target row, so the table showed several bright rows at once and it was
+   impossible to tell where the row would land — or which row was moving. A drop
+   is an insertion, so it now draws ONE crisp line in the gap the row will occupy,
+   and the tint is reserved for the row in flight. */
+.dev-table tbody tr.is-drop-before td,
+.dev-table tbody tr.is-drop-after td {
+  background: transparent;
+  box-shadow: none;
+}
+.dev-table tbody tr.is-drop-before,
+.dev-table tbody tr.is-drop-after {
+  position: relative;
+}
+.dev-table tbody tr.is-drop-before::before,
+.dev-table tbody tr.is-drop-after::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: var(--primary);
+  border-radius: 2px;
+  z-index: 3;
+  pointer-events: none;
+  /* A hairline of contrast above and below so the bar reads on hover-tinted rows
+     and on the striped surface alike. */
+  box-shadow: 0 0 0 1px var(--surface);
+}
+.dev-table tbody tr.is-drop-before::before {
+  top: -2px;
+}
+.dev-table tbody tr.is-drop-after::after {
+  bottom: -1px;
+}
+/* A dot at the leading edge marks where the row is grabbed, because a line alone
+   says "here is a gap" but not "your row goes here". */
+.dev-table tbody tr.is-drop-before::before {
+  background-image: radial-gradient(circle at 7px 50%, var(--primary) 3px, transparent 3.5px);
+}
+.dev-table tbody tr.is-drop-after::after {
+  background-image: radial-gradient(circle at 7px 50%, var(--primary) 3px, transparent 3.5px);
+}
+/* Drop the old leading-edge triangles: two markers for one event is noise. */
+.dev-table tbody tr.is-drop-before td.dev-grip::before,
+.dev-table tbody tr.is-drop-after td.dev-grip::before {
+  display: none;
+}
+/* The carried row keeps the tint, and loses the hover wash so it cannot look like
+   a second target. */
+.dev-table tbody tr.is-dragging td {
+  background: var(--primary-soft);
+  opacity: 1;
+}
+.dev-table tbody tr.is-dragging {
+  opacity: 0.85;
+}
+.dev-table tbody tr.is-dragging td.dev-acts {
+  background: var(--primary-soft);
+}
+
+/* ---- v20.4: two refinements from review --------------------------------
+   (1) In the light theme the carried row's tint was too close to the page to read
+   as "this is the row in your hand". (2) In dark mode the table's own grid lines
+   competed with the 3px insertion bar. Both are contrast problems, so both get a
+   contrast answer rather than a louder colour. */
+.dev-table tbody tr.is-dragging td {
+  background: color-mix(in srgb, var(--primary) 14%, var(--surface));
+}
+.dev-table tbody tr.is-dragging td.dev-grip {
+  box-shadow: inset 3px 0 0 0 var(--primary);
+}
+.dev-table tbody tr.is-dragging .dev-name {
+  color: var(--primary-fg);
+}
+/* The bar casts a soft shadow and has a surface-coloured halo, which lifts it off
+   the horizontal rules instead of tying with them. */
+.dev-table tbody tr.is-drop-before::before,
+.dev-table tbody tr.is-drop-after::after {
+  height: 4px;
+  box-shadow:
+    0 0 0 1.5px var(--surface),
+    0 1px 4px rgba(15, 23, 42, 0.28);
+}
+
+/* ---- v20.5: the insertion bar belongs to the data area ----------------------
+   Review: "the line is a continuous vivid rule across the entire table width,
+   including through the separated action column … reads more like a table-wide
+   underline than an insertion marker." The actions column is deliberately set
+   apart, so a dropped row entering the data area should not draw through it. Stop
+   the bar where the column begins, and cap it with a solid head at the leading
+   edge so it reads as a pointer, not a horizontal rule. */
+/* The marker is a T, not a rule: a 4px horizontal bar PLUS a 12px vertical tick at
+   its leading edge, which is what makes it read as "your row goes here" rather than
+   as another grid line.
+   The pseudo-element must stay INSIDE the row box. It used to hang 5-7px outside it,
+   which grew the scroll container by 11px (measured: clientHeight 472 -> 483); that
+   popped a scrollbar and re-flowed every column mid-drag, so values appeared to
+   shuffle between headers until the drag ended. Painting the bar on the row's own
+   top/bottom edge puts it exactly on the boundary the row will move to, and leaves
+   the scroll geometry untouched. */
+.dev-table tbody tr.is-drop-before::before,
+.dev-table tbody tr.is-drop-after::after {
+  right: 96px;
+  height: 12px;
+  background-color: transparent;
+  background-image:
+    linear-gradient(var(--primary), var(--primary)),
+    linear-gradient(var(--primary), var(--primary));
+  background-repeat: no-repeat;
+  background-size:
+    4px 12px,
+    100% 4px;
+  border-radius: 0;
+  box-shadow: none;
+  /* Halo around the painted pixels only; `filter` never contributes to scrollable
+     overflow, so it cannot re-introduce the reflow above. */
+  filter: drop-shadow(0 0 1.5px var(--surface)) drop-shadow(0 1px 3px rgba(15, 23, 42, 0.3));
+}
+.dev-table tbody tr.is-drop-before::before {
+  top: 0;
+  /* Bar on the row's top edge, tick hanging down from it. */
+  background-position:
+    0 0,
+    0 0;
+}
+.dev-table tbody tr.is-drop-after::after {
+  bottom: 0;
+  /* Bar on the row's bottom edge, tick rising from it. */
+  background-position:
+    0 100%,
+    0 100%;
+}
+
+/* ---- v20.7: the drop marker must not move anything -------------------------
+   Report: "when you do move slowly, suddenly name device change to version,
+   version to root, and so on. but it will come back."
+
+   That was not a rendering glitch. `tr { position: relative }` on the drop target
+   made the table 11px TALLER (measured 472 -> 483), which was enough to pop the
+   scroll wrapper's vertical scrollbar, narrow every column (last header moved
+   1331 -> 1250), and re-flow the whole table under the cursor — so the label under
+   the mouse changed while the mouse had not moved. It also invalidated the
+   hit-testing the next `dragover` relied on, which is what made an upward drag
+   land one row off.
+
+   The marker is now drawn with ZERO layout cost: an inset box-shadow on the cells
+   for the bar, plus a vertical tick in the grip column, which is made a
+   positioning context ONCE and never changes during a drag. Verified: table
+   height, wrapper width and every header x-position are byte-identical with and
+   without the marker. */
+.dev-table tbody tr.is-drop-before,
+.dev-table tbody tr.is-drop-after {
+  position: static;
+}
+.dev-table tbody tr.is-drop-before::before,
+.dev-table tbody tr.is-drop-after::after,
+.dev-table tbody tr.is-drop-before td.dev-grip::before,
+.dev-table tbody tr.is-drop-after td.dev-grip::before {
+  content: none;
+  display: none;
+}
+
+/* Bar = inset shadow, so it paints inside the cell box and casts no geometry. */
+.dev-table tbody tr.is-drop-before td:not(.dev-acts) {
+  box-shadow: inset 0 4px 0 0 var(--primary);
+  background: transparent;
+}
+.dev-table tbody tr.is-drop-after td:not(.dev-acts) {
+  box-shadow: inset 0 -4px 0 0 var(--primary);
+  background: transparent;
+}
+
+/* Tick = a 4x15 block in the grip column, straddling the bar. Static
+   `position: relative` on the cell only — it is set once for every row, drag or
+   not, so it can never change layout mid-gesture. */
+.dev-table td.dev-grip {
+  position: relative;
+}
+.dev-table tbody tr.is-drop-before td.dev-grip::after,
+.dev-table tbody tr.is-drop-after td.dev-grip::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  width: 4px;
+  height: 15px;
+  background: var(--primary);
+  border-radius: 2px;
+  z-index: 6;
+  pointer-events: none;
+}
+.dev-table tbody tr.is-drop-before td.dev-grip::after {
+  top: -7px;
+}
+.dev-table tbody tr.is-drop-after td.dev-grip::after {
+  bottom: -7px;
+}
+/* Above the first row there is no row to hang the bar from, so the tick is lifted
+   into the header gap — "the very top" must not read as "under the header". */
+.dev-table tbody tr[data-ri='0'].is-drop-before td.dev-grip::after {
+  top: -7px;
+}
+
+/* ---- v23: the Information center's sheet is the Devices view, not a variant ---
+   v21 made the two tables share `.dev-table`, which fixed the typography and the row
+   rhythm but not the thing a reader actually sees first: the CHROME. The sheet kept a
+   grip column, two per-row buttons, a `+` in the header and a trailing "Add row" while
+   it was being read, so its rows were a different height and its edges carried
+   controls the inventory's first page does not have. Devices had already settled that
+   argument the other way: no grips, no row buttons, no add controls until "Edit all
+   rows" is pressed, and the same is now true of the sheet's Edit button.
+
+   Nothing is left to reconcile here, so nothing is declared. The sheet emits exactly
+   the view-mode markup `devicesTableHTML` emits, and every colour, padding, border,
+   font and hover it wears comes from the `.dev-table` rules above. A rule that says
+   "make the sheet look like the inventory" is a rule that can drift again; a sheet
+   that IS the same markup cannot.
+
+   `.ic-table` survives as a selector for one deliberate difference only: on a phone
+   the sheet keeps its table (a credentials grid means nothing as a stack of cards,
+   because the row/column relationship is the information) while the inventory
+   switches to cards. That rule lives with the other phone rules. */
+
+/* ---------- v22: edit every row at once ---------- */
+/* The bar sits directly above the sheet so the scope sentence ("Editing N rows")
+   and the Save button are in the same visual group as the cells they affect. */
+.dev-bulkbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin: 0 0 12px;
+  padding: 9px 12px;
+  border: 1px solid color-mix(in srgb, var(--primary) 34%, var(--border));
+  border-left: 3px solid var(--primary);
+  border-radius: 10px;
+  background: var(--primary-soft);
+}
+/* The keyboard hint is the first thing to give up room, because it is a nicety while
+   every button beside it is a control. Without this the bar wrapped just below 1300px
+   and stranded "Save all" on a line of its own, which reads as a stray button rather
+   than the primary action. */
+@media (max-width: 1400px) {
+  .dev-bulkbar .db-note { display: none; }
+  .dev-bulkbar .spacer { display: none; }
+}
+.dev-bulkbar .db-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  font-weight: 650;
+  color: var(--primary-fg);
+  white-space: nowrap;
+}
+.dev-bulkbar .db-note {
+  font-size: 12px;
+  color: var(--muted);
+  min-width: 0;
+}
+.dev-bulkbar .db-dirty {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.dev-bulkbar .spacer { flex: 1 1 auto; }
+
+/* Editable cells: an input that still reads as a table cell, so the columns keep
+   lining up with their headers instead of turning into a form grid. */
+.dev-table td.dev-edit-cell {
+  padding: 4px 5px;
+  vertical-align: middle;
+}
+.dev-cell-input {
+  width: 100%;
+  min-width: 0;
+  height: 30px;
+  padding: 0 8px;
+  font-size: 12.5px;
+  border-radius: 6px;
+  background: var(--surface);
+  border-color: var(--border);
+}
+.dev-cell-input:focus {
+  border-color: var(--primary);
+  outline: none;
+  box-shadow: 0 0 0 3px var(--primary-ring);
+}
+.dev-cell-input.is-bad {
+  border-color: var(--rose);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--rose) 22%, transparent);
+}
+/* Drag affordances are meaningless while the sheet is a form: a grip that does
+   nothing is worse than no grip, so they are dimmed and made non-draggable. */
+.dev-grip-dots.is-off,
+.dev-col-grip.is-off { opacity: 0.3; }
+.dev-table tr.is-editing:hover { background: transparent; }
+.dev-table .dev-h-grip { width: 30px; }
+
+  /* Bulk mode on a phone: the grid is wider than the screen, so keep the sticky
+   header and let it scroll rather than reflowing into unaligned inputs. */
+@media (max-width: 760px) {
+  /* Three short rows, not two: line 1 = who is being edited + the change counter,
+     line 2 = the two add actions together, line 3 = the two ways out. Cramming all five
+     onto two lines squeezed the labels; keeping the two adds on one line preserves the
+     desktop grouping (column then device) instead of an arbitrary order. */
+  .dev-bulkbar {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-template-areas:
+      'tag dirty'
+      'col add'
+      'discard save';
+    gap: 8px;
+    padding: 8px 10px;
+    align-items: center;
+  }
+  /* The hint is already hidden below 1400px; on a phone it would also be advice you
+     cannot act on (no Tab key), so the rule above covers both. */
+  .dev-bulkbar .db-tag { grid-area: tag; }
+  .dev-bulkbar .db-dirty { grid-area: dirty; justify-self: end; }
+  /* Both add-buttons share a line, so "Add column" and "Add device" stay adjacent
+     exactly as they are on desktop. Every item needs an explicit area: an unplaced
+     grid item creates an IMPLICIT row, which pushed this bar from 83px to 138px. */
+  .dev-bulkbar [data-device-addcol] { grid-area: col; justify-self: stretch; }
+  .dev-bulkbar [data-device-new] { grid-area: add; justify-self: stretch; }
+  .dev-bulkbar [data-bulk-cancel] { grid-area: discard; justify-self: stretch; }
+  .dev-bulkbar [data-bulk-save] { grid-area: save; justify-self: stretch; }
+  .dev-bulkbar .btn { height: 32px; }
+  .dev-cell-input { height: 32px; font-size: 13px; }
+}
+
+/* Three header buttons do not fit a phone: let them wrap under the title
+   instead of pushing the page sideways. */
+@media (max-width: 760px) {
+  .dev-head { flex-wrap: wrap; }
+  .dev-head-actions { flex: 1 1 100%; flex-wrap: wrap; }
+  .dev-head-actions .btn { flex: 1 1 auto; justify-content: center; }
+}
+
+/* The label only exists for the stacked layout. */
+.dev-bulkhost .dev-table td.dev-edit-cell .de-label {
+  display: none;
+}
+
+/* ---------- v23: the edit grid on a phone ----------
+   A 654px-wide spreadsheet in a 356px viewport is unusable: the name cell was
+   clipped to 111px and the row's Edit/Delete buttons sat 240px off-screen with
+   nothing saying so. Rather than making people scroll sideways to find their own
+   row's controls, each row becomes a card of labelled fields with its actions at
+   the bottom. Same markup, same handlers — only the layout changes. */
+@media (max-width: 760px) {
+  .dev-bulkhost .dev-tablewrap {
+    overflow: visible;
+  }
+  .dev-bulkhost .dev-table,
+  .dev-bulkhost .dev-table tbody,
+  .dev-bulkhost .dev-table tr,
+  .dev-bulkhost .dev-table td {
+    display: block;
+    width: auto;
+  }
+  .dev-bulkhost .dev-table thead {
+    display: none;
+  }
+  .dev-bulkhost .dev-table tbody tr[data-dev-row] {
+    position: relative;
+    margin: 0 0 10px;
+    padding: 10px 12px 8px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--surface);
+    box-shadow: var(--shadow-xs);
+  }
+  /* The gutter grip has no meaning without columns to drag; the mode disables
+     dragging anyway, so hide the handle rather than park it in the corner. */
+  .dev-bulkhost .dev-table td.dev-grip {
+    display: none;
+  }
+  .dev-bulkhost .dev-table td.dev-edit-cell {
+    padding: 0 0 8px;
+  }
+  .dev-bulkhost .dev-table td.dev-edit-cell .de-label {
+    display: block;
+    margin-bottom: 3px;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--faint);
+  }
+  .dev-bulkhost .dev-table td.dev-edit-cell .dev-cell-input {
+    height: 36px;
+    font-size: 13.5px;
+  }
+  /* Actions last, separated by a rule: they act on the whole card, not on the
+     field above them. */
+  .dev-bulkhost .dev-table td.dev-acts {
+    display: block;
+    margin-top: 2px;
+    padding: 8px 0 0;
+    border-top: 1px solid var(--border);
+  }
+  .dev-bulkhost .dev-table td.dev-acts .dev-acts-inner {
+    justify-content: flex-end;
+  }
+  /* The sideways-scroll cue is meaningless once the table no longer scrolls. */
+  .dev-bulkhost .dev-scrollfx,
+  .dev-bulkhost .dev-scrollhint {
+    display: none;
+  }
+}
+
+/* A note cell is a textarea, so it must grow with its content instead of
+   showing one clipped line. */
+.dev-bulkhost .dev-cell-input:is(textarea) {
+  height: auto;
+  min-height: 46px;
+  padding: 7px 9px;
+  line-height: 1.45;
+  resize: vertical;
+  font-family: inherit;
+}
+
+/* ---- v24: the edit grid gets its drag handles and add-row back ----
+   Moving a row or column while looking at the sheet you are editing is the same
+   gesture as in view mode, so the grips stay live instead of greying out. */
+.dev-bulkhost .dev-col-grip { opacity: 1; }
+.dev-bulkhost .dev-grip-dots:not(.is-off) { opacity: 1; }
+/* An added row has nothing to drag yet, so its handle is visibly inert rather
+   than a grip that refuses to move. */
+.dev-bulkhost .dev-grip-dots.is-off { opacity: 0.35; cursor: not-allowed; }
+.dev-bulkhost .dev-table tr[data-pending] { background: var(--primary-soft); }
+.dev-bulkhost .dev-table tr[data-pending] .dev-grip-dots { cursor: not-allowed; }
+/* The add-row sits inside the same table as the editable rows, so its button has
+   to read as "one more row in this sheet" rather than the view mode's sheet-level
+   "Add device" action. */
+.dev-bulkhost .dev-addrow-btn.is-add {
+  justify-content: center;
+  border-style: dashed;
+  border-color: var(--primary);
+  color: var(--primary-fg);
+  background: var(--primary-soft);
+  font-weight: 560;
+}
+.dev-bulkhost .dev-addrow-btn.is-add:hover {
+  background: color-mix(in srgb, var(--primary) 16%, transparent);
+}
+
+/* ---- v24.1: make the drag handles and drop targets legible ----
+   The markers existed but were 3-4px inset shadows: after a screenshot is
+   downscaled they vanish, which reads as "no drop indicator at all". */
+/* Column grips: bigger, outlined, and darker so they read as handles. */
+.dev-table th[data-dev-colhead] .dev-col-grip {
+  width: 22px;
+  height: 22px;
+  color: var(--ink-2);
+  background: var(--surface-2);
+  border: 1px solid var(--border-strong);
+  border-radius: 5px;
+}
+.dev-table th[data-dev-colhead]:hover .dev-col-grip {
+  color: var(--primary-fg);
+  border-color: var(--primary);
+  background: var(--primary-soft);
+}
+/* A real bar at the edge, drawn OUTSIDE the flow (absolutely positioned) so it
+   cannot change a row's height mid-drag — a marker in normal flow grows the row
+   and shifts the drop target out from under the cursor. */
+.dev-bulkhost .dev-table tbody tr[data-dev-row],
+.dev-table tbody tr[data-dev-row] {
+  position: relative;
+}
+/* NOTE: no `is-drop-before::after` rule here on purpose. The insertion bar is
+   painted by the `::before` rule further down (and by `::after` only for the
+   `is-drop-after` side). Generating an EXTRA pseudo-element on a `display:
+   table-row` makes the browser wrap it in an anonymous table cell, which adds a
+   phantom column and redistributes every width a few pixels — measured as the
+   header x-positions drifting 3px the instant a drop marker appeared, which is
+   what made a slow drag look like the labels shuffled under the cursor. */
+/* A labelled target, not just a line: the pill says what dropping will do.
+   It is a REAL element, not a pseudo-element, because `is-drop-before` already
+   spends both of the row's pseudo-elements on the insertion bar and its tick.
+   Sharing `::before` meant the bar's `right: 96px` / gradient rules applied to the
+   pill and stretched it into a second full-width bar, so the label never appeared. */
+.dev-drop-pill {
+  position: absolute;
+  z-index: 8;
+  left: 30px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  background: var(--primary);
+  color: var(--btn-fg, #fff);
+  box-shadow: 0 1px 4px rgba(15, 23, 42, 0.3);
+  pointer-events: none;
+  white-space: nowrap;
+}
+/* Park it just clear of the bar, inside the row, so it can never hide under the
+   sticky header the way a pill hung above the first row did. */
+.dev-drop-pill.is-before { top: 2px; }
+.dev-drop-pill.is-after { bottom: 2px; }
+/* Column drop target: a bar on the edge it will land against. */
+.dev-table thead th[data-dev-colhead].is-col-drop-before,
+.dev-table thead th[data-dev-colhead].is-col-drop-after {
+  position: relative;
+  background: var(--primary-soft);
+}
+.dev-table thead th[data-dev-colhead].is-col-drop-before::after,
+.dev-table thead th[data-dev-colhead].is-col-drop-after::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 4px;
+  background: var(--primary);
+  border-radius: 2px;
+  pointer-events: none;
+  z-index: 3;
+}
+.dev-table thead th[data-dev-colhead].is-col-drop-before::after { left: -2px; }
+.dev-table thead th[data-dev-colhead].is-col-drop-after::after { right: -2px; }
+/* An added row says so in words: a tint alone is indistinguishable from a
+   highlighted or invalid row. */
+.dev-new-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 7px;
+  margin-right: 2px;
+  border-radius: 999px;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  background: var(--primary);
+  color: var(--btn-fg, #fff);
+  white-space: nowrap;
+}
+
+/* ---- v26: project properties (Admin panel → Properties) ----
+   Categories and statuses are rows now, so this page edits the words and the colours
+   the rest of the app prints. The table wears `.dev-table` like every other table
+   here; what it adds is a colour picker whose swatches ARE the badges they choose,
+   and a "built in" chip for the rows the workflow depends on. */
+.prop-tones {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.prop-tone {
+  padding: 3px;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  background: transparent;
+  cursor: pointer;
+}
+.prop-tone:hover { background: var(--surface-2); }
+.prop-tone.on {
+  border-color: var(--primary);
+  background: var(--primary-soft);
+}
+.prop-tone:focus-visible {
+  outline: 2px solid var(--primary-ring);
+  outline-offset: 1px;
+}
+/* The chip has to be readable at a glance: "can I delete this?" is the first question
+   anyone asks of a settings list. */
+.prop-lock {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 8px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  background: var(--surface-3);
+  color: var(--faint);
+  white-space: nowrap;
+}
+.prop-table th.dev-h-acts,
+.prop-table td.dev-acts { width: 140px; }
+.prop-table .dev-acts-inner { gap: 2px; }
+.prop-table tbody tr:hover td.dev-acts { background: var(--surface-2); }
+/* "Built in" rows keep their reorder and edit controls but not the delete; the icon has
+   to say so before it is clicked, not by refusing afterwards. */
+.prop-table .btn-icon:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+.prop-table .btn-icon:disabled:hover { background: transparent; color: var(--muted); }
+
+/* ---- v25: the staff directory (Workspace → Users) ----
+   A lookup table, not the admin tree: one row per account, four columns, sorted by
+   name. It wears `.dev-table` like the inventory and the information center do, so
+   it is the third table in the app rather than a third table STYLE in the app. */
+.dir-person {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+}
+.dir-person > span:last-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.dir-role {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.dir-role-name { font-size: 12.5px; color: var(--ink-2); }
+/* A table of contact details is made to be used: the address and the number are
+   links, and they only say so on hover so the grid stays quiet when it is scanned. */
+.dev-table a { color: inherit; text-decoration: none; }
+.dev-table a:hover,
+.dev-table a:focus-visible {
+  color: var(--primary-fg);
+  text-decoration: underline;
+}
+/* The avatar carries a 44px invisible hit area, which would overlap the name beside
+   it; in this column the face and the name are one target. */
+.dir-person .avatar-link::after { width: 100%; }
+/* On a phone the four columns cannot share one line, and the one that fell off the
+   right edge was the phone number — the only field anyone taps. Each row becomes its
+   own card instead, with the column names carried by the cells themselves. */
+@media (max-width: 720px) {
+  .dir-page [data-dir-scroll] {
+    overflow: visible;
+    border: none;
+    background: transparent;
+  }
+  .dir-page [data-dir-scroll] .dev-scrollfx,
+  .dir-page .dev-scrollhint { display: none; }
+  .dir-page .dev-table,
+  .dir-page .dev-table tbody,
+  .dir-page .dev-table tr,
+  .dir-page .dev-table td { display: block; width: auto; }
+  .dir-page .dev-table thead { display: none; }
+  .dir-page .dev-table tr {
+    padding: 11px 13px;
+    margin: 0 0 10px;
+    border: 1px solid var(--border);
+    border-radius: var(--r-lg);
+    background: var(--surface);
+    box-shadow: var(--shadow-sm);
+  }
+  .dir-page .dev-table tbody tr:hover td { background: transparent; }
+  .dir-page .dev-table td {
+    padding: 3px 0;
+    border: none;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+  .dir-page .dev-table td::before {
+    content: attr(data-label);
+    display: inline-block;
+    min-width: 96px;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--faint);
+  }
+  .dir-page .dev-table td.dev-name { padding-bottom: 8px; border-bottom: 1px solid var(--border); margin-bottom: 4px; }
+  .dir-page .dev-table td.dev-name::before { content: none; }
+}
+
+/* ---- v24: one Users page, and importing a team ----
+   The admin panel used to hold two pages that both answered "who works here?": the
+   pentest tree and the project managers. They shared a table, a create path and a
+   reason to look, so they are now one page with a tab for when only one half is
+   wanted. The header carries the two actions that page owns — add one, or bring in a
+   list — and the sections below name themselves, because two different things now
+   live on one page and "which list am I looking at" must be answerable from a
+   screenshot. */
+.admin-head .head-acts {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 0 auto;
+}
+.admin-head .head-acts .btn { margin-left: 0; }
+.admin-tabs {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin: 0 0 18px;
+}
+/* The tab strip is content-sized, not equal-split. `.segmented button` defaults to
+   `flex: 1 1 0`, which asks for a zero basis and then lets each label keep its own
+   `white-space: nowrap` width — so "Project managers" overflowed its own pill while
+   the strip itself stopped at the sum of the 66px floors. Here the buttons take their
+   content width (and may shrink if the strip is ever narrower than the labels). */
+.admin-tabs .segmented {
+  flex: 0 0 auto;
+  width: max-content;
+  max-width: 100%;
+}
+.admin-tabs .segmented button {
+  flex: 0 1 auto;
+  min-width: 0;
+  padding: 0 12px;
+}
+.admin-count {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--faint);
+  white-space: nowrap;
+}
+.admin-sec { margin: 0 0 24px; }
+.admin-sec:last-child { margin-bottom: 0; }
+.admin-sec-head {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  flex-wrap: wrap;
+  margin: 0 0 10px;
+}
+.admin-sec-head h3 {
+  margin: 0;
+  font-size: 13.5px;
+  font-weight: 640;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+}
+.admin-sec-head p {
+  margin: 0;
+  font-size: 12px;
+  color: var(--muted);
+  flex: 1 1 240px;
+}
+.admin-sec-head .spacer { margin-left: auto; }
+
+/* Import dialog. The list and the file picker sit together because they are two
+   ways into the same box, and the preview is the whole point of the dialog: it shows
+   what will be created BEFORE anything is. */
+.imp-file-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin: 0 0 14px;
+}
+.imp-file-row .form-hint { margin: 0; }
+.imp-tally { font-size: 12px; color: var(--muted); }
+/* Two hundred lines must not push the Import button off the screen, so the preview
+   is the part that scrolls. */
+.imp-preview {
+  max-height: 300px;
+  overflow: auto;
+}
+.imp-preview .dev-table { min-width: 100%; }
+/* One row, one line: a preview that wraps the username mid-word cannot be checked at
+   a glance — "rina.kusum / a" is what this looked like at the normal modal width. The
+   two columns that can run long (a name, a phone + address pair) get a cap and an
+   ellipsis instead, so Status keeps its place on screen rather than sitting behind a
+   horizontal scroll. */
+.imp-preview .dev-table th,
+.imp-preview .dev-table td { white-space: nowrap; padding: 8px 10px; }
+.imp-preview .dev-table td { font-size: 11.5px; }
+.imp-preview .imp-name {
+  max-width: 172px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.imp-preview .imp-contact {
+  max-width: 218px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.imp-preview .dev-table thead th { top: 0; }
+.imp-ok { color: var(--green); font-weight: 600; }
+.imp-bad { color: var(--rose); font-weight: 600; }
+.imp-failures { margin: 0 0 14px; }
+.imp-failures ul {
+  margin: 6px 0 0;
+  padding-left: 18px;
+  font-size: 12px;
+  color: var(--ink-2);
+}
+.imp-failures li { margin: 2px 0; }
