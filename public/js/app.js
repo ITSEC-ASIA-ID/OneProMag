@@ -722,6 +722,15 @@ function filtersHTML() {
 }
 
 /**
+ * Status order used by the server's `ORDER BY` for projects (Ongoing, Incoming,
+ * Ready, Hold, Done, then anything an admin added). Mirrored here because the
+ * expanded retest rows have to be placed in the same sequence: they arrive
+ * attached to their project, and appending them there left an Ongoing retest
+ * sitting below the Hold engagements.
+ */
+const STATUS_RANK = { Ongoing: 0, Incoming: 1, Ready: 2, Hold: 3, Done: 4 };
+
+/**
  * The rows the Active list actually shows.
  *
  * One row per engagement, plus one row per OPEN retest of that engagement: a
@@ -742,16 +751,25 @@ function listRows(list) {
   // An explicit status filter wins, so asking for Done still lists Done.
   const hideDone = expand && !state.filters.status;
   const rows = [];
-  for (const p of list) {
+  list.forEach((p, order) => {
     if (!(hideDone && p.status === 'Done')) {
-      rows.push({ key: `p${p.id}`, kind: 'project', project: p, status: p.status });
+      rows.push({ key: `p${p.id}`, kind: 'project', project: p, status: p.status, at: order });
     }
-    if (!expand) continue;
+    if (!expand) return;
     for (const r of p.openRetests || []) {
-      rows.push({ key: `r${r.id}`, kind: 'retest', project: p, retest: r, status: r.status });
+      // `at` sorts the retest by ITS OWN status, not by its project's: an Ongoing
+      // retest of a Done engagement belongs in the Ongoing block, not at the
+      // bottom of the list under whatever status the project happens to have.
+      // The half-step keeps it directly beneath its project when the two share a
+      // status, which is the case the grouping is for.
+      rows.push({ key: `r${r.id}`, kind: 'retest', project: p, retest: r, status: r.status, at: order + 0.5 });
     }
-  }
-  return rows;
+  });
+  if (!expand) return rows;
+  // Sorted by status, then by the order the server already put the engagements in,
+  // so projects keep their exact sequence and only the retest rows move.
+  const rank = (status) => (status in STATUS_RANK ? STATUS_RANK[status] : 5);
+  return rows.sort((a, b) => rank(a.status) - rank(b.status) || a.at - b.at);
 }
 
 /** Name of the thing a row represents: the project, or the retest of it. */

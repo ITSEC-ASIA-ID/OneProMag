@@ -432,6 +432,12 @@ status there changes *that retest* — not the project, which keeps its own stat
 and its own control on its own row. The list header counts them separately
 (`4 projects  +2 retests`), and a status filter applies to each row's own status.
 
+Rows are ordered by status — the same order the server uses for engagements
+(Ongoing, Incoming, Ready, Hold, Done) — and a retest is placed by **its own**
+status, not by its project's. A retest row therefore sits in the Ongoing block
+even when the engagement it belongs to is Hold, and it stays directly beneath its
+project when the two share a status.
+
 A **finished** engagement is not listed as itself in an active list, even when it
 owes a retest: the pending retest is the row that stands for the work
 
