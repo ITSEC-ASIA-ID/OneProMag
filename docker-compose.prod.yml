@@ -4,6 +4,19 @@
 #
 #   docker compose -f docker-compose.prod.yml up -d --build
 #
+# `name:` gives this stack its own compose project, and therefore its own
+# volumes. Without it compose derives the project from the directory name — the
+# same name docker-compose.yml gets — so both files would mount the SAME Postgres
+# volume, and a database that was seeded with demo fixtures during development
+# would follow you into production. SEED_DEMO=0 stops new fixtures; it cannot
+# un-seed rows that are already there. Separate volumes make "production" a
+# genuinely empty install and leave the development data where it belongs.
+#
+# Consequence: the two stacks no longer share data, and both publish 3131, so
+# stop one before starting the other. To copy real content from dev to prod, see
+# Database → Migrating between stacks in the README.
+name: onepromag-prod
+#
 # The app is published on ${APP_PORT:-3131}, exactly like the development file,
 # so the address you have been using keeps working. What is different from
 # docker-compose.yml is that this file is meant to stay up unattended:
@@ -204,7 +217,10 @@ networks:
     driver: bridge
     ipam:
       config:
-        - subnet: ${ONEPROMAG_SUBNET:-10.77.0.0/24}
+        # Different default from docker-compose.yml (10.77.0.0/24) on purpose:
+        # two stacks on one host would otherwise fight over the same subnet when
+        # both are up.
+        - subnet: ${ONEPROMAG_SUBNET:-10.78.0.0/24}
 
 volumes:
   onepromag-pgdata:

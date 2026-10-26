@@ -14,6 +14,7 @@
     "start": "node --no-warnings server/index.js",
     "dev": "node --no-warnings --watch server/index.js",
     "start:pg": "DB=postgres node --no-warnings server/index.js",
-    "reset-db": "node -e \"import('node:fs').then(f=>f.rmSync('data/app.db',{force:true}))\""
+    "reset-db": "node -e \"import('node:fs').then(f=>f.rmSync('data/app.db',{force:true}))\"",
+    "cli": "node server/cli.js"
   }
 }

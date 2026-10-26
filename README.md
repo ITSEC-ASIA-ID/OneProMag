@@ -180,10 +180,23 @@ password manager). `ADMIN_USERNAME` and `ADMIN_NAME` are optional. After that
 first admin exists, every other account is created in **Admin panel → Manage
 users**, or by `SEED_DEMO=1` on a throwaway demo box.
 
-Switching an existing development install to the production file does **not**
-delete what is already there — seeding only ever adds. To start production from a
-genuinely empty database, remove the volume first (`down -v`, which destroys the
-data) before the first production start.
+Lost it? Logs are the only copy, so there is a way back in that does not involve
+deleting the database:
+
+```bash
+docker compose -f docker-compose.prod.yml exec onepromag node server/cli.js users
+docker compose -f docker-compose.prod.yml exec -e NEW_PASSWORD='…' \
+  onepromag node server/cli.js passwd admin
+```
+
+`passwd` takes `NEW_PASSWORD`, or generates one and prints it, and clears that
+account's other sessions — a reset usually follows "someone else may have this
+password". Neither command needs the web server to be up.
+
+Because the production stack has its own volume, it never inherits development
+fixtures in the first place — see *Two independent installs* below. An older
+install that already shares them can drop the prod volume and start over:
+`docker compose -f docker-compose.prod.yml down -v` (destroys that stack's data).
 
 ### TLS is opt-in, because it needs something a file cannot invent
 
@@ -245,16 +258,47 @@ gunzip -c backups/onepromag-2026-10-26-1355.sql.gz \
 `.env`, otherwise the files land root-owned. `./backups` is git-ignored; copy it
 off the machine if losing the host is in scope.
 
-### Switching between the two files
+### Two independent installs
 
-Both files use the same project name (the directory name), so they share the
-database volume — switching does not lose data, but only one stack can hold port
-3131 at a time:
+`docker-compose.prod.yml` declares `name: onepromag-prod`, so it is its own
+compose project with its own volumes. Without that, compose derives the project
+from the directory name — the same name the development file gets — and both
+files mount **the same Postgres volume**, which is how a database seeded with
+demo fixtures during development ends up being "production". `SEED_DEMO=0` stops
+new fixtures; it cannot un-seed rows that already exist.
+
+So the two stacks are separate:
+
+| | dev | prod |
+| --- | --- | --- |
+| Compose project | `onepromag` (directory name) | `onepromag-prod` |
+| Database volume | `onepromag_onepromag-pgdata` | `onepromag-prod_onepromag-pgdata` |
+| Network subnet | `10.77.0.0/24` | `10.78.0.0/24` |
+| Port | `3131` (`APP_PORT`) | `3131` (`APP_PORT`) |
+
+They can both run at once if the ports differ (`APP_PORT=3135 docker compose up -d`)
+— the separated subnets are what make that possible.
+
+### Moving real content from dev to prod
+
+The stacks no longer share a database, so anything worth keeping has to be moved:
 
 ```bash
-docker compose down                                    # stop whichever is running
-docker compose -f docker-compose.prod.yml up -d --build
+# dump from dev (its db container is named onepromag-db)
+docker exec onepromag-db pg_dump -U onepromag --no-owner --no-privileges onepromag \
+  | gzip > dev.sql.gz
+
+# load into prod (its db container is onepromag-prod-db-1)
+gunzip -c dev.sql.gz \
+  | docker exec -i $(docker compose -f docker-compose.prod.yml ps -q db) \
+      psql -U onepromag -d onepromag
+
+# the dump carries dev's users, including the demo accounts — remove them in
+# Admin panel → Manage users, and change the admin password
 ```
+
+For a clean start instead, do nothing: a fresh prod volume already comes up with
+one admin and no fixtures.
 
 ### Upgrading
 
@@ -1223,7 +1267,30 @@ you switch the timestamp columns to `timestamptz`.
 
 ---
 
+### Operating without the UI
+
+`server/cli.js` covers the cases the web app cannot: you are locked out, or you
+want to check who exists before signing in.
+
+```bash
+npm run cli users                     # id, username, name, role, level, contact
+npm run cli passwd <username>         # NEW_PASSWORD=… or generated + printed
+```
+
+Same commands inside a container:
+
+```bash
+docker compose -f docker-compose.prod.yml exec onepromag node server/cli.js users
+docker compose -f docker-compose.prod.yml exec -e NEW_PASSWORD='…' \
+  onepromag node server/cli.js passwd admin
+```
+
+`passwd` accepts an e-mail address as well as a username, and drops that user's
+other sessions.
+
 ## Project structure
+
+
 
 ```
 OneProMag/
@@ -1238,6 +1305,7 @@ OneProMag/
 ├── package.json
 ├── server/
 │   ├── index.js         HTTP server, routing, static files, boot sequence
+│   ├── cli.js           `users` / `passwd` — operations without the web server
 │   ├── db.js            engine selection, schema apply, seed data
 │   ├── auth.js          scrypt hashing, sessions, user CRUD
 │   ├── api.js           REST handlers + validation
