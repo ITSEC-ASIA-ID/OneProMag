@@ -506,6 +506,83 @@ const SEED_DEMO = (() => {
  * with, then changes; `ADMIN_PASSWORD` exists for the case where the password
  * must be known in advance (provisioning, a password manager, a script).
  */
+/**
+ * Where the bootstrap admin's password is kept between restarts.
+ *
+ * It exists so the credentials can be printed on EVERY start, not only the boot
+ * that created them: `docker compose up` output scrolls, `-d` shows nothing, and
+ * a container rebuilt a week later has no memory of the password. It is mode
+ * 0600 inside the data volume — the same trust boundary as the database itself —
+ * and it is deleted the moment the password no longer matches, so no stale
+ * secret is left lying around.
+ *
+ * Setting ADMIN_PASSWORD in .env avoids the file entirely: the password is then
+ * already in the environment and can be printed from there.
+ */
+const BOOTSTRAP_FILE = path.join(DATA_DIR, '.bootstrap-admin.json');
+
+export function rememberBootstrapAdmin(record) {
+  try {
+    fs.mkdirSync(DATA_DIR, { recursive: true });
+    fs.writeFileSync(BOOTSTRAP_FILE, JSON.stringify(record, null, 2), { mode: 0o600 });
+    fs.chmodSync(BOOTSTRAP_FILE, 0o600);
+  } catch {
+    // A read-only data dir must not stop the app from starting; the credentials
+    // were already printed once, which is the minimum viable behaviour.
+  }
+}
+
+/** Drop the stored bootstrap password — called by the CLI after a reset. */
+export function forgetBootstrapAdmin() {
+  try {
+    fs.rmSync(BOOTSTRAP_FILE, { force: true });
+  } catch {
+    /* already gone */
+  }
+}
+
+/**
+ * The admin credentials to show on this start, or null when there is nothing
+ * true to show.
+ *
+ * "True" is checked, not assumed: the stored password is verified against the
+ * hash in the database. Once the operator changes the password, the stored copy
+ * stops matching, the file is removed and the boot log says the password has
+ * been changed instead of printing one that no longer works.
+ */
+export async function bootstrapCredentials() {
+  const username = (process.env.ADMIN_USERNAME || 'admin').trim().toLowerCase();
+  const user = await db.get('SELECT username, password_hash FROM users WHERE lower(username) = ?', [
+    username,
+  ]);
+  if (!user) return null;
+
+  // ADMIN_PASSWORD is the source of truth when it is set: it is already in the
+  // environment, so printing it needs no file at all.
+  const fromEnv = String(process.env.ADMIN_PASSWORD || '').trim();
+  if (fromEnv) {
+    if (!verifyPassword(fromEnv, user.password_hash)) return null;
+    return { username: user.username, password: fromEnv, source: 'env' };
+  }
+
+  let record = null;
+  try {
+    record = JSON.parse(fs.readFileSync(BOOTSTRAP_FILE, 'utf8'));
+  } catch {
+    return null;
+  }
+  if (!record?.password || String(record.username || '').toLowerCase() !== user.username) return null;
+  if (!verifyPassword(String(record.password), user.password_hash)) {
+    try {
+      fs.rmSync(BOOTSTRAP_FILE, { force: true });
+    } catch {
+      /* nothing to clean up */
+    }
+    return null;
+  }
+  return { username: user.username, password: String(record.password), source: 'file' };
+}
+
 async function seedBootstrapAdmin() {
   const existing = await db.get('SELECT COUNT(*) AS n FROM users');
   if (existing && Number(existing.n) > 0) return { seeded: false };
@@ -520,6 +597,8 @@ async function seedBootstrapAdmin() {
      VALUES (?, ?, 'Admin', 'Lead', NULL, '', '', '', '', ?, ?)`,
     [username, name, hashPassword(password), now()]
   );
+  // Remembered only after the row exists, and only so later boots can print it.
+  rememberBootstrapAdmin({ username, password, createdAt: now() });
   return { seeded: false, bootstrapAdmin: { username, password, generated: !given } };
 }
 

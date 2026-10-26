@@ -23,7 +23,13 @@
  * response to "someone else may have my password".
  */
 import crypto from 'node:crypto';
-import { initDatabase, db, hashPassword } from './db.js';
+import {
+  initDatabase,
+  db,
+  hashPassword,
+  rememberBootstrapAdmin,
+  forgetBootstrapAdmin,
+} from './db.js';
 
 const [command, ...args] = process.argv.slice(2);
 
@@ -86,6 +92,12 @@ async function resetPassword(username) {
 
   await db.run('UPDATE users SET password_hash = ? WHERE id = ?', [hashPassword(password), user.id]);
   const dropped = await db.run('DELETE FROM sessions WHERE user_id = ?', [user.id]);
+  // Keep the boot log honest: it reprints the password only while that password
+  // is still the one in the database. A password the operator typed is not
+  // remembered (it is in their hands), a generated one is — otherwise restarting
+  // the container would lose the only copy of it again.
+  if (given) forgetBootstrapAdmin();
+  else rememberBootstrapAdmin({ username: user.username, password, createdAt: new Date().toISOString() });
 
   console.log(`Password reset for ${user.username} (${user.name}).`);
   console.log(`  password: ${password}${given ? '  (from NEW_PASSWORD)' : '  (generated)'}`);

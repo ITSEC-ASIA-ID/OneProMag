@@ -4,7 +4,7 @@ import fsp from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { api } from './api.js';
-import { initDatabase, db } from './db.js';
+import { initDatabase, db, bootstrapCredentials } from './db.js';
 import {
   HttpError,
   currentUser,
@@ -282,7 +282,7 @@ server.on('error', (err) => {
 // request never races schema creation or seeding.
 const info = await initDatabase();
 
-server.listen(PORT, HOST, () => {
+server.listen(PORT, HOST, async () => {
   console.log(`\n  OneProMag running → http://localhost:${PORT}\n`);
   console.log(`  Database       → ${info.engine}${info.engine === 'sqlite' ? ' (local file)' : ''}`);
   if (info.engine === 'sqlite') {
@@ -301,17 +301,25 @@ server.listen(PORT, HOST, () => {
   if (info.demo === false) {
     console.log('  Demo data      → off (SEED_DEMO=0) — schema and built-in properties only');
   }
-  // The one account a demo-free install gets. Printed once, at creation: the
-  // generated password is not stored anywhere readable afterwards.
-  if (info.bootstrapAdmin) {
-    const { username, password, generated } = info.bootstrapAdmin;
-    console.log('\n  First admin:');
-    console.log(`    ${username} / ${password}`);
+  // The admin login, printed on EVERY start while it is still the bootstrap
+  // password. `docker compose up` scrolls, `-d` shows nothing, and a container
+  // rebuilt next week has no memory of the password — so the credentials are
+  // re-verified against the database and shown again rather than shown once and
+  // lost. Once the password is changed, nothing is printed (see db.js).
+  const creds = info.bootstrapAdmin || (await bootstrapCredentials());
+  if (creds) {
+    const created = Boolean(info.bootstrapAdmin);
+    console.log(creds.source === 'env' ? '\n  Admin login (ADMIN_PASSWORD):' : '\n  Admin login:');
+    console.log(`    ${creds.username} / ${creds.password}`);
     console.log(
-      generated
-        ? '    Generated password — sign in and change it (top right → Change password)'
-        : '    Password taken from ADMIN_PASSWORD'
+      created
+        ? '    Created just now — change it after signing in (top right → Change password)'
+        : '    Still the bootstrap password — change it (top right → Change password)'
     );
+  } else if (info.demo === false && !info.seeded) {
+    // Only worth saying when there is no demo data to fall back on.
+    console.log('\n  Admin login     → password changed or unknown; reset it with:');
+    console.log('                    node server/cli.js passwd admin');
   }
   // Only advertise credentials that actually exist in this database: on an
   // existing install the seed is skipped, so the demo logins would be a lie.

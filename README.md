@@ -169,12 +169,38 @@ seeds none of it. A fresh production database contains exactly:
 ```
   Demo data      → off (SEED_DEMO=0) — schema and built-in properties only
 
-  First admin:
-    admin / o67UQuZGwKjh
-    Generated password — sign in and change it (top right → Change password)
+  Admin login:
+    admin / ew9ZzsqI_OSm
+    Created just now — change it after signing in (top right → Change password)
 ```
 
-The password is generated on first boot and printed **once**; set
+That block is printed on **every** start, not once — `docker compose up` scrolls,
+`-d` shows nothing, and a container rebuilt a week later has no memory of the
+password:
+
+```
+  Admin login:
+    admin / ew9ZzsqI_OSm
+    Still the bootstrap password — change it (top right → Change password)
+```
+
+```bash
+docker compose -f docker-compose.prod.yml logs onepromag | grep -A2 "Admin login"
+```
+
+While the password is still the bootstrap one it is remembered in
+`/data/.bootstrap-admin.json` (mode `0600`, inside the data volume — the same
+trust boundary as the database) so it can be re-shown. The moment the password
+stops matching the hash in the database the file is deleted and the log says so
+instead of printing a password that no longer works:
+
+```
+  Admin login     → password changed or unknown; reset it with:
+                    node server/cli.js passwd admin
+```
+
+Set `ADMIN_PASSWORD` and the file is never used: the password is printed from the
+environment. The generated one is only ever a starting point; set
 `ADMIN_PASSWORD` in `.env` when it has to be known in advance (provisioning, a
 password manager). `ADMIN_USERNAME` and `ADMIN_NAME` are optional. After that
 first admin exists, every other account is created in **Admin panel → Manage
@@ -189,7 +215,8 @@ docker compose -f docker-compose.prod.yml exec -e NEW_PASSWORD='…' \
   onepromag node server/cli.js passwd admin
 ```
 
-`passwd` takes `NEW_PASSWORD`, or generates one and prints it, and clears that
+`passwd` takes `NEW_PASSWORD`, or generates one and prints it (and remembers it,
+so the boot log keeps showing a password that actually works), and clears that
 account's other sessions — a reset usually follows "someone else may have this
 password". Neither command needs the web server to be up.
 
