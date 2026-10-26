@@ -1072,12 +1072,20 @@ now?**
 | --- | --- |
 | Pentester | Avatar, name and level pill |
 | Status | On Project · Idle · Leave · Exam · Research/Learning · Other |
-| Assigned project / current doing | **Every** project they are currently on, as chips (no "+N more" truncation — this is the widest column and long names wrap); each chip opens the project, and the row carries a quick **Assign project** button |
+| Assigned project / current doing | **Every** project they are currently on, as chips (no "+N more" truncation — this is the widest column and long names wrap); each chip opens the project, and the row carries a quick **Assign project** button. Open retest requests on their projects appear too, as **`Retest - <project>`** chips in the retest queue's amber dashed style |
 | Idle since | While idle: number of days plus the date they last finished something. Someone who has never closed a project starts counting from today, since there is no evidence of an earlier idle start |
 | Notes | Free text, editable in place |
 
 Rows follow the reporting tree — a lead, then that lead's sub lead with its
 members, then the next sub lead, and so on.
+
+A **retest** belongs to a project, not to a person: whoever is assigned to the
+project does it. So an open retest (`Incoming` or `Ongoing`) is listed beside the
+engagements that own it, and it counts as work — a pentester whose only
+outstanding job is a retest on a finished engagement is *On Project*, not idle,
+which is what stops their idle clock from running against them. The project chip
+itself only appears while the engagement is unfinished; the retest chip appears
+regardless, which is the case retests exist for.
 
 On a phone the five columns cannot fit, so each row becomes a **stacked card**:
 the table header is hidden, the person and status share the first line, and the

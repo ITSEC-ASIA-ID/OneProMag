@@ -5755,6 +5755,10 @@ function canEditRow(person) {
 function boardRowHTML(p) {
   const editable = canEditRow(p);
   const projects = p.currentProjects || [];
+  // Retests are listed beside the engagements that own them, labelled so nobody
+  // mistakes one for a second project. They open the same drawer: the retest queue
+  // lives there.
+  const retests = p.currentRetests || [];
   // The full list: a pentester's workload is the point of this column, so
   // nothing is truncated behind a "+N more" counter.
   // The assign affordance is rendered even when the list is empty: an idle
@@ -5764,12 +5768,21 @@ function boardRowHTML(p) {
          ${icon.plus(11)} Assign project
        </button>`
     : '';
-  const projectCell = projects.length
+  const anyWork = projects.length + retests.length > 0;
+  const projectCell = anyWork
     ? `<div class="board-projects">
          ${projects
            .map(
              (pr) => `<button type="button" class="board-chip" data-open-project="${pr.id}"
                         title="${h(pr.name)}">${h(pr.name)}<em>${h(pr.status)}</em></button>`
+           )
+           .join('')}
+         ${retests
+           .map(
+             (rt) => `<button type="button" class="board-chip board-chip-retest" data-open-project="${rt.projectId}"
+                        title="Retest on ${h(rt.projectName)} — ${h(rt.title || rt.code || 'client request')}">Retest - ${h(
+                          rt.projectName
+                        )}<em>${h(rt.status)}</em></button>`
            )
            .join('')}
          ${assignBtn}

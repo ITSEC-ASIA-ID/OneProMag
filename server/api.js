@@ -843,18 +843,68 @@ async function lastFinishedByUser() {
 }
 
 /** Builds the board rows: one per user, already ordered Lead > Sub Lead > Member. */
+/**
+ * Open retest requests, grouped by the project that owns them.
+ *
+ * A retest has no assignee of its own: it belongs to a project, and the people on
+ * that project are the people who do it. That is why the board shows them next to
+ * the project chips — a pentester whose only outstanding work is a retest on a
+ * finished engagement is not idle, and saying so was the whole problem.
+ */
+async function openRetestsByProject() {
+  const rows = await db.all(
+    `SELECT id, project_id, code, title, status
+       FROM retests
+      WHERE status IN ('Incoming', 'Ongoing')`
+  );
+  const byProject = new Map();
+  for (const row of rows) {
+    const pid = Number(row.project_id);
+    if (!byProject.has(pid)) byProject.set(pid, []);
+    byProject.get(pid).push({
+      id: Number(row.id),
+      code: row.code,
+      title: row.title,
+      status: row.status,
+    });
+  }
+  return byProject;
+}
+
 async function buildBoard() {
   // Project Managers own engagements rather than test them, so they are not on
   // the bench. Admins stay because an admin can carry a pentest subrole and be
   // part of the reporting tree.
   const users = (await listUsers()).map(shapePentester).filter((u) => u.role !== 'Project Manager');
   const assignments = await activeAssignments();
+  const openRetests = await openRetestsByProject();
   const lastFinished = await lastFinishedByUser();
   return users.map((u) => {
     const all = assignments.get(u.id) || [];
     const current = all.filter((p) => p.status !== 'Done');
+    // Retests hang off the project: whoever is on the project does them. They are
+    // listed separately so the board can print them as "Retest - <project>" instead
+    // of pretending they are another engagement.
+    //
+    // Drawn from EVERY assigned project, not just the unfinished ones: the usual
+    // life of a retest is "the engagement closed, the client asked for another
+    // pass", so filtering out Done projects would hide exactly the work this
+    // column exists to show.
+    const retests = all
+      .flatMap((p) =>
+        (openRetests.get(Number(p.id)) || []).map((r) => ({
+          ...r,
+          projectId: Number(p.id),
+          projectName: p.name,
+        }))
+      )
+      .sort((a, b) => a.projectName.localeCompare(b.projectName) || a.id - b.id);
     const manual = u.availability || '';
-    const autoStatus = current.length ? 'On Project' : 'Idle';
+    // A retest is work: a pentester with one open retest is on a project even when
+    // the engagement it belongs to is already finished. Without this the board
+    // reported them idle and the idle clock started running against them.
+    const busy = current.length > 0 || retests.length > 0;
+    const autoStatus = busy ? 'On Project' : 'Idle';
     const status = manual || autoStatus;
     // While idle the count must start from the moment they actually BECAME
     // idle: the end date of the last project they closed. A pentester with no
@@ -867,7 +917,8 @@ async function buildBoard() {
       status,
       automatic: !manual,
       currentProjects: current,
-      activeCount: current.length,
+      currentRetests: retests,
+      activeCount: current.length + retests.length,
       idleSince,
     };
   });

@@ -2327,6 +2327,20 @@ svg { display: block; }
   color: var(--faint);
 }
 .board-chip:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--primary-ring); }
+/* A retest is work on an engagement that is already finished, so it reads as a
+   sibling of the project chips rather than another project: same shape, a dashed
+   edge and the amber of the retest queue. */
+.board-chip-retest {
+  border-style: dashed;
+  border-color: color-mix(in srgb, var(--amber) 45%, var(--border));
+  background: color-mix(in srgb, var(--amber) 9%, var(--surface-2));
+  color: var(--ink);
+}
+.board-chip-retest:hover {
+  border-color: color-mix(in srgb, var(--amber) 70%, var(--border));
+  background: color-mix(in srgb, var(--amber) 16%, var(--surface-2));
+  color: var(--ink);
+}
 .board-more { font-size: 11.5px; color: var(--muted); padding-left: 3px; }
 
 .idle-days {
