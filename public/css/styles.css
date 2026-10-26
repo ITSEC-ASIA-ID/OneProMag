@@ -1251,6 +1251,12 @@ svg { display: block; }
   backdrop-filter: blur(2px);
   z-index: 80;
   display: grid;
+  /* minmax(0, 1fr), not the implicit `auto` track: an auto track is allowed to grow
+     to its content's min-content width, so a dialog holding a wide table (the import
+     preview, with nowrap cells) pushed the track — and with it the modal and its
+     footer button — past the right edge of a phone screen. Capping the track keeps
+     `width: min(940px, 100%)` honest and lets the table scroll inside instead. */
+  grid-template-columns: minmax(0, 1fr);
   place-items: center;
   padding: 20px;
   opacity: 0;
@@ -1258,6 +1264,9 @@ svg { display: block; }
   overflow-y: auto;
 }
 .modal {
+  /* A flex item is allowed to be narrower than its content only when told; without
+     this the preview table's min-content width leaks back out through the modal. */
+  min-width: 0;
   width: min(560px, 100%);
   max-height: calc(100vh - 40px);
   display: flex;
@@ -1568,6 +1577,17 @@ svg { display: block; }
 /* The page is already named in the topbar, so this is supporting copy only. */
 .admin-head p { font-size: 12.5px; color: var(--muted); margin: 0; flex: 1 1 220px; }
 .admin-head .btn { margin-left: auto; flex: 0 0 auto; }
+/* Two actions in the head (Import, New client). The wrapper takes the auto margin
+   so they sit together on the right; without it the rule above flings the first
+   button to the left edge. */
+.admin-head-actions {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 0 auto;
+}
+.admin-head-actions .btn { margin-left: 0; }
 
 .client-grid {
   display: grid;
@@ -5479,6 +5499,14 @@ svg { display: block; }
   overflow: hidden;
   text-overflow: ellipsis;
 }
+/* The device preview folds every filled column into one "Details" cell, so it is
+   the cell allowed to be long — and the one that has to be cut with an ellipsis
+   rather than push Status out of view. */
+.imp-preview .imp-details {
+  max-width: 430px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 .imp-preview .dev-table thead th { top: 0; }
 .imp-ok { color: var(--green); font-weight: 600; }
 .imp-bad { color: var(--rose); font-weight: 600; }
@@ -5490,3 +5518,12 @@ svg { display: block; }
   color: var(--ink-2);
 }
 .imp-failures li { margin: 2px 0; }
+/* A phone cannot hold four preview columns; the details are the ones to drop, since
+   Status is the column the import decision is made on and it must stay on screen. */
+@media (max-width: 560px) {
+  /* Whole columns, header included: hiding only the body cells left the heading in
+     place and every remaining value appeared under the wrong column. */
+  .imp-preview .imp-hide-sm { display: none; }
+  .imp-preview .imp-name { max-width: 150px; }
+  .imp-preview .imp-contact { max-width: 150px; }
+}

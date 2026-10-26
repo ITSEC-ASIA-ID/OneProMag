@@ -719,6 +719,18 @@ phone and a payment terminal have nothing to compare:
 | **EDC** | Name Device · Unique ID (SN) · Type · Supplier · Who Used · Password · Kernel · Android · Notes |
 | **Misc** | Name Device · Who Used · Notes |
 
+**Import** in the page head loads one type at a time — the type decides which
+columns exist, so it is chosen in the dialog rather than guessed from the data.
+Two shapes are read, and only the device name is required:
+
+- **a bare list** — cells are read positionally in that type's column order, and
+  anything past the last column is appended to Notes rather than dropped;
+- **a file with a header row** — columns are matched *by label, in any order*
+  (`SN, Name, Supplier, Type` fills an EDC row correctly), which is what a
+  spreadsheet export actually looks like. One matching cell is not enough to be
+  treated as a header, so a device whose values happen to spell a column name is
+  still a device.
+
 The column sets above are the **prescribed defaults**, and each type's layout is
 then editable — the equivalent of the Information center's grid editor, scoped to
 an inventory sheet. The **Add column** button in the edit bar opens the editor that
@@ -1110,9 +1122,28 @@ Each client owns a list of applications — for example *Bank Nusantara* owns
 
 - create, rename and delete clients
 - add, edit and remove applications per client
+- **import a list of clients, with their applications**, from a paste or a file
 - see how many projects use each client, and each app's project count
 - deleting a client or app still in use is refused with a clear message, so
   project history is never silently orphaned
+
+#### Importing clients
+
+**Import** in the page head takes one client per line and writes nothing until the
+preview has been read. Only the client name is required:
+
+```
+Bank Nusantara (BN)
+Bank Mandiri; BM; Mobile Banking / Internet Banking
+Bluewave Finance; BF; Paylater App;;Jakarta, contact: Ops
+```
+
+- a short name goes in parentheses after the name, or in its own short cell;
+- a cell separated by `/` or `|` becomes that client's applications, created right
+  after the client;
+- everything left over becomes notes;
+- a name already in the catalogue is marked *Already in the catalogue* and skipped,
+  so re-importing a list after fixing two lines does not duplicate the rest.
 
 Only **Admin**, **Lead** and **Sub Lead** see and can use the Admin panel.
 

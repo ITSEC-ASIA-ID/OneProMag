@@ -1235,7 +1235,10 @@ function adminHTML() {
     return `<div class="admin">
       <div class="admin-head">
         <p>Every project belongs to a client and one of that client's applications.</p>
-        <button class="btn btn-primary" id="admin-add-client">${icon.plus()} New client</button>
+        <span class="admin-head-actions">
+          <button class="btn" data-client-import>${icon.upload(13)} Import</button>
+          <button class="btn btn-primary" id="admin-add-client">${icon.plus()} New client</button>
+        </span>
       </div>
       <div class="empty">
         <div class="icon">${icon.building(28)}</div>
@@ -1249,7 +1252,10 @@ function adminHTML() {
   return `<div class="admin">
     <div class="admin-head">
       <p>Every project belongs to a client and one of that client's applications.</p>
-      <button class="btn btn-primary" id="admin-add-client">${icon.plus()} New client</button>
+      <span class="admin-head-actions">
+        <button class="btn" data-client-import>${icon.upload(13)} Import</button>
+        <button class="btn btn-primary" id="admin-add-client">${icon.plus()} New client</button>
+      </span>
     </div>
     <div class="client-grid">
       ${state.clients.map(clientCardHTML).join('')}
@@ -1309,6 +1315,7 @@ function clientCardHTML(c) {
 
 function bindAdmin() {
   document.querySelectorAll('#admin-add-client').forEach((b) => b.addEventListener('click', () => openClientForm()));
+  document.querySelectorAll('[data-client-import]').forEach((b) => b.addEventListener('click', () => openClientImport()));
   document.querySelectorAll('[data-client-edit]').forEach((b) =>
     b.addEventListener('click', () =>
       openClientForm(state.clients.find((c) => Number(c.id) === Number(b.dataset.clientEdit)))
@@ -2021,6 +2028,7 @@ function devicesHTML() {
         <p class="dev-sub">${rows.length} device${rows.length === 1 ? '' : 's'} in this type</p>
       </div>
       <div class="dev-head-actions">
+        <button class="btn" data-device-import>${icon.upload(13)} Import</button>
         ${
           editing
             ? ''
@@ -2532,6 +2540,11 @@ function openColumnEditor(options = {}) {
 }
 
 function bindDevices() {
+  // Import lives in the page head, which `mountContent` re-creates on every repaint,
+  // so the listener is bound here with the rest of the page's controls.
+  document.querySelectorAll('[data-device-import]').forEach((b) =>
+    b.addEventListener('click', () => openDeviceImport())
+  );
   document.querySelectorAll('[data-device-kind]').forEach((b) =>
     b.addEventListener('click', async () => {
       if (state.deviceKind === b.dataset.deviceKind) return;
@@ -7401,6 +7414,537 @@ Bagas Nugroho, Lead"></textarea>
   });
 }
 
+
+
+/* ============================================================
+   Import — the catalogue and the hardware inventory
+   ============================================================
+   The user import answers "a team arrives as a list". These two
+   answer the same thing for the other two things that arrive as a
+   list: a new client with its applications, and a box of devices
+   with serials. Same shape as the user import — parse into a
+   preview table, then write row by row so one bad line cannot take
+   the rest down with it. */
+
+/** `Bank Nusantara (BN)` -> name + short name. */
+function splitClientName(value) {
+  const text = String(value || '').trim();
+  const paren = text.match(/^(.*?)\s*\(([^)]{1,12})\)$/);
+  if (paren && paren[1].trim()) return { name: paren[1].trim(), shortName: paren[2].trim() };
+  return { name: text, shortName: '' };
+}
+
+/**
+ * Parse a pasted client list.
+ *
+ * Only the client name is required. A short name can be written either in
+ * parentheses after the name (`Bank Nusantara (BN)`) or as its own short cell;
+ * applications go in a cell separated by `/` or `|` (`Mobile Banking / Internet
+ * Banking`), which is the one convention that survives a spreadsheet column;
+ * everything else becomes the client's notes.
+ */
+function parseClientImport(text) {
+  const existing = new Set((state.clients || []).map((c) => String(c.name || '').toLowerCase()));
+  const seen = new Set();
+  const rows = [];
+  let first = true;
+
+  for (const raw of String(text || '').split(/\r?\n/)) {
+    const line = raw.trim();
+    if (!line || line.startsWith('#')) continue;
+    const cells = splitImportLine(line);
+    if (first) {
+      first = false;
+      // A spreadsheet export keeps its header row; it is not a client.
+      if (/^(client\s*)?name$/i.test(cells[0] || '')) continue;
+    }
+
+    const split = splitClientName(cells[0]);
+    let rest = cells.slice(1);
+    let apps = [];
+    let notes = '';
+
+    // Applications first: the cell that carries them is the only one with a
+    // separator, and a short name never contains `/`.
+    const appAt = rest.findIndex((c) => /[/|]/.test(c));
+    if (appAt >= 0) {
+      apps = rest[appAt]
+        .split(/[/|]/)
+        .map((a) => a.trim())
+        .filter(Boolean);
+      rest = rest.filter((_, i) => i !== appAt);
+    }
+
+    let shortName = split.shortName;
+    if (!shortName) {
+      // A short name is short and has no spaces; anything longer is prose.
+      const shortAt = rest.findIndex((c) => c && c.length <= 12 && !/\s/.test(c));
+      if (shortAt >= 0) {
+        shortName = rest[shortAt];
+        rest = rest.filter((_, i) => i !== shortAt);
+      }
+    }
+    notes = rest.filter(Boolean).join(' · ');
+
+    const name = split.name;
+    let error = '';
+    if (!name) error = 'No client name';
+    else if (existing.has(name.toLowerCase())) error = 'Already in the catalogue';
+    else if (seen.has(name.toLowerCase())) error = 'Listed twice';
+    if (name) seen.add(name.toLowerCase());
+
+    rows.push({
+      raw: line,
+      name,
+      shortName: shortName ? shortName.slice(0, 12) : '',
+      apps: [...new Set(apps.map((a) => a.toLowerCase()))].map(
+        (lower) => apps.find((a) => a.toLowerCase() === lower) || lower
+      ),
+      notes,
+      error,
+    });
+  }
+  return rows;
+}
+
+/**
+ * Preview header cells. `cls` travels with the label so a column that is dropped on
+ * a narrow screen disappears as a WHOLE column — hiding only its body cells left the
+ * header behind and shifted every value one column to the left.
+ */
+function impHead(cells) {
+  return cells
+    .map(
+      ([label, cls]) =>
+        `<th${cls ? ` class="${cls}"` : ''}><span class="dev-h-inner"><span class="dev-h-label">${h(label)}</span></span></th>`
+    )
+    .join('');
+}
+
+/** The client parse result as a table. */
+function clientImportPreviewHTML(rows) {
+  if (!rows.length) {
+    return `<p class="form-hint">Nothing parsed yet — paste a list above or choose a file.</p>`;
+  }
+  const head = [
+    ['Name'],
+    ['Short name'],
+    ['Applications', 'imp-hide-sm'],
+    ['Notes', 'imp-hide-sm'],
+    ['Status'],
+  ];
+  return `<div class="dev-tablewrap imp-preview">
+      <table class="dev-table">
+        <thead><tr>${impHead(head)}</tr></thead>
+        <tbody>${rows
+          .map(
+            (r) => `<tr>
+            <td class="dev-name imp-name" title="${h(r.name || '')}">${h(r.name || '—')}</td>
+            <td class="dev-mono-cell">${h(r.shortName || '—')}</td>
+            <td class="dev-notes imp-details imp-hide-sm" title="${h(r.apps.join(', '))}">${
+              r.apps.length ? h(r.apps.join(' · ')) : '—'
+            }</td>
+            <td class="dev-notes imp-details imp-hide-sm" title="${h(r.notes || '')}">${h(r.notes || '—')}</td>
+            <td class="dev-notes ${r.error ? 'imp-bad' : 'imp-ok'}">${h(r.error || 'Ready')}</td>
+          </tr>`
+          )
+          .join('')}</tbody>
+      </table>
+    </div>`;
+}
+
+/**
+ * Import clients (and their applications) from a pasted list or a file.
+ *
+ * Applications are created after their client, one request at a time, and a
+ * failed application is reported without losing the client that owns it — the
+ * client is the thing the rest of the app needs.
+ */
+function openClientImport() {
+  openModal({
+    title: 'Import clients',
+    subtitle: 'Paste a list or choose a file — one client per line',
+    xwide: true,
+    body: `
+      <div class="field">
+        <label class="label" for="imp-clients">List</label>
+        <textarea class="textarea code" id="imp-clients" rows="8" spellcheck="false"
+          placeholder="Bank Nusantara (BN)
+Bank Mandiri; BM; Mobile Banking / Internet Banking
+SecurePay Devices;;;Payment terminals, EDC supplier
+Bluewave Finance; BF; Paylater App;;Jakarta, contact: Ops"></textarea>
+        <span class="form-hint">
+          Only the client name is required. A short name can follow in parentheses or as
+          its own cell; a cell separated by <code>/</code> becomes that client's
+          applications; anything else becomes notes.
+        </span>
+      </div>
+      <div class="imp-file-row">
+        <input type="file" id="imp-client-file" accept=".csv,.tsv,.txt,text/plain,text/csv" hidden />
+        <button type="button" class="btn btn-sm" data-imp-file>${icon.fileText(13)} Choose a file…</button>
+        <span class="form-hint" id="imp-client-file-name"></span>
+      </div>
+      <div id="imp-client-failures"></div>
+      <div id="imp-client-preview"></div>`,
+    footer: `<span class="imp-tally" id="imp-client-tally"></span>
+      <span class="spacer"></span>
+      <button class="btn btn-ghost" data-cancel>Cancel</button>
+      <button class="btn btn-primary" data-import disabled>Import</button>`,
+    onMount: (modal, close) => {
+      const text = modal.querySelector('#imp-clients');
+      const preview = modal.querySelector('#imp-client-preview');
+      const tally = modal.querySelector('#imp-client-tally');
+      const failures = modal.querySelector('#imp-client-failures');
+      const fileName = modal.querySelector('#imp-client-file-name');
+      const fileInput = modal.querySelector('#imp-client-file');
+      const go = modal.querySelector('[data-import]');
+
+      const render = () => {
+        const rows = parseClientImport(text.value);
+        preview.innerHTML = clientImportPreviewHTML(rows);
+        const ok = rows.filter((r) => !r.error);
+        const bad = rows.length - ok.length;
+        const apps = ok.reduce((n, r) => n + r.apps.length, 0);
+        tally.textContent = rows.length
+          ? `${ok.length} ready${apps ? ` (+${apps} app${apps === 1 ? '' : 's'})` : ''}${
+              bad ? `, ${bad} skipped` : ''
+            }`
+          : '';
+        go.disabled = ok.length === 0;
+        go.textContent = ok.length ? `Import ${ok.length} client${ok.length === 1 ? '' : 's'}` : 'Import';
+        if (rows.length) failures.innerHTML = '';
+      };
+
+      text.addEventListener('input', render);
+      modal.querySelector('[data-imp-file]').addEventListener('click', () => fileInput.click());
+      fileInput.addEventListener('change', async () => {
+        const file = fileInput.files?.[0];
+        if (!file) return;
+        fileName.textContent = file.name;
+        text.value = await file.text();
+        render();
+      });
+      modal.querySelector('[data-cancel]').addEventListener('click', close);
+
+      go.addEventListener('click', async () => {
+        const rows = parseClientImport(text.value).filter((r) => !r.error);
+        if (!rows.length) return;
+        go.disabled = true;
+        go.textContent = 'Importing…';
+        const failed = [];
+        let createdClients = 0;
+        let createdApps = 0;
+
+        for (const row of rows) {
+          let client;
+          try {
+            const res = await api.createClient({
+              name: row.name,
+              shortName: row.shortName,
+              notes: row.notes,
+            });
+            client = res.client;
+            createdClients += 1;
+          } catch (err) {
+            failed.push(`${row.name}: ${err.message}`);
+            continue;
+          }
+          for (const app of row.apps) {
+            try {
+              await api.createApplication({ clientId: client.id, name: app });
+              createdApps += 1;
+            } catch (err) {
+              // The client exists; only its application did not. Name both, so the
+              // message says what to do rather than just what broke.
+              failed.push(`${row.name} → ${app}: ${err.message}`);
+            }
+          }
+        }
+
+        await Promise.all([refreshCatalog(), refreshAll()]);
+        if (!failed.length) {
+          toast(
+            `${createdClients} client${createdClients === 1 ? '' : 's'} imported${
+              createdApps ? ` with ${createdApps} application${createdApps === 1 ? '' : 's'}` : ''
+            }`
+          );
+          close();
+          return;
+        }
+        text.value = rows
+          .filter((r) => failed.some((f) => f.startsWith(`${r.name}:`) || f.startsWith(`${r.name} →`)))
+          .map((r) => r.raw)
+          .join('\n');
+        toast(`${createdClients} imported, ${failed.length} failed`, 'err');
+        render();
+        failures.innerHTML = `<div class="callout imp-failures">
+            <span><strong>${failed.length} could not be created</strong></span>
+            <ul>${failed.map((f) => `<li>${h(f)}</li>`).join('')}</ul>
+          </div>`;
+      });
+
+      render();
+    },
+  });
+}
+
+/* ---- devices ------------------------------------------------------------ */
+
+/** Normalise a header cell: `Name Device` and `name_device` both become `namedevice`. */
+function headerKey(value) {
+  return String(value || '')
+    .toLowerCase()
+    .normalize('NFKD')
+    .replace(/[^a-z0-9]/g, '');
+}
+
+/**
+ * Map a header row onto the kind's fields, or null when the row is not a header.
+ *
+ * A spreadsheet export carries its column names, and those are free ordering
+ * information: if two or more cells name fields, trust the labels instead of
+ * asking the operator to reorder their file. Below two matches it is far more
+ * likely to be a device whose values happen to match a label.
+ */
+function deviceHeaderMap(cells, fields, labels) {
+  const lookup = new Map();
+  for (const key of fields) {
+    lookup.set(headerKey(key), key);
+    lookup.set(headerKey(labels[key] || key), key);
+  }
+  // Common spellings a spreadsheet invents for these columns.
+  const alias = {
+    namedevice: 'name',
+    device: 'name',
+    devicename: 'name',
+    uniqueid: 'serial',
+    sn: 'serial',
+    who: 'whoUsed',
+    whohas: 'whoUsed',
+    owner: 'whoUsed',
+    type: 'edcType',
+    edctype: 'edcType',
+    notes: 'notes',
+    note: 'notes',
+  };
+  const map = cells.map((cell) => lookup.get(headerKey(cell)) || alias[headerKey(cell)] || null);
+  const hits = map.filter((key) => key && fields.includes(key)).length;
+  return hits >= 2 ? map : null;
+}
+
+/**
+ * Parse a pasted device list for one kind.
+ *
+ * Two shapes are accepted, because both arrive in practice: a file exported with
+ * its header row (mapped by label, in any order) and a bare list (read
+ * positionally in the kind's field order, starting with the device name). Cells
+ * past the last field are appended to notes rather than dropped — an extra column
+ * in someone's sheet is still information.
+ */
+function parseDeviceImport(text, kind) {
+  const fields = state.deviceFields[kind] || [];
+  const labels = state.deviceLabels || {};
+  const rows = [];
+  let header = null;
+  let first = true;
+
+  for (const raw of String(text || '').split(/\r?\n/)) {
+    const line = raw.trim();
+    if (!line || line.startsWith('#')) continue;
+    const cells = splitImportLine(line);
+    if (first) {
+      first = false;
+      const map = deviceHeaderMap(cells, fields, labels);
+      if (map) {
+        header = map;
+        continue;
+      }
+    }
+
+    const values = {};
+    if (header) {
+      cells.forEach((cell, i) => {
+        const key = header[i];
+        if (key) values[key] = cell;
+      });
+    } else {
+      fields.forEach((key, i) => {
+        values[key] = cells[i] ?? '';
+      });
+      const extra = cells.slice(fields.length).filter(Boolean);
+      if (extra.length) {
+        values.notes = [values.notes, ...extra].filter(Boolean).join(' — ');
+      }
+    }
+
+    const name = String(values.name || '').trim();
+    let error = '';
+    if (!name) error = 'No device name';
+    rows.push({ raw: line, kind, name, values, error });
+  }
+  return rows;
+}
+
+/** A compact summary of everything the row carries besides its name. */
+function deviceImportDetails(row) {
+  const labels = state.deviceLabels || {};
+  const parts = [];
+  for (const key of state.deviceFields[row.kind] || []) {
+    if (key === 'name') continue;
+    const value = String(row.values[key] ?? '').trim();
+    if (!value) continue;
+    // Notes hold sentences; the label would only repeat the name of the column.
+    parts.push(key === 'notes' ? value : `${labels[key] || key}: ${value}`);
+  }
+  return parts.join(' · ') || '—';
+}
+
+function deviceImportPreviewHTML(rows) {
+  if (!rows.length) {
+    return `<p class="form-hint">Nothing parsed yet — paste a list above or choose a file.</p>`;
+  }
+  const head = [['Name device'], ['Details', 'imp-hide-sm'], ['Status']];
+  return `<div class="dev-tablewrap imp-preview">
+      <table class="dev-table">
+        <thead><tr>${impHead(head)}</tr></thead>
+        <tbody>${rows
+          .map((r) => {
+            const details = deviceImportDetails(r);
+            return `<tr>
+            <td class="dev-name imp-name" title="${h(r.name || '')}">${h(r.name || '—')}</td>
+            <td class="dev-notes imp-details imp-hide-sm" title="${h(details)}">${h(details)}</td>
+            <td class="dev-notes ${r.error ? 'imp-bad' : 'imp-ok'}">${h(r.error || 'Ready')}</td>
+          </tr>`;
+          })
+          .join('')}</tbody>
+      </table>
+    </div>`;
+}
+
+/**
+ * Import devices of one type from a pasted list or a file.
+ *
+ * The type is chosen in the dialog rather than read from the file: the kind
+ * decides which columns exist, and guessing it from the data would be wrong
+ * exactly when it matters (an EDC and a Misc row both start with a name).
+ */
+function openDeviceImport() {
+  const startKind = state.deviceKinds.includes(state.deviceKind) ? state.deviceKind : state.deviceKinds[0];
+  const fieldList = (kind) => (state.deviceFields[kind] || []).map((k) => state.deviceLabels[k] || k);
+  openModal({
+    title: 'Import devices',
+    subtitle: 'Paste a list or choose a file — one device per line',
+    xwide: true,
+    body: `
+      <div class="field">
+        <label class="label">Type</label>
+        ${segmented(
+          'imp-kind',
+          state.deviceKinds.map((k) => ({ value: k, label: DEVICE_KIND[k]?.label || k })),
+          startKind,
+          { Android: 'green', iOS: 'slate', EDC: 'amber', Misc: 'violet' }
+        )}
+        <span class="form-hint" id="imp-kind-hint"></span>
+      </div>
+      <div class="field">
+        <label class="label" for="imp-devices">List</label>
+        <textarea class="textarea code" id="imp-devices" rows="8" spellcheck="false"></textarea>
+        <span class="form-hint" id="imp-device-hint"></span>
+      </div>
+      <div class="imp-file-row">
+        <input type="file" id="imp-device-file" accept=".csv,.tsv,.txt,text/plain,text/csv" hidden />
+        <button type="button" class="btn btn-sm" data-imp-file>${icon.fileText(13)} Choose a file…</button>
+        <span class="form-hint" id="imp-device-file-name"></span>
+      </div>
+      <div id="imp-device-failures"></div>
+      <div id="imp-device-preview"></div>`,
+    footer: `<span class="imp-tally" id="imp-device-tally"></span>
+      <span class="spacer"></span>
+      <button class="btn btn-ghost" data-cancel>Cancel</button>
+      <button class="btn btn-primary" data-import disabled>Import</button>`,
+    onMount: (modal, close) => {
+      const text = modal.querySelector('#imp-devices');
+      const preview = modal.querySelector('#imp-device-preview');
+      const tally = modal.querySelector('#imp-device-tally');
+      const failures = modal.querySelector('#imp-device-failures');
+      const fileName = modal.querySelector('#imp-device-file-name');
+      const fileInput = modal.querySelector('#imp-device-file');
+      const go = modal.querySelector('[data-import]');
+
+      const kindNow = () => segmentedValue(modal, 'imp-kind') || startKind;
+
+      const render = () => {
+        const kind = kindNow();
+        modal.querySelector('#imp-kind-hint').textContent = `${kind}: ${fieldList(kind).join(' · ')}`;
+        modal.querySelector('#imp-device-hint').textContent =
+          'Only the device name is required. Columns are read in that order, unless the first line names them — a spreadsheet header is matched by label, in any order.';
+        const rows = parseDeviceImport(text.value, kind);
+        preview.innerHTML = deviceImportPreviewHTML(rows);
+        const ok = rows.filter((r) => !r.error).length;
+        tally.textContent = rows.length ? `${ok} ready${rows.length - ok ? `, ${rows.length - ok} with problems` : ''}` : '';
+        go.disabled = ok === 0;
+        go.textContent = ok ? `Import ${ok} device${ok === 1 ? '' : 's'}` : 'Import';
+        if (rows.length) failures.innerHTML = '';
+      };
+
+      bindSegmented(modal, 'imp-kind', render);
+      text.addEventListener('input', render);
+      modal.querySelector('[data-imp-file]').addEventListener('click', () => fileInput.click());
+      fileInput.addEventListener('change', async () => {
+        const file = fileInput.files?.[0];
+        if (!file) return;
+        fileName.textContent = file.name;
+        text.value = await file.text();
+        render();
+      });
+      modal.querySelector('[data-cancel]').addEventListener('click', close);
+
+      go.addEventListener('click', async () => {
+        const kind = kindNow();
+        const rows = parseDeviceImport(text.value, kind).filter((r) => !r.error);
+        if (!rows.length) return;
+        go.disabled = true;
+        go.textContent = 'Importing…';
+        const failed = [];
+        let created = 0;
+
+        for (const row of rows) {
+          try {
+            // Only the kind's own fields: the endpoint ignores the rest, but sending
+            // them would make a typo look like a supported column.
+            const payload = { kind };
+            for (const key of state.deviceFields[kind] || []) {
+              if (row.values[key] !== undefined) payload[key] = row.values[key];
+            }
+            await api.createDevice(payload);
+            created += 1;
+          } catch (err) {
+            failed.push(`${row.name}: ${err.message}`);
+          }
+        }
+
+        await loadDevices();
+        if (!failed.length) {
+          toast(`${created} device${created === 1 ? '' : 's'} imported`);
+          close();
+          return;
+        }
+        text.value = rows
+          .filter((r) => failed.some((f) => f.startsWith(`${r.name}:`)))
+          .map((r) => r.raw)
+          .join('\n');
+        toast(`${created} imported, ${failed.length} failed`, 'err');
+        render();
+        failures.innerHTML = `<div class="callout imp-failures">
+            <span><strong>${failed.length} could not be created</strong></span>
+            <ul>${failed.map((f) => `<li>${h(f)}</li>`).join('')}</ul>
+          </div>`;
+      });
+
+      render();
+    },
+  });
+}
 
 /* ============================================================
    boot
