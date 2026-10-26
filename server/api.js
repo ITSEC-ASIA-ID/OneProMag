@@ -905,10 +905,15 @@ async function openRetestsByProject() {
 }
 
 async function buildBoard() {
-  // Project Managers own engagements rather than test them, so they are not on
-  // the bench. Admins stay because an admin can carry a pentest subrole and be
-  // part of the reporting tree.
-  const users = (await listUsers()).map(shapePentester).filter((u) => u.role !== 'Project Manager');
+  // The board is the testing bench, so it holds the people who do the testing:
+  // Project Managers own engagements rather than test them, and Administrators are
+  // operations — both are lookup entries (Users, Manage users), not rows here.
+  // A team whose only Lead is an admin therefore starts at sub-lead level; the
+  // hierarchy order degrades to "whoever has no parent shown first", never to a
+  // missing person.
+  const users = (await listUsers())
+    .map(shapePentester)
+    .filter((u) => u.role !== 'Project Manager' && u.role !== 'Admin');
   const assignments = await activeAssignments();
   const openRetests = await openRetestsByProject();
   const lastFinished = await lastFinishedByUser();

@@ -1143,6 +1143,12 @@ now?**
 | Idle since | While idle: number of days plus the date they last finished something. Someone who has never closed a project starts counting from today, since there is no evidence of an earlier idle start |
 | Notes | Free text, editable in place |
 
+Rows are **pentesters only**: Project Managers own engagements rather than test
+them, and **Administrators** are operations — both live in *Users* and *Manage
+users*, not on the bench. Hiding an admin whose reports are pentesters does not
+orphan them: a sub lead whose lead is not shown becomes a top-level row carrying
+its own members, so nobody disappears from the board.
+
 Rows follow the reporting tree — a lead, then that lead's sub lead with its
 members, then the next sub lead, and so on.
 
