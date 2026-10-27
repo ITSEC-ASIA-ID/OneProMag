@@ -13,7 +13,7 @@ import {
   subroleBadge,
   sortPentesters,
   teamCell,
-  managerCell,
+  supervisorCell,
   contactLine,
   availabilityBadge,
   personCardHTML,
@@ -51,9 +51,9 @@ const ENUMS = {
   // Lead > Sub Lead > Member > Intern. An intern is the trainee level: they test
   // alongside whoever supervises them and get their own table on the board.
   subrole: ['Lead', 'Sub Lead', 'Member', 'Intern'],
-  // Project Manager is its own role. PMs own engagements; they are not
+  // Supervisor is its own role. SVs own engagements; they are not
   // pentesters and never appear in the "who pentest" picker.
-  role: ['Pentester', 'Project Manager', 'Admin'],
+  role: ['Pentester', 'Supervisor', 'Admin'],
 };
 
 /** Badge tones for the status segmented control, straight from the live list. */
@@ -62,11 +62,11 @@ const METHOD_TONE = { 'Black Box': 'rose', 'Grey Box': 'amber', 'White Box': 'gr
 
 /**
  * A nav id remembered by an older build may name a page this build no longer has:
- * Pentesters and Project managers were merged into one Users page. Without this the
+ * Pentesters and Supervisors were merged into one Users page. Without this the
  * shell would boot on an id with no NAV entry and fall back to Active projects.
  */
 function normalizeNav(id) {
-  return id === 'pentesters' || id === 'managers' ? 'users' : id;
+  return id === 'pentesters' || id === 'supervisors' ? 'users' : id;
 }
 
 /**
@@ -97,7 +97,7 @@ const NAV = {
   clients: { title: 'Clients', sub: 'Clients and their applications' },
   info: { title: 'Information center', sub: 'Free-form notes for each client and application' },
   devices: { title: 'Devices', sub: 'The phones, terminals and kit the team tests with' },
-  // Pentesters and Project managers are one page: same `users` table, same create
+  // Pentesters and Supervisors are one page: same `users` table, same create
   // path, same question ("who works here?"). Two pages made adding someone start
   // with a guess about which one they belonged on.
   // Two pages answer "who works here": this one is the read-only directory anyone can
@@ -168,11 +168,11 @@ const state = {
   // abandoned edit cannot half-apply across twenty rows.
   deviceEdit: null,
   users: [],
-  managers: [],
+  supervisors: [],
   // The staff directory (read-only): every account, alphabetical.
   directory: [],
   dirQuery: '',
-  // Which half of the Users page is on screen: 'all' | 'pentesters' | 'managers'.
+  // Which half of the Users page is on screen: 'all' | 'pentesters' | 'supervisors'.
   usersTab: 'all',
   stats: null,
   projects: [],
@@ -187,7 +187,7 @@ const state = {
   // The workspace opens on Active projects the first time, then remembers where
   // you were — reloading on the Information center used to dump you back on the
   // project list, losing the client you were reading. A remembered admin page from
-  // an older build is translated: Pentesters and Project managers are one page now.
+  // an older build is translated: Pentesters and Supervisors are one page now.
   nav: normalizeNav(localStorage.getItem('opm-nav') || 'active'),
   // `status` is part of the filter bar; env/method selects were removed, but the
   // API still accepts them, so the keys stay in the payload shape.
@@ -223,7 +223,7 @@ function renderAuth(mode = 'login') {
           <div class="brand-mark">${icon.shield(20)}</div>
           <div>
             <div class="brand-name">OneProMag</div>
-            <div class="brand-sub">Pentest PM</div>
+            <div class="brand-sub">Pentest SV</div>
           </div>
         </div>
 
@@ -361,9 +361,11 @@ function sidebarHTML() {
   const s = state.stats || { total: 0, active: 0, queue: 0, clients: 0 };
   // The Users badge counts the rows the page actually lists: the tree (which holds
   // admins too, because an admin can carry a pentest level) plus the project
-  // managers. `stats.pentesters` counts only `role = 'Pentester'`, so using it here
+  // supervisors. `stats.pentesters` counts only `role = 'Pentester'`, so using it here
   // made the badge disagree with the page it opens by exactly the admins.
-  const userCount = (state.pentesters?.length || 0) + (state.managers?.length || 0);
+  const userCount = new Set(
+    [...(state.pentesters || []), ...(state.supervisors || [])].map((u) => Number(u.id))
+  ).size;
   const navBtn = (nav, glyph, label, count, cls = '') =>
     `<button class="nav-item ${cls}" data-nav="${nav}">
        ${glyph}<span>${label}</span>${count !== undefined ? `<span class="count">${count}</span>` : ''}
@@ -375,7 +377,7 @@ function sidebarHTML() {
         <div class="brand-mark">${icon.shield(20)}</div>
         <div>
           <div class="brand-name">OneProMag</div>
-          <div class="brand-sub">Pentest PM</div>
+          <div class="brand-sub">Pentest SV</div>
         </div>
       </div>
 
@@ -664,19 +666,26 @@ function clientItems() {
 }
 
 /**
- * Project managers a client names as its usual owners.
- * Used to pre-select the PM when the client is picked in the project form.
- * Returns the raw client row so the caller can read `managers`.
+ * Supervisors a client names as its usual owners.
+ * Used to pre-select the SV when the client is picked in the project form.
+ * Returns the raw client row so the caller can read `supervisors`.
  */
 function clientById(clientId) {
   return state.clients.find((c) => Number(c.id) === Number(clientId)) || null;
 }
 
-function managerItems() {
-  return state.managers.map((m) => ({
+/**
+ * The people who may supervise, as combobox items.
+ *
+ * The pool mixes two hats now — a dedicated Supervisor account and a pentester who
+ * runs an engagement — so each row says which one it is. Without that, "Rafi
+ * Pratama" appearing in a supervisor list next to "Rina Kusuma" looks like a bug.
+ */
+function supervisorItems() {
+  return (state.supervisors || []).map((m) => ({
     value: m.id,
     label: m.name,
-    sub: m.email || m.phone || '',
+    sub: m.role === SUPERVISOR_ROLE ? 'Supervisor' : 'Pentester',
   }));
 }
 
@@ -687,6 +696,14 @@ function applicationItems(clientId) {
   return state.applications
     .filter((a) => Number(a.clientId) === id)
     .map((a) => ({ value: a.id, label: a.name, sub: '' }));
+}
+
+/** The variants of one application, for the project form's third picker. */
+function variantItems(applicationId) {
+  const id = Number(applicationId);
+  if (!id) return [];
+  const app = state.applications.find((a) => Number(a.id) === id);
+  return (app?.variants || []).map((v) => ({ value: v.id, label: v.name }));
 }
 
 function applicationOptions(clientId, selectedId, placeholder) {
@@ -825,13 +842,15 @@ function projectCardHTML(row) {
           <h3>${h(rowLabel(row))}</h3>
           <div class="meta client-line">${icon.building(12)}<span>${h(p.client || 'No client')}${
             p.applicationName ? ` &ndash; ${h(p.applicationName)}` : ''
-          }</span></div>
+          }</span>${
+            p.variantName ? `<span class="v-chip" title="Variant app">${h(p.variantName)}</span>` : ''
+          }</div>
           ${
-            p.managerName
-              ? `<div class="meta pm-line">${icon.userCheck(12)}<span>PM</span>${avatar(
-                  p.managerName,
+            p.supervisorName
+              ? `<div class="meta sv-line">${icon.userCheck(12)}<span>SV</span>${avatar(
+                  p.supervisorName,
                   'sm',
-                  p.managerId
+                  p.supervisorId
                 )}</div>`
               : ''
           }
@@ -868,7 +887,7 @@ function projectTableHTML(rows) {
           <tr>
             <th>Project</th>
             <th>Category</th>
-            <th class="hide-md" title="Project manager">PM</th>
+            <th class="hide-md" title="Supervisor">SV</th>
             <th class="hide-md">Pentesters</th>
             <th>Retests</th>
             <th>Status</th>
@@ -888,14 +907,16 @@ function projectTableHTML(rows) {
                 row.project.client
                   ? `<div class="sub">${h(row.project.client)}${
                       row.project.applicationName ? ` &ndash; ${h(row.project.applicationName)}` : ''
-                    }</div>`
+                    }${row.project.variantName ? ` <span class="v-chip">${h(row.project.variantName)}</span>` : ''}</div>`
                   : row.project.applicationName
-                    ? `<div class="sub">${h(row.project.applicationName)}</div>`
+                    ? `<div class="sub">${h(row.project.applicationName)}${
+                        row.project.variantName ? ` <span class="v-chip">${h(row.project.variantName)}</span>` : ''
+                      }</div>`
                     : ''
               }</td>
               <td>${catBadge(row.project.category, row.project.platform)}</td>
-              <td class="hide-md cell-pm">${managerCell(
-                { id: row.project.managerId, name: row.project.managerName },
+              <td class="hide-md cell-pm">${supervisorCell(
+                { id: row.project.supervisorId, name: row.project.supervisorName },
                 'sm'
               )}</td>
               <td class="hide-md cell-team">${teamCell(row.project.pentesters, row.project.id)}</td>
@@ -1487,6 +1508,44 @@ function adminHTML() {
   </div>`;
 }
 
+/**
+ * One application inside a client card, plus its variant apps.
+ *
+ * Variants are the optional third level (Client → Application → Variant): "Mobile
+ * Banking App" might ship as Android, iOS and a partner-branded build. An
+ * application with no variants shows one quiet "+ Variant" line and nothing else,
+ * because the level is optional and must not read like a missing field.
+ */
+function applicationBlockHTML(a) {
+  const variants = a.variants || [];
+  return `
+    <div class="app-block">
+      <div class="app-row">
+        <span class="app-glyph">${icon.apps()}</span>
+        <span class="app-name">${h(a.name)}</span>
+        <span class="app-count">${a.projectCount} project${a.projectCount === 1 ? '' : 's'}</span>
+        <button class="app-act" data-app-edit="${a.id}" aria-label="Rename application">${icon.edit()}</button>
+        <button class="app-act" data-variant-add="${a.id}" aria-label="Add a variant of ${h(a.name)}">${icon.plus()}</button>
+        <button class="app-act danger" data-app-del="${a.id}" aria-label="Delete application">${icon.trash()}</button>
+      </div>
+      <div class="variant-list">
+        ${variants.map((v) => variantRowHTML(v)).join('')}
+        <button class="variant-add" data-variant-add="${a.id}">${icon.plus()} Variant</button>
+      </div>
+    </div>`;
+}
+
+function variantRowHTML(v) {
+  return `
+    <div class="variant-row">
+      <span class="variant-stem" aria-hidden="true"></span>
+      <span class="variant-name">${h(v.name)}</span>
+      <span class="variant-count">${v.projectCount} project${v.projectCount === 1 ? '' : 's'}</span>
+      <button class="app-act" data-variant-edit="${v.id}" aria-label="Rename variant">${icon.edit()}</button>
+      <button class="app-act danger" data-variant-del="${v.id}" aria-label="Delete variant">${icon.trash()}</button>
+    </div>`;
+}
+
 function clientCardHTML(c) {
   const apps = state.applications.filter((a) => Number(a.clientId) === Number(c.id));
   return `
@@ -1509,28 +1568,18 @@ function clientCardHTML(c) {
       <div class="app-list">
         ${
           apps.length
-            ? apps
-                .map(
-                  (a) => `<div class="app-row">
-                    <span class="app-glyph">${icon.apps()}</span>
-                    <span class="app-name">${h(a.name)}</span>
-                    <span class="app-count">${a.projectCount} project${a.projectCount === 1 ? '' : 's'}</span>
-                    <button class="app-act" data-app-edit="${a.id}" aria-label="Rename application">${icon.edit()}</button>
-                    <button class="app-act danger" data-app-del="${a.id}" aria-label="Delete application">${icon.trash()}</button>
-                  </div>`
-                )
-                .join('')
+            ? apps.map(applicationBlockHTML).join('')
             : '<div class="app-empty">No applications yet — add the first one.</div>'
         }
       </div>
-      <div class="cc-managers">
-        <span class="cc-m-label">${icon.userCheck(12)} Default PM</span>
+      <div class="cc-supervisors">
+        <span class="cc-m-label">${icon.userCheck(12)} Default SV</span>
         ${
-          (c.managers || []).length
-            ? `<span class="cc-m-list">${c.managers
+          (c.supervisors || []).length
+            ? `<span class="cc-m-list">${c.supervisors
                 .map((m) => `<span class="cc-m-chip" title="${h(m.email || '')}">${h(m.name)}</span>`)
                 .join('')}</span>`
-            : `<span class="cc-m-empty">None — set one so new projects auto-assign a PM</span>`
+            : `<span class="cc-m-empty">None — set one so new projects auto-assign a SV</span>`
         }
       </div>
       <button class="btn btn-sm app-add" data-app-add="${c.id}">${icon.plus()} Add application</button>
@@ -1561,6 +1610,92 @@ function bindAdmin() {
       deleteApplication(state.applications.find((a) => Number(a.id) === Number(b.dataset.appDel)))
     )
   );
+  document.querySelectorAll('[data-variant-add]').forEach((b) =>
+    b.addEventListener('click', () => openVariantForm(Number(b.dataset.variantAdd)))
+  );
+  document.querySelectorAll('[data-variant-edit]').forEach((b) =>
+    b.addEventListener('click', () => openVariantForm(null, findVariant(b.dataset.variantEdit)))
+  );
+  document.querySelectorAll('[data-variant-del]').forEach((b) =>
+    b.addEventListener('click', () => deleteVariant(findVariant(b.dataset.variantDel)))
+  );
+}
+
+/** Variants live inside their application in state.applications, not in a flat list. */
+function findVariant(id) {
+  const wanted = Number(id);
+  for (const app of state.applications) {
+    const hit = (app.variants || []).find((v) => Number(v.id) === wanted);
+    if (hit) return hit;
+  }
+  return null;
+}
+
+function openVariantForm(applicationId = null, variant = null) {
+  const editing = Boolean(variant);
+  const appId = variant ? Number(variant.applicationId) : Number(applicationId);
+  const app = state.applications.find((a) => Number(a.id) === appId);
+  if (!app) return toast('Application not found', 'err');
+  openModal({
+    title: editing ? 'Rename variant app' : 'New variant app',
+    subtitle: app.name,
+    body: `
+      <div class="field">
+        <label for="v-name">Variant name <span class="required">*</span></label>
+        <input class="input" id="v-name" placeholder="e.g. Android, iOS, Partner build" value="${h(variant?.name || '')}" />
+        <span class="hint">
+          A variant is a separate build of the same application — a platform, a
+          white-label copy, a second release. Projects point at a variant when the
+          engagement is about that build instead of the application as a whole.
+        </span>
+      </div>
+      <div class="field">
+        <label for="v-notes">Notes</label>
+        <textarea class="textarea" id="v-notes" rows="2" placeholder="Optional">${h(variant?.notes || '')}</textarea>
+      </div>`,
+    footer: `<div class="spacer"></div>
+      <button class="btn" data-cancel>Cancel</button>
+      <button class="btn btn-primary" data-save>${editing ? 'Save changes' : 'Add variant'}</button>`,
+    onMount: (modal, close) => {
+      modal.querySelector('[data-cancel]').addEventListener('click', close);
+      modal.querySelector('[data-save]').addEventListener('click', async () => {
+        const name = modal.querySelector('#v-name').value.trim();
+        if (!name) return toast('Variant name is required', 'err');
+        const payload = { name, notes: modal.querySelector('#v-notes').value };
+        const btn = modal.querySelector('[data-save]');
+        btn.disabled = true;
+        try {
+          if (editing) await api.updateVariant(variant.id, payload);
+          else await api.createVariant(appId, payload);
+          toast(editing ? 'Variant updated' : 'Variant added');
+          close();
+          await refreshCatalog();
+          await refreshAll();
+        } catch (err) {
+          toast(err.message, 'err');
+          btn.disabled = false;
+        }
+      });
+    },
+  });
+}
+
+async function deleteVariant(variant) {
+  if (!variant) return;
+  const ok = await confirmDialog({
+    title: 'Delete variant app?',
+    message: `"${variant.name}" will be removed. Projects that point at it keep their application, but lose the variant.`,
+    confirmLabel: 'Delete variant',
+  });
+  if (!ok) return;
+  try {
+    await api.deleteVariant(variant.id);
+    toast('Variant deleted');
+    await refreshCatalog();
+    await refreshAll();
+  } catch (err) {
+    toast(err.message, 'err');
+  }
 }
 
 function openClientForm(client = null) {
@@ -1579,10 +1714,10 @@ function openClientForm(client = null) {
         <span class="hint">Shown on project cards and in the table to save space.</span>
       </div>
       <div class="field">
-        <div class="field-label">Usual project managers</div>
-        ${managerPickerHTML((client?.managers || []).map((m) => m.id))}
+        <div class="field-label">Usual supervisors</div>
+        ${supervisorPickerHTML((client?.supervisors || []).map((m) => m.id))}
         <span class="hint">
-          When you create a project for this client, its PM is pre-selected from
+          When you create a project for this client, its SV is pre-selected from
           this list. Several are allowed — the project still has one owner.
         </span>
       </div>
@@ -1603,7 +1738,7 @@ function openClientForm(client = null) {
           name,
           shortName: modal.querySelector('#c-short').value.trim(),
           notes: modal.querySelector('#c-notes').value,
-          managerIds: pickerValues(modal),
+          supervisorIds: pickerValues(modal),
         };
         const btn = modal.querySelector('[data-save]');
         btn.disabled = true;
@@ -4689,33 +4824,35 @@ function pentesterPickerHTML(selectedIds = []) {
 }
 
 /**
- * Multi-select of project managers, used by the client form.
+ * Multi-select of supervisors, used by the client form.
  * Mirrors the pentester picker markup so bindPicker/pickerValues work unchanged.
  */
-function managerPickerHTML(selectedIds = []) {
+function supervisorPickerHTML(selectedIds = []) {
   const selected = new Set(selectedIds.map(Number));
-  const rows = state.managers || [];
+  const rows = state.supervisors || [];
   if (!rows.length) {
-    return `<p class="picker-note">No project managers yet. Add them under Admin panel → Manage users.</p>`;
+    return `<p class="picker-note">No supervisors yet. Add them under Admin panel → Manage users.</p>`;
   }
   return `
     <div class="psearch">
       ${icon.search()}
-      <input class="input" id="p-search" placeholder="Search manager by name…" autocomplete="off" />
+      <input class="input" id="p-search" placeholder="Search supervisor by name…" autocomplete="off" />
     </div>
     <div class="picker" data-picker>
       ${rows
         .map(
           (u) => `<button type="button" class="pick ${selected.has(Number(u.id)) ? 'on' : 'off'}"
-            data-uid="${u.id}" data-name="${h(u.name.toLowerCase())}" data-sub="Project Manager">
+            data-uid="${u.id}" data-name="${h(u.name.toLowerCase())}"
+            data-sub="${h(u.role === SUPERVISOR_ROLE ? 'Supervisor' : 'Pentester')}">
             ${avatar(u.name)}
             <span class="pick-name">${h(u.name)}</span>
+            <span class="pick-role">${h(u.role === SUPERVISOR_ROLE ? 'SV' : 'PT')}</span>
             ${selected.has(Number(u.id)) ? `<span data-check>${icon.check()}</span>` : ''}
           </button>`
         )
         .join('')}
     </div>
-    <div class="picker-empty" hidden>${icon.search()} No manager matches that name.</div>`;
+    <div class="picker-empty" hidden>${icon.search()} No supervisor matches that name.</div>`;
 }
 
 function bindPicker(root) {
@@ -4760,25 +4897,25 @@ function pickerValues(root) {
 }
 
 /**
- * Pre-select the project manager when a client is chosen.
+ * Pre-select the supervisor when a client is chosen.
  *
- * A client names one or more usual PMs. With exactly one, that is
+ * A client names one or more usual SVs. With exactly one, that is
  * unambiguous and gets selected. With several, the first is used and the hint
  * says so — silently picking one of many without telling the user would look
- * like a bug. Never touches a PM the user already chose by hand.
+ * like a bug. Never touches a SV the user already chose by hand.
  */
-function autoPickManager(modal, clientId, hintEl) {
-  const box = modal.querySelector('[data-combo="p-manager"]');
+function autoPickSupervisor(modal, clientId, hintEl) {
+  const box = modal.querySelector('[data-combo="p-supervisor"]');
   if (!box) return;
   const client = clientById(clientId);
-  const managers = client?.managers || [];
-  const idInput = box.querySelector('input[type="hidden"], #p-manager');
+  const supervisors = client?.supervisors || [];
+  const idInput = box.querySelector('input[type="hidden"], #p-supervisor');
   const current = idInput ? idInput.value : '';
 
-  if (!managers.length) {
+  if (!supervisors.length) {
     if (hintEl) {
       hintEl.innerHTML = client
-        ? `${h(client.name)} has no default project manager yet. Pick one manually or add it in the Admin panel.`
+        ? `${h(client.name)} has no default supervisor yet. Pick one manually or add it in the Admin panel.`
         : 'Owns this engagement. Admins, leads and sub leads can change it.';
       hintEl.classList.toggle('hint-warn', Boolean(client));
     }
@@ -4788,23 +4925,23 @@ function autoPickManager(modal, clientId, hintEl) {
   // Respect a manual choice made earlier in this same form session.
   if (current && current !== String(box.dataset.autoPicked || '')) return;
 
-  const chosen = managers[0];
-  setComboboxValue(modal, 'p-manager', chosen.id);
+  const chosen = supervisors[0];
+  setComboboxValue(modal, 'p-supervisor', chosen.id);
   box.dataset.autoPicked = String(chosen.id);
   if (hintEl) {
-    // One default PM is a fact, so the hint stays quiet. Several is a choice,
+    // One default SV is a fact, so the hint stays quiet. Several is a choice,
     // so it turns into a warning box the user cannot skim past.
     hintEl.innerHTML =
-      managers.length === 1
-        ? `${icon.userCheck(12)} Auto-selected: ${h(chosen.name)} is ${h(client.name)}'s project manager.`
-        : `${icon.alert(12)} Auto-selected ${h(chosen.name)} — ${h(client.name)} has ${managers.length} default PMs, change if needed.`;
-    hintEl.classList.toggle('hint-warn', managers.length > 1);
-    hintEl.classList.toggle('hint-auto', managers.length === 1);
+      supervisors.length === 1
+        ? `${icon.userCheck(12)} Auto-selected: ${h(chosen.name)} is ${h(client.name)}'s supervisor.`
+        : `${icon.alert(12)} Auto-selected ${h(chosen.name)} — ${h(client.name)} has ${supervisors.length} default SVs, change if needed.`;
+    hintEl.classList.toggle('hint-warn', supervisors.length > 1);
+    hintEl.classList.toggle('hint-auto', supervisors.length === 1);
   }
 }
 
 /* ============================================================
-   person card — opened by clicking a PM or a pentester avatar
+   person card — opened by clicking a SV or a pentester avatar
    ============================================================ */
 /**
  * Renders one person: contacts, current status, the projects they manage and
@@ -4839,6 +4976,21 @@ async function openPerson(id, opts = {}) {
     });
   });
   if (opts.onDone) opts.onDone(close);
+}
+
+function variantSelectOptions(applicationId, selectedId = '') {
+  const items = variantItems(applicationId);
+  const chosen = String(selectedId ?? '');
+  // "Whole application" is a real choice, not a placeholder: a variant is optional.
+  return (
+    `<option value="">Whole application</option>` +
+    items
+      .map(
+        (i) =>
+          `<option value="${i.value}" ${String(i.value) === chosen ? 'selected' : ''}>${h(i.label)}</option>`
+      )
+      .join('')
+  );
 }
 
 function openProjectForm(project = null) {
@@ -4877,20 +5029,33 @@ function openProjectForm(project = null) {
     </span>
 
     <!--
-      One project manager per project. Picking a client auto-fills the PMs that
+      Variant apps are optional. The field only shows up when the chosen
+      application HAS variants, so a team that never splits an app into builds
+      never sees an extra question.
+    -->
+    <div class="field" id="variant-field" ${variantItems(project?.applicationId).length ? '' : 'hidden'}>
+      <label for="p-variant">Variant app <span class="opt">optional</span></label>
+      <select class="select" id="p-variant">
+        ${variantSelectOptions(project?.applicationId, project?.variantId)}
+      </select>
+      <span class="hint">Only when the engagement is about one build of this application.</span>
+    </div>
+
+    <!--
+      One supervisor per project. Picking a client auto-fills the SVs that
       client names as its usual owners, but the value stays editable: a client
-      can have several default PMs and this single slot must still be a choice.
+      can have several default SVs and this single slot must still be a choice.
     -->
     <div class="field" style="margin-top:14px">
-      <label for="p-manager">Project manager</label>
+      <label for="p-supervisor">Supervisor</label>
       ${combobox({
-        id: 'p-manager',
-        items: managerItems(),
-        value: project?.managerId ?? '',
-        placeholder: managerItems().length ? 'Select a project manager…' : 'No project managers yet',
-        searchPlaceholder: 'Search manager…',
+        id: 'p-supervisor',
+        items: supervisorItems(),
+        value: project?.supervisorId ?? '',
+        placeholder: supervisorItems().length ? 'Select a supervisor…' : 'No supervisors yet',
+        searchPlaceholder: 'Search supervisor…',
       })}
-      <span class="hint" id="p-manager-hint">Owns this engagement. Admins, leads and sub leads can change it.</span>
+      <span class="hint" id="p-supervisor-hint">Owns this engagement. Admins, leads and sub leads can change it.</span>
     </div>
 
     <div class="field" style="margin-top:14px">
@@ -4974,18 +5139,30 @@ function openProjectForm(project = null) {
       // belonging to the chosen client are offered, so the pairing can never
       // be inconsistent. Both fields are searchable.
       const appBox = modal.querySelector('[data-combo="p-app"]');
-      const pmHint = modal.querySelector('#p-manager-hint');
+      const pmHint = modal.querySelector('#p-supervisor-hint');
+      const variantField = modal.querySelector('#variant-field');
+      const variantSelect = modal.querySelector('#p-variant');
+      // A variant belongs to exactly one application, so switching the
+      // application must never carry the old variant over.
+      const syncVariants = (applicationId, keep = '') => {
+        if (!variantField || !variantSelect) return;
+        const items = variantItems(applicationId);
+        variantSelect.innerHTML = variantSelectOptions(applicationId, keep);
+        variantField.hidden = items.length === 0;
+      };
       setComboboxItems(modal, 'p-app', applicationItems(project?.clientId), project?.applicationId ?? '');
-      bindCombobox(modal, 'p-manager', undefined, signal);
+      syncVariants(project?.applicationId, project?.variantId ?? '');
+      bindCombobox(modal, 'p-supervisor', undefined, signal);
       bindCombobox(modal, 'p-client', (value) => {
         if (appBox) appBox.dataset.placeholder = 'Select an application…';
         setComboboxItems(modal, 'p-app', applicationItems(value), '');
-        // Auto-pick this client's usual PM. Only on create: editing an existing
+        syncVariants(null);
+        // Auto-pick this client's usual SV. Only on create: editing an existing
         // project must never silently reassign ownership just because the
         // client was touched.
-        if (!editing) autoPickManager(modal, value, pmHint);
+        if (!editing) autoPickSupervisor(modal, value, pmHint);
       }, signal);
-      bindCombobox(modal, 'p-app', undefined, signal);
+      bindCombobox(modal, 'p-app', (value) => syncVariants(value), signal);
 
       bindPicker(modal);
       modal.querySelector('[data-cancel]').addEventListener('click', close);
@@ -5012,12 +5189,14 @@ function openProjectForm(project = null) {
           return;
         }
         const category = segmentedValue(modal, 'category');
-        const chosenManager = modal.querySelector('#p-manager').value;
+        const chosenSupervisor = modal.querySelector('#p-supervisor').value;
+        const chosenVariant = modal.querySelector('#p-variant')?.value || '';
         const payload = {
           name,
           clientId: Number(chosenClient),
           applicationId: Number(chosenApp),
-          managerId: chosenManager ? Number(chosenManager) : null,
+          variantId: chosenVariant ? Number(chosenVariant) : null,
+          supervisorId: chosenSupervisor ? Number(chosenSupervisor) : null,
           category,
           platform: category === 'Mobile' ? segmentedValue(modal, 'platform') : '',
           env: segmentedValue(modal, 'env'),
@@ -5302,7 +5481,7 @@ function openNotesForm(project) {
       <label for="n-notes">Notes</label>
       <textarea class="textarea" id="n-notes" rows="7"
         placeholder="Scope, credentials location, out-of-scope items…">${h(project.notes || '')}</textarea>
-      <span class="hint">Only the notes are changed — name, client, PM and status stay as they are.</span>
+      <span class="hint">Only the notes are changed — name, client, SV and status stay as they are.</span>
     </div>`;
 
   openModal({
@@ -5529,6 +5708,7 @@ function drawerHTML(project, retests, tab) {
         ${icon.building(14)}
         <span>${h(project.client || 'No client')}</span>
         ${project.applicationName ? `<span class="sep">/</span>${icon.apps()}<span>${h(project.applicationName)}</span>` : ''}
+        ${project.variantName ? `<span class="sep">/</span>${icon.layers(14)}<span>${h(project.variantName)}</span>` : ''}
       </div>
       <div class="tabs">
         ${tabs
@@ -5578,13 +5758,18 @@ function tabBody(project, retests, tab) {
       <div class="info-grid">
         <div class="info-item span-2"><div class="k">Client</div><div class="v">${h(project.client || '—')}</div></div>
         <div class="info-item span-2"><div class="k">Application</div><div class="v">${h(project.applicationName || '—')}</div></div>
+        ${
+          project.variantName
+            ? `<div class="info-item span-2"><div class="k">Variant app</div><div class="v">${h(project.variantName)}</div></div>`
+            : ''
+        }
         <div class="info-item span-2">
-          <div class="k">Project manager</div>
+          <div class="k">Supervisor</div>
           <div class="v">${
-            project.managerName
-              ? `${h(project.managerName)}${
-                  project.managerEmail
-                    ? `<div class="v-sub">${contactLine(project.managerPhone, project.managerEmail)}</div>`
+            project.supervisorName
+              ? `${h(project.supervisorName)}${
+                  project.supervisorEmail
+                    ? `<div class="v-sub">${contactLine(project.supervisorPhone, project.supervisorEmail)}</div>`
                     : ''
                 }`
               : '<span class="dash">—</span>'
@@ -5809,8 +5994,8 @@ function bindDrawer(el, project, retests) {
  */
 const DIRECTORY_GROUPS = [
   {
-    role: 'Project Manager',
-    label: 'Project managers',
+    role: 'Supervisor',
+    label: 'Supervisors',
     note: 'Own the engagement and the client relationship',
   },
   {
@@ -5834,7 +6019,7 @@ function directoryHTML() {
       <div>
         <h2>Users</h2>
         <p class="dev-sub">${all.length} ${all.length === 1 ? 'person' : 'people'} you can ask —
-          project managers and pentesters</p>
+          supervisors and pentesters</p>
       </div>
     </div>
     <div class="dev-bar">
@@ -5854,7 +6039,7 @@ function directoryHTML() {
  *
  * One alphabetical table answered "who is this?" but not "who do I ask about the
  * project" — the role was a column you had to read past. A group per role makes the
- * answer a heading. Groups with no matches disappear, so a search for a manager
+ * answer a heading. Groups with no matches disappear, so a search for a supervisor
  * leaves one section rather than an empty one.
  */
 function directoryGroupsHTML(rows, q) {
@@ -5912,12 +6097,12 @@ function directoryMatches(list, q) {
  */
 function directoryRoleHTML(person) {
   const role =
-    person.role === 'Project Manager'
-      ? 'Project manager'
+    person.role === 'Supervisor'
+      ? 'Supervisor'
       : person.role === 'Admin'
         ? 'Admin'
         : 'Pentester';
-  const level = person.role === 'Project Manager' ? '' : person.subrole;
+  const level = person.role === 'Supervisor' ? '' : person.subrole;
   return `<span class="dir-role"><span class="dir-role-name">${h(role)}</span>${
     level ? subroleBadge(level) : ''
   }</span>`;
@@ -6152,7 +6337,7 @@ function boardRowHTML(p, opts = {}) {
   const depth = BOARD_DEPTH[p.subrole] ?? 2;
   // The full list: a pentester's workload is the point of this column, so nothing
   // is hidden behind a "+N more" counter. The assign affordance is rendered even
-  // when the list is empty — an idle pentester is exactly who a manager wants to
+  // when the list is empty — an idle pentester is exactly who a supervisor wants to
   // put on something.
   const assignBtn = editable
     ? `<button type="button" class="board-assign" data-assign-open="${p.id}">
@@ -6984,33 +7169,35 @@ function afterPropertiesChanged(payload) {
 /* ============================================================
    Users (admin panel)
    ------------------------------------------------------------
-   Pentesters and project managers were two pages built on the same
+   Pentesters and supervisors were two pages built on the same
    `users` table, the same `createUser` path and the same question —
    "who works here?". Two pages meant adding someone started with a
    guess about which page they belonged on, and the two drifted into
    different copy for the same account. One page now holds both: the
-   reporting tree, the client-facing managers, and a tab when you
+   reporting tree, the client-facing supervisors, and a tab when you
    only want one of them.
    ============================================================ */
 const USER_TABS = [
   { id: 'all', label: 'All' },
   { id: 'pentesters', label: 'Pentesters' },
-  { id: 'managers', label: 'Project managers' },
+  { id: 'supervisors', label: 'Supervisors' },
 ];
-const PM_ROLE = 'Project manager';
+const SUPERVISOR_ROLE = 'Supervisor';
 
 function usersHTML() {
   const pentesters = state.pentesters || [];
-  const managers = state.managers || [];
+  const supervisors = state.supervisors || [];
   const tab = USER_TABS.some((t) => t.id === state.usersTab) ? state.usersTab : 'all';
   const tabLabel = USER_TABS.find((t) => t.id === tab).label;
-  const total = pentesters.length + managers.length;
+  // `/api/supervisors` returns the pool (Supervisor accounts AND pentesters, because
+  // a pentester may supervise), so the account count has to dedupe by id.
+  const total = new Set([...pentesters, ...supervisors].map((u) => Number(u.id))).size;
 
   return `<div class="admin">
     <div class="admin-head">
       <p>
         Everyone who can sign in. Pentesters are arranged as a reporting tree — lead,
-        sub lead, member, intern — and project managers own the engagements.
+        sub lead, member, intern — and supervisors own the engagements.
       </p>
       <div class="head-acts">
         <button class="btn" data-users-import>${icon.upload(15)} Import</button>
@@ -7021,8 +7208,8 @@ function usersHTML() {
       ${segmented('users-tab', USER_TABS.map((t) => t.label), tabLabel)}
       <span class="admin-count">${total} account${total === 1 ? '' : 's'}</span>
     </div>
-    ${tab === 'managers' ? '' : pentesterSectionHTML()}
-    ${tab === 'pentesters' ? '' : managerSectionHTML()}
+    ${tab === 'supervisors' ? '' : pentesterSectionHTML()}
+    ${tab === 'pentesters' ? '' : supervisorSectionHTML()}
   </div>`;
 }
 
@@ -7054,30 +7241,33 @@ function pentesterSectionHTML() {
   </section>`;
 }
 
-/** The project managers, as cards: who they are and which clients they own. */
-function managerSectionHTML() {
-  const managers = state.managers || [];
+/** The supervisors, as cards: who they are and which clients they own. */
+function supervisorSectionHTML() {
+  // Cards for the Supervisor ROLE only: a pentester who supervises one engagement
+  // already has a row in the tree above, and a second card would read as a
+  // duplicate person.
+  const supervisors = (state.supervisors || []).filter((u) => u.role === SUPERVISOR_ROLE);
   const head = `<div class="admin-sec-head">
-      <h3>Project managers</h3>
-      <span class="admin-count">${managers.length}</span>
-      <p>Each project has exactly one; a client can name several as its usual owners.</p>
+      <h3>Supervisors</h3>
+      <span class="admin-count">${supervisors.length}</span>
+      <p>Each project has one, and a client can name several as its usual owners. A pentester can supervise too — pick them on the project itself.</p>
       <span class="spacer"></span>
-      <button class="btn btn-sm" data-manager-add>${icon.plus(13)} Manager</button>
+      <button class="btn btn-sm" data-supervisor-add>${icon.plus(13)} Supervisor</button>
     </div>`;
 
-  if (!managers.length) {
+  if (!supervisors.length) {
     return `<section class="admin-sec">${head}
       <div class="empty">
         <div class="icon">${icon.userCheck(26)}</div>
-        <h3>No project managers yet</h3>
+        <h3>No supervisors yet</h3>
         <p>Add one, then give them a client or two so new projects are owned automatically.</p>
-        <button class="btn btn-primary" data-manager-add>${icon.plus()} New manager</button>
+        <button class="btn btn-primary" data-supervisor-add>${icon.plus()} New supervisor</button>
       </div>
     </section>`;
   }
 
   return `<section class="admin-sec">${head}
-    <div class="client-grid">${managers.map(managerCardHTML).join('')}</div>
+    <div class="client-grid">${supervisors.map(supervisorCardHTML).join('')}</div>
   </section>`;
 }
 
@@ -7226,49 +7416,49 @@ function memberRowHTML(m) {
     </div>`;
 }
 
-function managerCardHTML(m) {
-  // Every client that names this person as a default PM, plus every project
+function supervisorCardHTML(m) {
+  // Every client that names this person as a default SV, plus every project
   // they actually own. Both matter: defaults drive auto-assignment, owned
   // projects are the current workload.
   const defaults = (state.clients || []).filter((c) =>
-    (c.managers || []).some((x) => Number(x.id) === Number(m.id))
+    (c.supervisors || []).some((x) => Number(x.id) === Number(m.id))
   );
-  const owned = (state.projects || []).filter((p) => Number(p.managerId) === Number(m.id));
+  const owned = (state.projects || []).filter((p) => Number(p.supervisorId) === Number(m.id));
   const openOwned = owned.filter((p) => p.status !== 'Done');
 
   return `
-    <div class="client-card pm-card" data-manager="${m.id}">
+    <div class="client-card sv-card" data-supervisor="${m.id}">
       <div class="client-card-head">
-        <div class="cc-avatar pm-avatar">${h(initials(m.name))}</div>
+        <div class="cc-avatar sv-avatar">${h(initials(m.name))}</div>
         <div class="cc-title">
           <h3>${h(m.name)}</h3>
           <div class="cc-meta">
-            <span class="tag">Project Manager</span>
+            <span class="tag">Supervisor</span>
             <span>${owned.length} project${owned.length === 1 ? '' : 's'}${openOwned.length ? ` · ${openOwned.length} open` : ''}</span>
           </div>
         </div>
         <div class="cc-actions">
-          <button class="btn btn-icon" data-manager-edit="${m.id}" aria-label="Edit ${h(m.name)}">${icon.edit()}</button>
-          <button class="btn btn-icon danger" data-manager-del="${m.id}" aria-label="Delete ${h(m.name)}">${icon.trash()}</button>
+          <button class="btn btn-icon" data-supervisor-edit="${m.id}" aria-label="Edit ${h(m.name)}">${icon.edit()}</button>
+          <button class="btn btn-icon danger" data-supervisor-del="${m.id}" aria-label="Delete ${h(m.name)}">${icon.trash()}</button>
         </div>
       </div>
 
-      <div class="pm-contacts">
+      <div class="sv-contacts">
         ${
           m.phone || m.email
             ? contactLine(m.phone, m.email)
-            : '<span class="pm-no-contact">No contact details yet</span>'
+            : '<span class="sv-no-contact">No contact details yet</span>'
         }
       </div>
 
-      <div class="pm-clients">
-        <div class="pm-block-label">Default PM for</div>
+      <div class="sv-clients">
+        <div class="sv-block-label">Default SV for</div>
         ${
           defaults.length
-            ? `<div class="pm-chips">${defaults
-                .map((c) => `<span class="pm-chip">${icon.building(11)}${h(c.name)}</span>`)
+            ? `<div class="sv-chips">${defaults
+                .map((c) => `<span class="sv-chip">${icon.building(11)}${h(c.name)}</span>`)
                 .join('')}</div>`
-            : '<span class="pm-no-contact">No client assigned yet</span>'
+            : '<span class="sv-no-contact">No client assigned yet</span>'
         }
       </div>
     </div>`;
@@ -7319,17 +7509,17 @@ function bindUsers() {
       deletePentester(state.pentesters.find((p) => Number(p.id) === Number(b.dataset.pentDel)))
     )
   );
-  document.querySelectorAll('[data-manager-add]').forEach((b) =>
-    b.addEventListener('click', () => openUserForm(null, { role: PM_ROLE }))
+  document.querySelectorAll('[data-supervisor-add]').forEach((b) =>
+    b.addEventListener('click', () => openUserForm(null, { role: SUPERVISOR_ROLE }))
   );
-  document.querySelectorAll('[data-manager-edit]').forEach((b) =>
+  document.querySelectorAll('[data-supervisor-edit]').forEach((b) =>
     b.addEventListener('click', () =>
-      openUserForm(state.managers.find((m) => Number(m.id) === Number(b.dataset.managerEdit)))
+      openUserForm(state.supervisors.find((m) => Number(m.id) === Number(b.dataset.supervisorEdit)))
     )
   );
-  document.querySelectorAll('[data-manager-del]').forEach((b) =>
+  document.querySelectorAll('[data-supervisor-del]').forEach((b) =>
     b.addEventListener('click', () =>
-      deleteManager(state.managers.find((m) => Number(m.id) === Number(b.dataset.managerDel)))
+      deleteSupervisor(state.supervisors.find((m) => Number(m.id) === Number(b.dataset.supervisorDel)))
     )
   );
 }
@@ -7338,7 +7528,7 @@ function bindUsers() {
  * A person's phone and e-mail, as one line on their row.
  *
  * The contact details were already editable in the user form and readable on the
- * project manager cards, but a pentester's row showed nothing at all — so the fields
+ * supervisor cards, but a pentester's row showed nothing at all — so the fields
  * were impossible to find from the list and looked like they did not exist. The title
  * attribute carries the whole pair, because a row is one line and a long address has
  * to end in an ellipsis rather than push the buttons off it.
@@ -7403,27 +7593,27 @@ function parentPickerHTML(subrole, selectedId = null) {
  * chosen between before typing anything.
  *
  * Editing keeps the account's own role. The two PATCH endpoints validate different
- * fields, and turning a lead into a project manager would leave their reports in a
+ * fields, and turning a lead into a supervisor would leave their reports in a
  * tree with no branch above them.
  */
 function openUserForm(person = null, preset = {}) {
   const editing = Boolean(person);
   const role = editing
-    ? person.role === 'Project Manager'
-      ? PM_ROLE
+    ? person.role === 'Supervisor'
+      ? SUPERVISOR_ROLE
       : 'Pentester'
-    : preset.role === PM_ROLE
-      ? PM_ROLE
+    : preset.role === SUPERVISOR_ROLE
+      ? SUPERVISOR_ROLE
       : 'Pentester';
   const subrole = person?.subrole || preset.subrole || 'Member';
   const parentId = person ? person.parentId : preset.parentId ?? null;
-  const isPm = role === PM_ROLE;
+  const isSupervisorRole = role === SUPERVISOR_ROLE;
 
   openModal({
     title: editing ? `Edit ${person.name}` : 'New user',
     subtitle: editing
-      ? isPm
-        ? 'Project manager — client-facing owner of engagements'
+      ? isSupervisorRole
+        ? 'Supervisor — client-facing owner of engagements'
         : 'Update the level or the reporting line'
       : 'Pick the role and the fields follow.',
     body: `
@@ -7432,8 +7622,8 @@ function openUserForm(person = null, preset = {}) {
           ? ''
           : `<div class="field">
                <label class="label">Role</label>
-               ${segmented('uf-role', ['Pentester', PM_ROLE], role)}
-               <span class="form-hint">A pentester joins the reporting tree; a project manager owns engagements.</span>
+               ${segmented('uf-role', ['Pentester', SUPERVISOR_ROLE], role)}
+               <span class="form-hint">A pentester joins the reporting tree; a supervisor owns engagements.</span>
              </div>`
       }
       <div class="field">
@@ -7456,7 +7646,7 @@ function openUserForm(person = null, preset = {}) {
                </div>
              </div>`
       }
-      <div id="uf-pent" ${isPm ? 'hidden' : ''}>
+      <div id="uf-pent" ${isSupervisorRole ? 'hidden' : ''}>
         <div class="field">
           <label class="label">Level</label>
           ${segmented('uf-subrole', ENUMS.subrole, subrole, {
@@ -7496,9 +7686,9 @@ function openUserForm(person = null, preset = {}) {
       // follows the role too — but only while the field still holds a default, so a
       // typed password is never overwritten under the user's hands.
       bindSegmented(modal, 'uf-role', (value) => {
-        const pm = value === PM_ROLE;
+        const pm = value === SUPERVISOR_ROLE;
         modal.querySelector('#uf-pent').hidden = pm;
-        if (passInput && !passTouched) passInput.value = pm ? 'manager123' : 'pentester123';
+        if (passInput && !passTouched) passInput.value = pm ? 'supervisor123' : 'pentester123';
       });
 
       // Switching level rebuilds the parent control: a lead has no parent, and the
@@ -7528,7 +7718,7 @@ function openUserForm(person = null, preset = {}) {
 
         const roleNow = editing ? role : segmentedValue(modal, 'uf-role');
         const payload = { name, phone, email };
-        if (roleNow !== PM_ROLE) {
+        if (roleNow !== SUPERVISOR_ROLE) {
           const level = segmentedValue(modal, 'uf-subrole');
           payload.subrole = level;
           if (level === 'Lead') {
@@ -7547,14 +7737,14 @@ function openUserForm(person = null, preset = {}) {
         btn.disabled = true;
         try {
           if (editing) {
-            if (roleNow === PM_ROLE) await api.updateManager(person.id, payload);
+            if (roleNow === SUPERVISOR_ROLE) await api.updateSupervisor(person.id, payload);
             else await api.updatePentester(person.id, payload);
             toast('User updated');
           } else {
             const username = modal.querySelector('#uf-username').value.trim();
             const password = modal.querySelector('#uf-password').value;
             if (!username) throw new Error('Username is required');
-            if (roleNow === PM_ROLE) await api.createManager({ ...payload, username, password });
+            if (roleNow === SUPERVISOR_ROLE) await api.createSupervisor({ ...payload, username, password });
             else await api.createPentester({ ...payload, username, password });
             toast(`${name} added`);
           }
@@ -7587,20 +7777,20 @@ async function deletePentester(person) {
   }
 }
 
-async function deleteManager(manager) {
-  if (!manager) return;
-  const owned = (state.projects || []).filter((p) => Number(p.managerId) === Number(manager.id));
+async function deleteSupervisor(supervisor) {
+  if (!supervisor) return;
+  const owned = (state.projects || []).filter((p) => Number(p.supervisorId) === Number(supervisor.id));
   const ok = await confirmDialog({
-    title: 'Delete project manager?',
+    title: 'Delete supervisor?',
     message: owned.length
-      ? `${manager.name} still owns ${owned.length} project(s). Reassign them first — the server will refuse this.`
-      : `${manager.name} will lose access. Projects they don't own are unaffected.`,
-    confirmLabel: 'Delete manager',
+      ? `${supervisor.name} still owns ${owned.length} project(s). Reassign them first — the server will refuse this.`
+      : `${supervisor.name} will lose access. Projects they don't own are unaffected.`,
+    confirmLabel: 'Delete supervisor',
   });
   if (!ok) return;
   try {
-    await api.deleteManager(manager.id);
-    toast('Manager deleted');
+    await api.deleteSupervisor(supervisor.id);
+    toast('Supervisor deleted');
     await refreshUsers();
   } catch (err) {
     toast(err.message, 'err');
@@ -7610,21 +7800,21 @@ async function deleteManager(manager) {
 /**
  * Reload everything the page shows and repaint the shell.
  *
- * One refresh for both roles: the sidebar count, the tree and the manager cards all
+ * One refresh for both roles: the sidebar count, the tree and the supervisor cards all
  * read from these arrays, and keeping two refreshers is how the two pages drifted
  * into different copy for the same account.
  */
 async function refreshUsers() {
-  const [treeRes, managersRes, stats, clientsRes, projectsRes] = await Promise.all([
+  const [treeRes, supervisorsRes, stats, clientsRes, projectsRes] = await Promise.all([
     api.pentesters(),
-    api.managers(),
+    api.supervisors(),
     api.stats(),
     api.clients(),
     api.projects(currentQuery()),
   ]);
   state.pentesters = treeRes.pentesters;
   state.pentesterTree = treeRes.tree;
-  state.managers = managersRes.managers;
+  state.supervisors = supervisorsRes.supervisors;
   state.stats = stats;
   state.clients = clientsRes.clients;
   state.projects = projectsRes.projects;
@@ -7725,14 +7915,14 @@ function freeUsername(base, taken) {
  * preview can say "reports to Dewi (auto)" before a single account exists.
  */
 function parseImport(text, opts = {}) {
-  const isPm = opts.role === PM_ROLE;
+  const isSupervisorRole = opts.role === SUPERVISOR_ROLE;
   const defaultLevel = opts.defaultLevel || 'Member';
-  const defaultPassword = opts.password || (isPm ? 'manager123' : 'pentester123');
+  const defaultPassword = opts.password || (isSupervisorRole ? 'supervisor123' : 'pentester123');
 
   const taken = new Set(
     [
       ...(state.pentesters || []).map((u) => u.username),
-      ...(state.managers || []).map((u) => u.username),
+      ...(state.supervisors || []).map((u) => u.username),
       ...(state.users || []).map((u) => u.username),
     ]
       .filter(Boolean)
@@ -7792,7 +7982,7 @@ function parseImport(text, opts = {}) {
     // first slot is never stolen: `Bagas Nugroho, bagas, pentester123, Member, Dewi`
     // has a username that is also a person's username, and reading it as the parent
     // shifted every remaining column by one.
-    if (!isPm) {
+    if (!isSupervisorRole) {
       const looksLikePerson = (c) =>
         Boolean(c) &&
         pool.some(
@@ -7815,10 +8005,10 @@ function parseImport(text, opts = {}) {
     }
 
     // Whatever is left is positional: Name, Username, Password, then the role's own
-    // column (Reports to for a pentester, nothing for a manager).
+    // column (Reports to for a pentester, nothing for a supervisor).
     username = (rest[0] || '').toLowerCase();
     password = rest[1] || defaultPassword;
-    if (!isPm && !reportsTo) reportsTo = rest[2] || '';
+    if (!isSupervisorRole && !reportsTo) reportsTo = rest[2] || '';
 
     let error = '';
     if (!name) error = 'Name is required';
@@ -7835,7 +8025,7 @@ function parseImport(text, opts = {}) {
     // the last one in the list, so a file written top-down builds its own tree.
     let parent = null;
     let parentNote = '';
-    if (!isPm && level !== 'Lead' && !error) {
+    if (!isSupervisorRole && level !== 'Lead' && !error) {
       // Same legal-parent table the form and the server use: an intern may sit under
       // a member, a sub lead or a lead.
       const allowed = PARENT_LEVELS[level] || [];
@@ -7866,7 +8056,7 @@ function parseImport(text, opts = {}) {
       name,
       username,
       password,
-      level: isPm ? PM_ROLE : level,
+      level: isSupervisorRole ? SUPERVISOR_ROLE : level,
       parentName: parent ? parent.name : '',
       parentUsername: parent ? parent.username : '',
       parentNote,
@@ -7875,7 +8065,7 @@ function parseImport(text, opts = {}) {
       error,
     };
     rows.push(row);
-    if (!error && !isPm) {
+    if (!error && !isSupervisorRole) {
       pool.push({ id: `new-${rows.length}`, username, name, subrole: level, role: 'Pentester' });
     }
   }
@@ -7884,7 +8074,7 @@ function parseImport(text, opts = {}) {
 }
 
 /** The parse result as a table: what will be created, and what cannot be. */
-function importPreviewHTML(rows, isPm) {
+function importPreviewHTML(rows, isSupervisorRole) {
   if (!rows.length) {
     return `<p class="form-hint">Nothing parsed yet — paste a list above or choose a file.</p>`;
   }
@@ -7894,7 +8084,7 @@ function importPreviewHTML(rows, isPm) {
   // No `#` column: the row number is not referenced anywhere in the errors (they name
   // the person), and dropping it is what leaves room for Status to stay on screen
   // instead of hiding behind a horizontal scroll.
-  const head = isPm
+  const head = isSupervisorRole
     ? ['Name', 'Username', 'Password', 'Contact', 'Status']
     : ['Name', 'Username', 'Level', 'Reports to', 'Contact', 'Status'];
 
@@ -7911,7 +8101,7 @@ function importPreviewHTML(rows, isPm) {
             <td class="dev-name imp-name" title="${h(r.name || '')}">${h(r.name || '—')}</td>
             <td class="dev-mono-cell">${h(r.username || '—')}</td>
             ${
-              isPm
+              isSupervisorRole
                 ? `<td class="dev-mono-cell">${h(r.password)}</td>`
                 : `<td class="dev-mono-cell">${h(r.level)}</td>
                    <td class="dev-mono-cell">${
@@ -7945,7 +8135,7 @@ function openUserImport() {
     body: `
       <div class="field">
         <label class="label">Import as</label>
-        ${segmented('imp-role', ['Pentesters', 'Project managers'], 'Pentesters')}
+        ${segmented('imp-role', ['Pentesters', 'Supervisors'], 'Pentesters')}
       </div>
       <div class="form-row">
         <div class="field" id="imp-level-field">
@@ -7992,21 +8182,21 @@ Bagas Nugroho, Lead"></textarea>
         passTouched = true;
       });
 
-      const isPm = () => segmentedValue(modal, 'imp-role') === 'Project managers';
+      const isSupervisorRole = () => segmentedValue(modal, 'imp-role') === 'Supervisors';
       const rowsNow = () =>
         parseImport(text.value, {
-          role: isPm() ? PM_ROLE : 'Pentester',
-          defaultLevel: isPm() ? 'Member' : segmentedValue(modal, 'imp-level') || 'Member',
+          role: isSupervisorRole() ? SUPERVISOR_ROLE : 'Pentester',
+          defaultLevel: isSupervisorRole() ? 'Member' : segmentedValue(modal, 'imp-level') || 'Member',
           password: pass.value,
         });
 
       const render = () => {
-        modal.querySelector('#imp-level-field').hidden = isPm();
-        modal.querySelector('#imp-hint').textContent = isPm()
-          ? 'One manager per line. Only the full name is required — a username and password are generated when you leave them out, and phone / email are recognised wherever they sit.'
+        modal.querySelector('#imp-level-field').hidden = isSupervisorRole();
+        modal.querySelector('#imp-hint').textContent = isSupervisorRole()
+          ? 'One supervisor per line. Only the full name is required — a username and password are generated when you leave them out, and phone / email are recognised wherever they sit.'
           : 'One pentester per line. Only the full name is required — a username and password are generated when you leave them out. Put the level (Lead / Sub Lead / Member), who they report to, and their phone / e-mail anywhere after the name.';
         const rows = rowsNow();
-        preview.innerHTML = importPreviewHTML(rows, isPm());
+        preview.innerHTML = importPreviewHTML(rows, isSupervisorRole());
         const ok = rows.filter((r) => !r.error).length;
         const bad = rows.length - ok;
         tally.textContent = rows.length
@@ -8018,9 +8208,9 @@ Bagas Nugroho, Lead"></textarea>
       };
 
       bindSegmented(modal, 'imp-role', (value) => {
-        const pm = value === 'Project managers';
+        const pm = value === 'Supervisors';
         // The default password follows the role, unless it was typed.
-        if (!passTouched) pass.value = pm ? 'manager123' : 'pentester123';
+        if (!passTouched) pass.value = pm ? 'supervisor123' : 'pentester123';
         render();
       });
       bindSegmented(modal, 'imp-level', render);
@@ -8039,7 +8229,7 @@ Bagas Nugroho, Lead"></textarea>
       modal.querySelector('[data-cancel]').addEventListener('click', close);
 
       go.addEventListener('click', async () => {
-        const pm = isPm();
+        const pm = isSupervisorRole();
         const rows = rowsNow().filter((r) => !r.error);
         if (!rows.length) return;
         // People created in this run join the pool, so a member further down the
@@ -8071,8 +8261,8 @@ Bagas Nugroho, Lead"></textarea>
                 payload.parentId = parent.id;
               }
             }
-            const res = pm ? await api.createManager(payload) : await api.createPentester(payload);
-            const person = res.manager || res.pentester;
+            const res = pm ? await api.createSupervisor(payload) : await api.createPentester(payload);
+            const person = res.supervisor || res.pentester;
             if (person) pool.push({ ...person, subrole: person.subrole || row.level });
             created.push(row.username);
           } catch (err) {
@@ -8659,12 +8849,12 @@ async function boot() {
     state.user = me.user;
     // Properties first among equals: every badge, picker and filter below is built
     // from this list, so it has to be in the registry before anything renders.
-    const [usersRes, stats, clientsRes, appsRes, managersRes, propsRes] = await Promise.all([
+    const [usersRes, stats, clientsRes, appsRes, supervisorsRes, propsRes] = await Promise.all([
       api.users(),
       api.stats(),
       api.clients(),
       api.applications(),
-      api.managers(),
+      api.supervisors(),
       api.properties(),
     ]);
     setProperties(propsRes);
@@ -8672,7 +8862,7 @@ async function boot() {
     state.stats = stats;
     state.clients = clientsRes.clients;
     state.applications = appsRes.applications;
-    state.managers = managersRes.managers;
+    state.supervisors = supervisorsRes.supervisors;
 
     if (canManageCatalog()) {
       const treeRes = await api.pentesters();
@@ -8692,7 +8882,7 @@ async function boot() {
 
     if (state.nav === 'clients' || state.nav === 'properties') return;
     if (state.nav === 'directory') return void loadDirectory();
-    // The Users page counts each person's projects and each manager's owned
+    // The Users page counts each person's projects and each supervisor's owned
     // engagements, so opening it cold (a reload straight onto it) must fetch the
     // project list as well — otherwise every card reads "0 projects".
     if (state.nav === 'users') return void refreshUsers();

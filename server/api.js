@@ -115,15 +115,17 @@ const projectSelect = `
   SELECT p.*,
          c.short_name AS client_short,
          a.name AS application_name,
-         m.name AS manager_name,
-         m.email AS manager_email,
-         m.phone AS manager_phone,
+         v.name AS variant_name,
+         m.name AS supervisor_name,
+         m.email AS supervisor_email,
+         m.phone AS supervisor_phone,
          (SELECT COUNT(*) FROM retests r WHERE r.project_id = p.id) AS retest_count,
          (SELECT COUNT(*) FROM retests r WHERE r.project_id = p.id AND ${retestOpen('r')}) AS open_retest_count
     FROM projects p
     LEFT JOIN clients c ON c.id = p.client_id
     LEFT JOIN applications a ON a.id = p.application_id
-    LEFT JOIN users m ON m.id = p.manager_id
+    LEFT JOIN application_variants v ON v.id = p.variant_id
+    LEFT JOIN users m ON m.id = p.supervisor_id
 `;
 
 /**
@@ -172,12 +174,15 @@ function shapeProject(row, pentesters = []) {
     clientShort: row.client_short || '',
     applicationId: row.application_id ?? null,
     applicationName: row.application_name || '',
-    // One project manager per project. The name/email/phone are joined in
+    // Optional third level: Client → Application → Variant. Empty on most projects.
+    variantId: row.variant_id ?? null,
+    variantName: row.variant_name || '',
+    // One project supervisor per project. The name/email/phone are joined in
     // projectSelect so the list, table and drawer never need an extra request.
-    managerId: row.manager_id ?? null,
-    managerName: row.manager_name || '',
-    managerEmail: row.manager_email || '',
-    managerPhone: row.manager_phone || '',
+    supervisorId: row.supervisor_id ?? null,
+    supervisorName: row.supervisor_name || '',
+    supervisorEmail: row.supervisor_email || '',
+    supervisorPhone: row.supervisor_phone || '',
     category: row.category,
     platform: row.platform || '',
     env: row.env,
@@ -214,7 +219,7 @@ function shapeRetest(row) {
   };
 }
 
-function shapeClient(row, managers = []) {
+function shapeClient(row, supervisors = []) {
   return {
     id: row.id,
     name: row.name,
@@ -223,22 +228,22 @@ function shapeClient(row, managers = []) {
     createdAt: row.created_at,
     applicationCount: Number(row.application_count ?? 0),
     projectCount: Number(row.project_count ?? 0),
-    // The PMs who usually handle this client, used to pre-fill the project form.
-    managers,
+    // The SVs who usually handle this client, used to pre-fill the project form.
+    supervisors,
   };
 }
 
 /**
- * Project managers of the given clients, grouped into a Map.
+ * Project supervisors of the given clients, grouped into a Map.
  * Same N+1-avoiding shape as pentestersByProject().
  */
-async function managersByClient(clientIds) {
+async function supervisorsByClient(clientIds) {
   const map = new Map();
   if (!clientIds.length) return map;
   const placeholders = clientIds.map(() => '?').join(',');
   const rows = await db.all(
     `SELECT cm.client_id, u.id, u.name, u.email, u.phone
-       FROM client_managers cm
+       FROM client_supervisors cm
        JOIN users u ON u.id = cm.user_id
       WHERE cm.client_id IN (${placeholders})
       ORDER BY u.name`,
@@ -257,30 +262,39 @@ async function managersByClient(clientIds) {
   return map;
 }
 
-/** Replaces the default-PM set of one client. */
-async function setClientManagers(tx, clientId, userIds) {
-  await tx.run('DELETE FROM client_managers WHERE client_id = ?', [clientId]);
+/**
+ * Who may supervise an engagement.
+ *
+ * A supervisor is either a dedicated Supervisor account (someone whose job is
+ * supervising) or a pentester who runs the work in the field — or nobody at all,
+ * because an engagement can be filed before anyone is assigned to it. Admins are
+ * operations, not supervisors, so they are not in this pool.
+ */
+const SUPERVISOR_ROLES = ['Supervisor', 'Pentester'];
+const canSupervise = (row) => Boolean(row) && SUPERVISOR_ROLES.includes(row.role);
+
+/** Replaces the default-supervisor set of one client. */
+async function setClientSupervisors(tx, clientId, userIds) {
+  await tx.run('DELETE FROM client_supervisors WHERE client_id = ?', [clientId]);
   const unique = [...new Set((userIds || []).map(Number).filter(Boolean))];
   for (const uid of unique) {
-    const exists = await tx.get("SELECT id FROM users WHERE id = ? AND role = 'Project Manager'", [
-      uid,
-    ]);
-    // Silently skipping a non-PM keeps the request forgiving; the UI only ever
-    // offers Project Manager rows anyway.
-    if (exists) {
-      await tx.run('INSERT INTO client_managers (client_id, user_id) VALUES (?, ?)', [clientId, uid]);
+    const exists = await tx.get('SELECT id, role FROM users WHERE id = ?', [uid]);
+    // Silently skipping anyone who cannot supervise keeps the request forgiving; the
+    // UI only ever offers the pool anyway.
+    if (canSupervise(exists)) {
+      await tx.run('INSERT INTO client_supervisors (client_id, user_id) VALUES (?, ?)', [clientId, uid]);
     }
   }
 }
 
-/** Validates a project's owner: it must reference an existing Project Manager. */
-async function resolveManagerId(tx, value) {
+/** Validates a project's supervisor: a Supervisor account, a pentester, or nobody. */
+async function resolveSupervisorId(tx, value) {
   if (value === null || value === undefined || value === '') return null;
   const id = Number(value);
   const row = await tx.get('SELECT id, role FROM users WHERE id = ?', [id]);
-  if (!row) throw new HttpError(400, 'Selected project manager does not exist');
-  if (row.role !== 'Project Manager') {
-    throw new HttpError(400, 'That user is not a Project Manager');
+  if (!row) throw new HttpError(400, 'Selected supervisor does not exist');
+  if (!canSupervise(row)) {
+    throw new HttpError(400, 'A supervisor must be a Supervisor account or a pentester');
   }
   return id;
 }
@@ -293,7 +307,56 @@ function shapeApplication(row) {
     notes: row.notes || '',
     createdAt: row.created_at,
     projectCount: Number(row.project_count ?? 0),
+    // Filled in by withVariants(): a variant only ever means something as a child
+    // of its application, so it is shaped here rather than as a free list.
+    variants: [],
   };
+}
+
+function shapeVariant(row) {
+  return {
+    id: Number(row.id),
+    applicationId: Number(row.application_id),
+    name: row.name,
+    notes: row.notes || '',
+    createdAt: row.created_at,
+    projectCount: Number(row.project_count ?? 0),
+  };
+}
+
+/**
+ * Attaches each application's variants to it, in one query.
+ *
+ * Two queries, not one per application: the client page lists every application of
+ * every client, and N+1 there is the difference between a page and a wait.
+ */
+async function withVariants(applications) {
+  if (!applications.length) return applications;
+  const rows = await db.all(
+    `SELECT v.*, (SELECT COUNT(*) FROM projects p WHERE p.variant_id = v.id) AS project_count
+       FROM application_variants v
+      ORDER BY v.name`
+  );
+  const byApp = new Map();
+  for (const row of rows) {
+    const key = Number(row.application_id);
+    if (!byApp.has(key)) byApp.set(key, []);
+    byApp.get(key).push(shapeVariant(row));
+  }
+  for (const app of applications) app.variants = byApp.get(Number(app.id)) || [];
+  return applications;
+}
+
+/** A project's variant must exist AND belong to the application it is filed under. */
+async function resolveVariantId(tx, value, applicationId) {
+  if (value === null || value === undefined || value === '') return null;
+  const id = Number(value);
+  const row = await tx.get('SELECT id, application_id FROM application_variants WHERE id = ?', [id]);
+  if (!row) throw new HttpError(400, 'Selected variant app does not exist');
+  if (applicationId && Number(row.application_id) !== Number(applicationId)) {
+    throw new HttpError(400, 'That variant belongs to a different application');
+  }
+  return id;
 }
 
 /**
@@ -602,7 +665,7 @@ async function setPentesters(tx, projectId, userIds) {
   const unique = [...new Set((userIds || []).map(Number).filter(Boolean))];
   for (const uid of unique) {
     // Only a pentester can sit on the test bench. Without the role filter a
-    // project manager or an admin could be written into project_pentesters by
+    // project supervisor or an admin could be written into project_pentesters by
     // PATCH /api/projects/:id, which then showed up in the assignment picker and
     // counted against nobody on the board (it only lists pentesters).
     const exists = await tx.get("SELECT id FROM users WHERE id = ? AND role = 'Pentester'", [uid]);
@@ -652,7 +715,21 @@ async function resolveClientRef(tx, body, existing = null) {
     }
   }
 
-  return { clientId, applicationId, clientName };
+  /* The optional third level: a variant of THIS application.
+     - no application  -> no variant can be meant, so it is cleared
+     - application changed without naming a variant -> the old variant belonged to
+       the old application, so it is cleared rather than silently kept
+     - a variant is named -> it has to exist and belong to this application */
+  let variantId =
+    existing && Number(existing.application_id) === Number(applicationId)
+      ? existing.variant_id ?? null
+      : null;
+  if (body.variantId !== undefined) {
+    variantId = body.variantId === null || body.variantId === '' ? null : Number(body.variantId);
+  }
+  variantId = await resolveVariantId(tx, variantId, applicationId);
+
+  return { clientId, applicationId, clientName, variantId };
 }
 
 /**
@@ -774,7 +851,7 @@ async function validateParent(subrole, parentId, selfId = null) {
     throw new HttpError(400, 'A pentester cannot report to themselves');
   }
   const parent = await db.get('SELECT id, name, subrole, parent_id FROM users WHERE id = ?', [id]);
-  if (!parent) throw new HttpError(400, 'That manager does not exist');
+  if (!parent) throw new HttpError(400, 'That supervisor does not exist');
   if (!allowed.includes(parent.subrole)) {
     throw new HttpError(
       400,
@@ -972,14 +1049,14 @@ async function openRetestsByProject() {
 
 async function buildBoard() {
   // The board is the testing bench, so it holds the people who do the testing:
-  // Project Managers own engagements rather than test them, and Administrators are
+  // Supervisors own engagements rather than test them, and Administrators are
   // operations — both are lookup entries (Users, Manage users), not rows here.
   // A team whose only Lead is an admin therefore starts at sub-lead level; the
   // hierarchy order degrades to "whoever has no parent shown first", never to a
   // missing person.
   const users = (await listUsers())
     .map(shapePentester)
-    .filter((u) => u.role !== 'Project Manager' && u.role !== 'Admin');
+    .filter((u) => u.role !== 'Supervisor' && u.role !== 'Admin');
   const assignments = await activeAssignments();
   const openRetests = await openRetestsByProject();
   const lastFinished = await lastFinishedByUser();
@@ -1060,7 +1137,7 @@ function canEditAvailability(actor, targetId) {
 
 export const api = {
   // Feeds the "who pentest" picker, so it only ever returns Pentesters.
-  // Project Managers have their own endpoint: mixing them in would let a PM be
+  // Supervisors have their own endpoint: mixing them in would let a SV be
   // assigned as a tester and would break the hierarchy badges.
   'GET /api/users': async () => ({
     users: (await listUsers()).map(shapePentester).filter((u) => u.role === 'Pentester'),
@@ -1159,7 +1236,7 @@ export const api = {
    * A locked row is refused outright: the workflow compares project status against
    * the literal 'Done' and treats 'Mobile' as the only category with a platform, so
    * removing either would leave data nobody can render. A row a project still uses is
-   * refused too, with the count — the same rule as deleting a client or a manager.
+   * refused too, with the count — the same rule as deleting a client or a supervisor.
    */
   'DELETE /api/properties/:kind/:id': async (ctx) => {
     requireCatalogManager(ctx);
@@ -1209,7 +1286,7 @@ export const api = {
    * Any signed-in user may read it. That is the same rule as `GET /api/people/:id`
    * below and for the same reason: a colleague's office phone and e-mail is not
    * private data, and the whole point of the page is that a tester can reach the
-   * project manager who owns the engagement. Writes stay behind their own guards.
+   * project supervisor who owns the engagement. Writes stay behind their own guards.
    *
    * Unlike `/api/users` this is NOT filtered by role — it answers "who works here",
    * not "who can be assigned to a pentest", so admins belong in it too.
@@ -1228,7 +1305,7 @@ export const api = {
   },
 
   /**
-   * One person's card, for the click-through from a PM or pentester avatar.
+   * One person's card, for the click-through from a SV or pentester avatar.
    * Any signed-in user may look this up — the drawer already shows teammates'
    * names, and the contact details here are the office phone and e-mail of a
    * colleague, not private data. Writes stay behind their own guards.
@@ -1246,7 +1323,7 @@ export const api = {
     // What they own vs. what they test, split so the card can label it properly.
     const managing = await db.all(
       `SELECT p.id, p.name, p.status, p.client
-         FROM projects p WHERE p.manager_id = ?
+         FROM projects p WHERE p.supervisor_id = ?
         ORDER BY CASE p.status WHEN 'Ongoing' THEN 0 WHEN 'Incoming' THEN 1 WHEN 'Ready' THEN 2
                                WHEN 'Hold' THEN 3 WHEN 'Done' THEN 4 ELSE 5 END,
                  p.name`,
@@ -1275,11 +1352,11 @@ export const api = {
 
     const assignMap = await activeAssignments();
     const live = (assignMap.get(person.id) || []).filter((p) => p.status !== 'Done');
-    // A Project Manager is not on the testing bench, so "Idle / On Project"
+    // A Supervisor is not on the testing bench, so "Idle / On Project"
     // (which counts project_pentesters rows) would always say Idle for them.
     // Their load is the engagements they own instead.
     const owned = managing.map(mapProject).filter((p) => p.status !== 'Done');
-    const derived = person.availability || (person.role === 'Project Manager'
+    const derived = person.availability || (person.role === 'Supervisor'
       ? owned.length ? 'On Project' : 'Idle'
       : live.length ? 'On Project' : 'Idle');
 
@@ -1289,16 +1366,27 @@ export const api = {
         createdAt: row.created_at,
         status: derived,
         automatic: !person.availability,
-        currentProjects: person.role === 'Project Manager' ? owned : live,
+        currentProjects: person.role === 'Supervisor' ? owned : live,
       },
-      managerOf: managing.map(mapProject),
+      supervisorOf: managing.map(mapProject),
       pentesterOn: testing.map(mapProject),
       reports: reports.map((r) => ({ id: Number(r.id), name: r.name, subrole: r.subrole || 'Member' })),
     };
   },
 
-  'GET /api/managers': async () =>
-    ({ managers: (await listUsers()).map(shapePentester).filter((u) => u.role === 'Project Manager') }),
+  /**
+   * The pool of people who may supervise: Supervisor accounts first, then the
+   * pentesters, because supervising is now a hat a pentester can wear rather than a
+   * separate job. `pool: true` tells the picker to label each row with its role.
+   */
+  'GET /api/supervisors': async () => {
+    const rank = { Supervisor: 0, Pentester: 1 };
+    const supervisors = (await listUsers())
+      .map(shapePentester)
+      .filter((u) => SUPERVISOR_ROLES.includes(u.role))
+      .sort((a, b) => (rank[a.role] ?? 9) - (rank[b.role] ?? 9) || a.name.localeCompare(b.name));
+    return { supervisors };
+  },
 
   'GET /api/stats': async (ctx) => {
     const total = Number((await db.get('SELECT COUNT(*) AS n FROM projects'))?.n ?? 0);
@@ -1399,8 +1487,8 @@ export const api = {
     const pentesters = Number(
       (await db.get("SELECT COUNT(*) AS n FROM users WHERE role = 'Pentester'"))?.n ?? 0
     );
-    const managers = Number(
-      (await db.get("SELECT COUNT(*) AS n FROM users WHERE role = 'Project Manager'"))?.n ?? 0
+    const supervisors = Number(
+      (await db.get("SELECT COUNT(*) AS n FROM users WHERE role = 'Supervisor'"))?.n ?? 0
     );
     const applications = (
       await db.all('SELECT COUNT(*) AS n FROM applications')
@@ -1447,7 +1535,7 @@ export const api = {
       applications: Number(applications),
       devices,
       pentesters,
-      managers,
+      supervisors,
       mineActive,
       mineAll,
       scopes,
@@ -1607,16 +1695,17 @@ export const api = {
       // Platform is only stored for Mobile projects; anything else clears it.
       const platform = category === 'Mobile' ? pick(body.platform, ENUMS.platform, 'Android') : '';
 
-      const managerId = await resolveManagerId(tx, body.managerId);
+      const supervisorId = await resolveSupervisorId(tx, body.supervisorId);
       const row = await tx.get(
-        `INSERT INTO projects (name, client, client_id, application_id, manager_id, category, platform, env, method, status, notes, started_at, ended_at, created_by, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
+        `INSERT INTO projects (name, client, client_id, application_id, variant_id, supervisor_id, category, platform, env, method, status, notes, started_at, ended_at, created_by, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
         [
           name,
           ref.clientName,
           ref.clientId,
           ref.applicationId,
-          managerId,
+          ref.variantId,
+          supervisorId,
           category,
           platform,
           pick(body.env, ENUMS.env, 'Dev'),
@@ -1677,18 +1766,19 @@ export const api = {
       const dates = resolveDates(body, row, nextStatus, row.status);
       // Only touch the owner when the request mentions it, so a status-only
       // patch keeps whoever is accountable.
-      const managerId =
-        body.managerId !== undefined ? await resolveManagerId(tx, body.managerId) : row.manager_id ?? null;
+      const supervisorId =
+        body.supervisorId !== undefined ? await resolveSupervisorId(tx, body.supervisorId) : row.supervisor_id ?? null;
 
       await tx.run(
-        `UPDATE projects SET name = ?, client = ?, client_id = ?, application_id = ?, manager_id = ?, category = ?, platform = ?, env = ?, method = ?, status = ?, notes = ?, started_at = ?, ended_at = ?, updated_at = ?
+        `UPDATE projects SET name = ?, client = ?, client_id = ?, application_id = ?, variant_id = ?, supervisor_id = ?, category = ?, platform = ?, env = ?, method = ?, status = ?, notes = ?, started_at = ?, ended_at = ?, updated_at = ?
           WHERE id = ?`,
         [
           name,
           ref.clientName,
           ref.clientId,
           ref.applicationId,
-          managerId,
+          ref.variantId,
+          supervisorId,
           category,
           platform,
           body.env !== undefined ? pick(body.env, ENUMS.env, row.env) : row.env,
@@ -1770,7 +1860,7 @@ export const api = {
 
     // The project's own status is left alone. Raising a request used to flip a Done
     // engagement back to Ongoing "so it shows up as work again", which rewrote the
-    // engagement's lifecycle behind the PM's back: closing a project and then
+    // engagement's lifecycle behind the SV's back: closing a project and then
     // queueing a retest silently reopened it. The retest is what carries the open
     // work — its own status, its own row in the active lists (labelled
     // "Retest - <name>") and its own counter in the retest queue — so nothing is
@@ -1836,8 +1926,8 @@ export const api = {
          FROM clients c
         ORDER BY c.name`
     );
-    const managerMap = await managersByClient(rows.map((r) => Number(r.id)));
-    return { clients: rows.map((r) => shapeClient(r, managerMap.get(Number(r.id)) || [])) };
+    const supervisorMap = await supervisorsByClient(rows.map((r) => Number(r.id)));
+    return { clients: rows.map((r) => shapeClient(r, supervisorMap.get(Number(r.id)) || [])) };
   },
 
   'POST /api/clients': async (ctx) => {
@@ -1852,10 +1942,10 @@ export const api = {
         `INSERT INTO clients (name, short_name, notes, created_at) VALUES (?, ?, ?, ?) RETURNING id`,
         [name, String(body.shortName || '').trim(), String(body.notes || ''), nowISO()]
       );
-      // A client names the project managers who usually handle it; the project
+      // A client names the project supervisors who usually handle it; the project
       // form pre-selects them when this client is picked.
-      if (Array.isArray(body.managerIds)) {
-        await setClientManagers(tx, Number(inserted.id), body.managerIds);
+      if (Array.isArray(body.supervisorIds)) {
+        await setClientSupervisors(tx, Number(inserted.id), body.supervisorIds);
       }
       return inserted;
     });
@@ -1866,8 +1956,8 @@ export const api = {
          FROM clients c WHERE c.id = ?`,
       [Number(row.id)]
     );
-    const managerMap = await managersByClient([Number(row.id)]);
-    return { client: shapeClient(created, managerMap.get(Number(row.id)) || []) };
+    const supervisorMap = await supervisorsByClient([Number(row.id)]);
+    return { client: shapeClient(created, supervisorMap.get(Number(row.id)) || []) };
   },
 
   'PATCH /api/clients/:id': async (ctx) => {
@@ -1894,8 +1984,8 @@ export const api = {
       if (name !== row.name) {
         await tx.run('UPDATE projects SET client = ? WHERE client_id = ?', [name, row.id]);
       }
-      if (Array.isArray(body.managerIds)) {
-        await setClientManagers(tx, Number(row.id), body.managerIds);
+      if (Array.isArray(body.supervisorIds)) {
+        await setClientSupervisors(tx, Number(row.id), body.supervisorIds);
       }
     });
 
@@ -1906,8 +1996,8 @@ export const api = {
          FROM clients c WHERE c.id = ?`,
       [row.id]
     );
-    const managerMap = await managersByClient([Number(row.id)]);
-    return { client: shapeClient(updated, managerMap.get(Number(row.id)) || []) };
+    const supervisorMap = await supervisorsByClient([Number(row.id)]);
+    return { client: shapeClient(updated, supervisorMap.get(Number(row.id)) || []) };
   },
 
   'DELETE /api/clients/:id': async (ctx) => {
@@ -1956,7 +2046,7 @@ export const api = {
         ORDER BY a.name`,
       params
     );
-    return { applications: rows.map(shapeApplication) };
+    return { applications: await withVariants(rows.map(shapeApplication)) };
   },
 
   'POST /api/applications': async (ctx) => {
@@ -1983,7 +2073,7 @@ export const api = {
          FROM applications a WHERE a.id = ?`,
       [Number(row.id)]
     );
-    return { application: shapeApplication(created) };
+    return { application: (await withVariants([shapeApplication(created)]))[0] };
   },
 
   'PATCH /api/applications/:id': async (ctx) => {
@@ -2012,7 +2102,86 @@ export const api = {
          FROM applications a WHERE a.id = ?`,
       [row.id]
     );
-    return { application: shapeApplication(updated) };
+    return { application: (await withVariants([shapeApplication(updated)]))[0] };
+  },
+
+  /* ---------- variant apps (Client → Application → Variant) ----------
+     A variant is a child of ONE application: the same product shipped in several
+     shapes (an Android build, an iOS build, a partner-branded build). Creating and
+     renaming is a tester's tool like every other create/edit; deleting is a delete,
+     so it follows the same rule as the rest of the app (admin, lead or sub lead). */
+
+  'GET /api/variants': async (ctx) => {
+    const appId = ctx.query.applicationId ? Number(ctx.query.applicationId) : null;
+    const rows = await db.all(
+      `SELECT v.*, (SELECT COUNT(*) FROM projects p WHERE p.variant_id = v.id) AS project_count
+         FROM application_variants v
+        ${appId ? 'WHERE v.application_id = ?' : ''}
+        ORDER BY v.name`,
+      appId ? [appId] : []
+    );
+    return { variants: rows.map(shapeVariant) };
+  },
+
+  'POST /api/applications/:id/variants': async (ctx) => {
+    requireCatalogManager(ctx);
+    const applicationId = Number(ctx.params.id);
+    const app = await db.get('SELECT id FROM applications WHERE id = ?', [applicationId]);
+    if (!app) throw new HttpError(404, 'Application not found');
+    const name = String((ctx.body || {}).name || '').trim();
+    if (!name) throw new HttpError(400, 'Variant name is required');
+    const clash = await db.get(
+      'SELECT id FROM application_variants WHERE application_id = ? AND LOWER(name) = LOWER(?)',
+      [applicationId, name]
+    );
+    if (clash) throw new HttpError(409, 'That application already has a variant with this name');
+
+    const row = await db.get(
+      `INSERT INTO application_variants (application_id, name, notes, created_at)
+       VALUES (?, ?, ?, ?) RETURNING id`,
+      [applicationId, name, String((ctx.body || {}).notes || ''), nowISO()]
+    );
+    const created = await db.get(
+      `SELECT v.*, 0 AS project_count FROM application_variants v WHERE v.id = ?`,
+      [Number(row.id)]
+    );
+    return { variant: shapeVariant(created) };
+  },
+
+  'PATCH /api/variants/:id': async (ctx) => {
+    requireCatalogManager(ctx);
+    const row = await db.get('SELECT * FROM application_variants WHERE id = ?', [ctx.params.id]);
+    if (!row) throw new HttpError(404, 'Variant app not found');
+    const body = ctx.body || {};
+    const name = body.name !== undefined ? String(body.name).trim() : row.name;
+    if (!name) throw new HttpError(400, 'Variant name is required');
+    const clash = await db.get(
+      'SELECT id FROM application_variants WHERE application_id = ? AND LOWER(name) = LOWER(?) AND id <> ?',
+      [row.application_id, name, row.id]
+    );
+    if (clash) throw new HttpError(409, 'That application already has a variant with this name');
+
+    await db.run('UPDATE application_variants SET name = ?, notes = ? WHERE id = ?', [
+      name,
+      body.notes !== undefined ? String(body.notes) : row.notes,
+      row.id,
+    ]);
+    const updated = await db.get(
+      `SELECT v.*, (SELECT COUNT(*) FROM projects p WHERE p.variant_id = v.id) AS project_count
+         FROM application_variants v WHERE v.id = ?`,
+      [row.id]
+    );
+    return { variant: shapeVariant(updated) };
+  },
+
+  'DELETE /api/variants/:id': async (ctx) => {
+    // Dropping a variant unfiles every project that pointed at it, which is a
+    // delete in every sense the app cares about.
+    requireDeleter(ctx, 'a variant app');
+    const row = await db.get('SELECT * FROM application_variants WHERE id = ?', [ctx.params.id]);
+    if (!row) throw new HttpError(404, 'Variant app not found');
+    await db.run('DELETE FROM application_variants WHERE id = ?', [row.id]);
+    return { ok: true };
   },
 
   // ---------------- information library ----------------
@@ -2258,7 +2427,7 @@ export const api = {
         unavailable: board.filter((r) => !r.automatic && r.status !== 'On Project' && r.status !== 'Idle')
           .length,
         // "There are also total idle" — this is the headline number, plus the
-        // combined idle time so a manager can see the whole bench at a glance.
+        // combined idle time so a supervisor can see the whole bench at a glance.
         idleDays: idle.reduce((sum, r) => sum + daysSince(r.idleSince), 0),
       },
     };
@@ -2332,29 +2501,29 @@ export const api = {
     return { board: orderBoard(await buildBoard()) };
   },
 
-  /* ---------- project manager management (Admin panel) ---------- */
+  /* ---------- project supervisor management (Admin panel) ---------- */
 
-  'POST /api/managers': async (ctx) => {
+  'POST /api/supervisors': async (ctx) => {
     requireCatalogManager(ctx);
     const body = ctx.body || {};
     const user = await createUser({
       username: body.username,
       name: body.name,
       password: body.password,
-      role: 'Project Manager',
-      // PMs sit outside the pentest tree, so no subrole/parent is validated.
+      role: 'Supervisor',
+      // SVs sit outside the pentest tree, so no subrole/parent is validated.
       subrole: 'Member',
       parentId: null,
       phone: body.phone,
       email: body.email,
     });
-    return { manager: user };
+    return { supervisor: user };
   },
 
-  'PATCH /api/managers/:id': async (ctx) => {
+  'PATCH /api/supervisors/:id': async (ctx) => {
     requireCatalogManager(ctx);
     const row = await db.get('SELECT * FROM users WHERE id = ?', [ctx.params.id]);
-    if (!row || row.role !== 'Project Manager') throw new HttpError(404, 'Project manager not found');
+    if (!row || row.role !== 'Supervisor') throw new HttpError(404, 'Project supervisor not found');
     const body = ctx.body || {};
     const name = body.name !== undefined ? String(body.name).trim() : row.name;
     if (!name) throw new HttpError(400, 'Name is required');
@@ -2364,18 +2533,18 @@ export const api = {
       body.email !== undefined ? String(body.email).trim() : row.email || '',
       row.id,
     ]);
-    return { manager: await getPublicUser(row.id) };
+    return { supervisor: await getPublicUser(row.id) };
   },
 
-  'DELETE /api/managers/:id': async (ctx) => {
+  'DELETE /api/supervisors/:id': async (ctx) => {
     requireCatalogManager(ctx);
     const row = await db.get('SELECT * FROM users WHERE id = ?', [ctx.params.id]);
-    if (!row || row.role !== 'Project Manager') throw new HttpError(404, 'Project manager not found');
-    const owned = await db.get('SELECT COUNT(*) AS n FROM projects WHERE manager_id = ?', [row.id]);
+    if (!row || row.role !== 'Supervisor') throw new HttpError(404, 'Project supervisor not found');
+    const owned = await db.get('SELECT COUNT(*) AS n FROM projects WHERE supervisor_id = ?', [row.id]);
     if (Number(owned.n) > 0) {
       throw new HttpError(
         409,
-        `Cannot delete: ${owned.n} project(s) are still owned by this manager. Reassign them first.`
+        `Cannot delete: ${owned.n} project(s) are still owned by this supervisor. Reassign them first.`
       );
     }
     await db.run('DELETE FROM users WHERE id = ?', [row.id]);
@@ -2386,10 +2555,10 @@ export const api = {
 
   'GET /api/pentesters': async (ctx) => {
     requireCatalogManager(ctx);
-    // Project Managers are a separate role: they own engagements, they do not
+    // Supervisors are a separate role: they own engagements, they do not
     // test them, so they must never appear in the pentest hierarchy. Admins can
     // still carry a pentest subrole, so they stay in the tree as before.
-    const users = (await listUsers()).map(shapePentester).filter((u) => u.role !== 'Project Manager');
+    const users = (await listUsers()).map(shapePentester).filter((u) => u.role !== 'Supervisor');
     return { pentesters: users, tree: buildPentesterTree(users) };
   },
 
@@ -2418,7 +2587,7 @@ export const api = {
     const body = ctx.body || {};
 
     const subrole = ENUMS.subrole.includes(body.subrole) ? body.subrole : row.subrole;
-    // Re-validate the parent whenever either the level or the manager changes.
+    // Re-validate the parent whenever either the level or the supervisor changes.
     const nextParent = body.parentId !== undefined ? body.parentId : row.parent_id;
     const parentId = await validateParent(subrole, nextParent, row.id);
 
@@ -2452,7 +2621,7 @@ export const api = {
     if (reports.length) {
       throw new HttpError(
         409,
-        `${row.name} still manages ${reports.length} pentester(s). Move them to another manager first.`
+        `${row.name} still manages ${reports.length} pentester(s). Move them to another supervisor first.`
       );
     }
     const assigned = await db.get(

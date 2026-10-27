@@ -68,10 +68,10 @@ export const ENUMS = {
   // a new request arrives, the report gets prepared, testing runs, and then the
   // project is either finished or put on hold.
   status: ['Incoming', 'Ready', 'Ongoing', 'Done', 'Hold'],
-  // Project Manager is its own role: PMs own engagements and are assignable as
-  // a project's manager, but they are not pentesters and never appear in the
+  // Supervisor is its own role: SVs own engagements and are assignable as
+  // a project's supervisor, but they are not pentesters and never appear in the
   // "who pentest" picker.
-  role: ['Pentester', 'Project Manager', 'Admin'],
+  role: ['Pentester', 'Supervisor', 'Admin'],
   // Availability board. '' always means "automatic", never a stored choice.
   availability: ['', 'On Project', 'Idle', 'Leave', 'Exam', 'Research/Learning', 'Other'],
   // Pentester hierarchy, highest first. An intern is the trainee level below a
@@ -184,8 +184,8 @@ const now = () => new Date().toISOString();
 // one under a member and one under a lead, because those are the two people an
 // intern is actually attached to in practice (and the board keeps them in their own
 // table, so the demo has to show it non-empty).
-// The last two are Project Managers: they own engagements instead of testing
-// them, so they have no subrole/manager (a PM reports to nobody in the tree).
+// The last two are Supervisors: they own engagements instead of testing
+// them, so they have no subrole/supervisor (a SV reports to nobody in the tree).
 const SEED_USERS = [
   ['admin', 'Arif Wicaksono', 'Admin', 'Lead', 'admin123', null, ''],
   ['rafi', 'Rafi Pratama', 'Pentester', 'Lead', 'pentester123', null, ''],
@@ -197,8 +197,8 @@ const SEED_USERS = [
   ['nadia', 'Nadia Puspita', 'Pentester', 'Member', 'pentester123', 'yoga', ''],
   ['adit', 'Adit Saputra', 'Pentester', 'Intern', 'intern123', 'bagas', ''],
   ['laras', 'Laras Ayu', 'Pentester', 'Intern', 'intern123', 'rafi', ''],
-  ['rina', 'Rina Kusuma', 'Project Manager', 'Member', 'manager123', null, ''],
-  ['hendra', 'Hendra Wijaya', 'Project Manager', 'Member', 'manager123', null, ''],
+  ['rina', 'Rina Kusuma', 'Supervisor', 'Member', 'supervisor123', null, ''],
+  ['hendra', 'Hendra Wijaya', 'Supervisor', 'Member', 'supervisor123', null, ''],
 ];
 
 // Contact details per seeded username. Kept in a separate map so the user
@@ -218,9 +218,20 @@ const SEED_CONTACTS = {
   hendra: ['+62 812 2000 0002', 'hendra.wijaya@onepromag.id'],
 };
 
-// [name, shortName, notes, applications[], defaultProjectManagers[]]
-// The manager usernames are resolved after users are inserted, so a client can
-// name its usual PMs here and the project form pre-selects them.
+// [name, shortName, notes, applications[], defaultProjectSupervisors[]]
+// The supervisor usernames are resolved after users are inserted, so a client can
+// name its usual SVs here and the project form pre-selects them.
+/**
+ * Variant apps (Client → Application → Variant) for the demo data, keyed by
+ * "client||application". Only two applications have them: most do not, and the
+ * seed should look like a team that splits an app only when it really ships in
+ * several builds.
+ */
+const SEED_VARIANTS = {
+  'Bank Nusantara||Brimo': ['Android', 'iOS'],
+  'Dompet Kita||Dompet Kita App': ['Android', 'Partner build'],
+};
+
 const SEED_CLIENTS = [
   [
     'Bank Nusantara',
@@ -313,7 +324,7 @@ const SEED_DEVICES = [
     password: '0000',
     kernel: 'Linux 2.6.32',
     android: 'None — RTOS',
-    notes: 'Default manager password still set on the staging unit.',
+    notes: 'Default supervisor password still set on the staging unit.',
   },
   {
     kind: 'Misc',
@@ -334,7 +345,7 @@ function seedProjects(daysAgo) {
     {
       name: 'Core Banking Web Portal',
       client: 'Bank Nusantara',
-      manager: 'rina',
+      supervisor: 'rina',
       application: 'Qitta',
       category: 'Web',
       platform: '',
@@ -358,8 +369,9 @@ function seedProjects(daysAgo) {
     {
       name: 'Mobile Banking App v4.2',
       client: 'Bank Nusantara',
-      manager: 'hendra',
+      supervisor: 'hendra',
       application: 'Brimo',
+      variant: 'Android',
       category: 'Mobile',
       platform: 'Android',
       env: 'Prod',
@@ -382,8 +394,9 @@ function seedProjects(daysAgo) {
     {
       name: 'Brimo iOS Build',
       client: 'Bank Nusantara',
-      manager: 'hendra',
+      supervisor: 'hendra',
       application: 'Brimo',
+      variant: 'iOS',
       category: 'Mobile',
       platform: 'iOS',
       env: 'Dev',
@@ -396,7 +409,7 @@ function seedProjects(daysAgo) {
     {
       name: 'Partner Payment API',
       client: 'PayGate Indonesia',
-      manager: 'hendra',
+      supervisor: 'hendra',
       application: 'PayGate Merchant API',
       category: 'API',
       platform: '',
@@ -412,7 +425,7 @@ function seedProjects(daysAgo) {
     {
       name: 'EDC Terminal Firmware',
       client: 'SecurePay Devices',
-      manager: 'rina',
+      supervisor: 'rina',
       application: 'EDC Terminal Firmware',
       category: 'EDC',
       platform: '',
@@ -436,7 +449,7 @@ function seedProjects(daysAgo) {
     {
       name: 'Internal HRIS Web App',
       client: 'Sinergi Rekrutmen',
-      manager: 'hendra',
+      supervisor: 'hendra',
       application: 'Internal HRIS',
       category: 'Web',
       platform: '',
@@ -460,7 +473,7 @@ function seedProjects(daysAgo) {
     {
       name: 'Customer Mobile Wallet',
       client: 'Dompet Kita',
-      manager: 'rina',
+      supervisor: 'rina',
       application: 'Dompet Kita App',
       category: 'Mobile',
       platform: 'Android',
@@ -516,7 +529,7 @@ const SEED_DEMO = DEMO_MODE;
  * whole point of that file, so the password is generated when it is not given
  * and printed once in the boot log. It is the account the operator signs in
  * with, then changes; `ADMIN_PASSWORD` exists for the case where the password
- * must be known in advance (provisioning, a password manager, a script).
+ * must be known in advance (provisioning, a password supervisor, a script).
  */
 /**
  * Where the bootstrap admin's password is kept between restarts.
@@ -678,9 +691,10 @@ async function seed() {
       idByUsername.set(username, id);
     }
 
-    // clients + their applications + their default project managers
+    // clients + their applications + their default project supervisors
     const appIdByKey = new Map();
-    for (const [name, shortName, notes, apps, managers = []] of SEED_CLIENTS) {
+    const variantIdByKey = new Map();
+    for (const [name, shortName, notes, apps, supervisors = []] of SEED_CLIENTS) {
       const clientRow = await tx.get(
         `INSERT INTO clients (name, short_name, notes, created_at) VALUES (?, ?, ?, ?) RETURNING id`,
         [name, shortName, notes, now()]
@@ -691,14 +705,23 @@ async function seed() {
           `INSERT INTO applications (client_id, name, notes, created_at) VALUES (?, ?, ?, ?) RETURNING id`,
           [clientId, appName, '', now()]
         );
-        appIdByKey.set(`${name}||${appName}`, Number(appRow.id));
+        const appId = Number(appRow.id);
+        appIdByKey.set(`${name}||${appName}`, appId);
+        for (const variantName of SEED_VARIANTS[`${name}||${appName}`] || []) {
+          const variantRow = await tx.get(
+            `INSERT INTO application_variants (application_id, name, notes, created_at)
+             VALUES (?, ?, ?, ?) RETURNING id`,
+            [appId, variantName, '', now()]
+          );
+          variantIdByKey.set(`${name}||${appName}||${variantName}`, Number(variantRow.id));
+        }
       }
-      for (const username of managers) {
-        const managerId = idByUsername.get(username);
-        if (managerId) {
-          await tx.run('INSERT INTO client_managers (client_id, user_id) VALUES (?, ?)', [
+      for (const username of supervisors) {
+        const supervisorId = idByUsername.get(username);
+        if (supervisorId) {
+          await tx.run('INSERT INTO client_supervisors (client_id, user_id) VALUES (?, ?)', [
             clientId,
-            managerId,
+            supervisorId,
           ]);
         }
       }
@@ -710,16 +733,20 @@ async function seed() {
         await tx.get('SELECT id FROM clients WHERE name = ?', [p.client])
       )?.id ?? null;
       const applicationId = appIdByKey.get(`${p.client}||${p.application}`) ?? null;
+      const variantId = p.variant
+        ? variantIdByKey.get(`${p.client}||${p.application}||${p.variant}`) ?? null
+        : null;
 
       const inserted = await tx.get(
-        `INSERT INTO projects (name, client, client_id, application_id, manager_id, category, platform, env, method, status, notes, created_by, created_at, updated_at, started_at, ended_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
+        `INSERT INTO projects (name, client, client_id, application_id, variant_id, supervisor_id, category, platform, env, method, status, notes, created_by, created_at, updated_at, started_at, ended_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
         [
           p.name,
           p.client,
           clientId,
           applicationId,
-          p.manager ? idByUsername.get(p.manager) ?? null : null,
+          variantId,
+          p.supervisor ? idByUsername.get(p.supervisor) ?? null : null,
           p.category,
           p.platform || '',
           p.env,
@@ -823,7 +850,7 @@ async function seed() {
           [
             'Scope',
             '  Production testing is read-only unless the client signs off a',
-            '  destructive test in writing. Ask the PM before anything that writes.',
+            '  destructive test in writing. Ask the SV before anything that writes.',
             '',
             'Access',
             '  No standing production accounts. Request a time-boxed one the day',
@@ -912,7 +939,7 @@ async function seedPropertiesIfEmpty() {
  *
  * 12 — retest rows in the active lists, paging, properties, documents per env.
  */
-export const SCHEMA_VERSION = 12;
+export const SCHEMA_VERSION = 14;
 
 let appliedSchemaVersion = 0;
 
@@ -959,6 +986,7 @@ export async function initDatabase() {
     await db.exec(readSchema('postgres'));
     await migratePostgres();
     await migrateDocumentsKey();
+    await migrateSupervisorNames();
     await createIndexes();
   } else {
     const { createSqliteDriver } = await import('./drivers/sqlite.js');
@@ -968,6 +996,7 @@ export async function initDatabase() {
     await db.exec(readSchema('sqlite'));
     await migrateSqlite();
     await migrateDocumentsKey();
+    await migrateSupervisorNames();
     await createIndexes();
   }
   await pruneOrphanNotes();
@@ -1062,6 +1091,92 @@ async function migrateDocumentsKey() {
   }
 }
 
+/** Does this table exist? Both engines, without relying on dialect-specific casts. */
+async function tableExists(name) {
+  if (db.engine === 'postgres') {
+    const row = await db.get(
+      'SELECT 1 AS ok FROM information_schema.tables WHERE table_schema = current_schema() AND table_name = ?',
+      [name]
+    );
+    return Boolean(row);
+  }
+  const row = await db.get("SELECT 1 AS ok FROM sqlite_master WHERE type = 'table' AND name = ?", [
+    name,
+  ]);
+  return Boolean(row);
+}
+
+async function columnExists(table, column) {
+  if (db.engine === 'postgres') {
+    const row = await db.get(
+      'SELECT 1 AS ok FROM information_schema.columns WHERE table_schema = current_schema() AND table_name = ? AND column_name = ?',
+      [table, column]
+    );
+    return Boolean(row);
+  }
+  const info = await db.all(`PRAGMA table_info(${table})`);
+  return info.some((c) => c.name === column);
+}
+
+/**
+ * v28: the "Project Manager" role became "Supervisor" (short SV).
+ *
+ * A rename that only touched the labels would leave the schema lying: the table
+ * would still be `client_managers` and the column `manager_id` while every screen,
+ * endpoint and test says supervisor. So the data moves too — guarded, because an
+ * install created after this release already has the new names and must not be
+ * renamed twice.
+ *
+ * The stale index names are dropped rather than renamed: createIndexes() runs
+ * immediately after this and builds the new ones, so there is one statement that
+ * knows each index instead of two that must agree.
+ */
+async function migrateSupervisorNames() {
+  try {
+    /* --- client default supervisors ------------------------------------- */
+    if (await tableExists('client_managers')) {
+      if (!(await tableExists('client_supervisors'))) {
+        await db.exec('DROP INDEX IF EXISTS idx_client_managers_user');
+        await db.exec('ALTER TABLE client_managers RENAME TO client_supervisors');
+      } else {
+        // `CREATE TABLE IF NOT EXISTS` in the schema file runs BEFORE this
+        // migration, so a legacy database arrives with an EMPTY
+        // client_supervisors next to the populated client_managers. Carry the rows
+        // across rather than renaming — that is what the schema left us with.
+        await db.exec(`INSERT INTO client_supervisors (client_id, user_id)
+          SELECT cm.client_id, cm.user_id FROM client_managers cm
+           WHERE NOT EXISTS (
+                   SELECT 1 FROM client_supervisors cs
+                    WHERE cs.client_id = cm.client_id AND cs.user_id = cm.user_id)`) ;
+        await db.exec('DROP TABLE client_managers');
+      }
+      await db.exec('DROP INDEX IF EXISTS idx_client_managers_user');
+    }
+
+    /* --- projects.manager_id -> supervisor_id --------------------------- */
+    const hasOld = await columnExists('projects', 'manager_id');
+    const hasNew = await columnExists('projects', 'supervisor_id');
+    if (hasOld && !hasNew) {
+      await db.exec('DROP INDEX IF EXISTS idx_projects_manager');
+      await db.exec('ALTER TABLE projects RENAME COLUMN manager_id TO supervisor_id');
+    } else if (hasOld && hasNew) {
+      // Same story as the table: the migration that used to add `manager_id`
+      // now adds `supervisor_id`, so both exist and the values are in the old one.
+      await db.exec(
+        'UPDATE projects SET supervisor_id = manager_id WHERE supervisor_id IS NULL AND manager_id IS NOT NULL'
+      );
+      await db.exec('ALTER TABLE projects DROP COLUMN manager_id');
+      await db.exec('DROP INDEX IF EXISTS idx_projects_manager');
+    }
+
+    // The role value itself. Idempotent: after the first boot nothing matches.
+    await db.run("UPDATE users SET role = 'Supervisor' WHERE role = 'Project Manager'");
+  } catch (err) {
+    console.error('[db] supervisor rename failed:', err.message);
+    failedMigrations.push(`supervisor rename: ${err.message}`);
+  }
+}
+
 /**
  * Columns a failed ALTER would have added. Collected instead of logged-and-forgot:
  * half a schema is worse than none, because the app then starts, answers
@@ -1121,8 +1236,10 @@ async function createIndexes() {
     'CREATE INDEX IF NOT EXISTS idx_projects_client ON projects(client_id)',
     'CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id)',
     'CREATE INDEX IF NOT EXISTS idx_applications_client ON applications(client_id)',
-    'CREATE INDEX IF NOT EXISTS idx_projects_manager ON projects(manager_id)',
-    'CREATE INDEX IF NOT EXISTS idx_client_managers_user ON client_managers(user_id)',
+    // Variants are read per application on every page that lists applications.
+    'CREATE INDEX IF NOT EXISTS idx_variants_application ON application_variants(application_id)',
+    'CREATE INDEX IF NOT EXISTS idx_projects_supervisor ON projects(supervisor_id)',
+    'CREATE INDEX IF NOT EXISTS idx_client_supervisors_user ON client_supervisors(user_id)',
     // One lookup per page render: "every note for THIS client or application".
     'CREATE INDEX IF NOT EXISTS idx_info_scope ON info_entries(scope, scope_id)',
     'CREATE INDEX IF NOT EXISTS idx_info_env ON info_entries(scope, scope_id, env)',
@@ -1158,6 +1275,12 @@ async function migrateSqlite() {
     'INTEGER REFERENCES applications(id) ON DELETE SET NULL'
   );
   await addColumnIfMissing('projects', 'platform', "TEXT NOT NULL DEFAULT ''");
+  // v29: an engagement may test one variant of its application (optional).
+  await addColumnIfMissing(
+    'projects',
+    'variant_id',
+    'INTEGER REFERENCES application_variants(id) ON DELETE SET NULL'
+  );
   // v1.3: pentester hierarchy tree (Lead > Sub Lead > Member).
   await addColumnIfMissing('users', 'parent_id', 'INTEGER REFERENCES users(id) ON DELETE SET NULL');
   // v1.4: start/end dates. Both are nullable and are set automatically when a
@@ -1169,16 +1292,12 @@ async function migrateSqlite() {
   // v1.5: availability board (status + note on the user row, empty = automatic).
   await addColumnIfMissing('users', 'availability', "TEXT NOT NULL DEFAULT ''");
   await addColumnIfMissing('users', 'availability_note', "TEXT NOT NULL DEFAULT ''");
-  // v1.6: contact details on every user, one PM per project, several default
-  // PMs per client (the join table is created by the schema itself, so only
+  // v1.6: contact details on every user, one SV per project, several default
+  // SVs per client (the join table is created by the schema itself, so only
   // columns need migrating here).
   await addColumnIfMissing('users', 'phone', "TEXT NOT NULL DEFAULT ''");
   await addColumnIfMissing('users', 'email', "TEXT NOT NULL DEFAULT ''");
-  await addColumnIfMissing(
-    'projects',
-    'manager_id',
-    'INTEGER REFERENCES users(id) ON DELETE SET NULL'
-  );
+
   // v1.7: table notes. `kind` says which of body/data carries the content, and
   // `data` holds the JSON grid for kind='table'.
   await addColumnIfMissing('info_entries', 'kind', "TEXT NOT NULL DEFAULT 'text'");
@@ -1208,6 +1327,12 @@ async function migratePostgres() {
     'INTEGER REFERENCES applications(id) ON DELETE SET NULL'
   );
   await addColumnIfMissing('projects', 'platform', "TEXT NOT NULL DEFAULT ''");
+  // v29: an engagement may test one variant of its application (optional).
+  await addColumnIfMissing(
+    'projects',
+    'variant_id',
+    'INTEGER REFERENCES application_variants(id) ON DELETE SET NULL'
+  );
   // v1.3: pentester hierarchy tree (Lead > Sub Lead > Member).
   await addColumnIfMissing('users', 'parent_id', 'INTEGER REFERENCES users(id) ON DELETE SET NULL');
   // v1.4: start/end dates. Both are nullable and are set automatically when a
@@ -1219,15 +1344,11 @@ async function migratePostgres() {
   // v1.5: availability board (status + note on the user row, empty = automatic).
   await addColumnIfMissing('users', 'availability', "TEXT NOT NULL DEFAULT ''");
   await addColumnIfMissing('users', 'availability_note', "TEXT NOT NULL DEFAULT ''");
-  // v1.6: contact details on every user, one PM per project, several default
-  // PMs per client.
+  // v1.6: contact details on every user, one SV per project, several default
+  // SVs per client.
   await addColumnIfMissing('users', 'phone', "TEXT NOT NULL DEFAULT ''");
   await addColumnIfMissing('users', 'email', "TEXT NOT NULL DEFAULT ''");
-  await addColumnIfMissing(
-    'projects',
-    'manager_id',
-    'INTEGER REFERENCES users(id) ON DELETE SET NULL'
-  );
+
   // v1.7: table notes.
   await addColumnIfMissing('info_entries', 'kind', "TEXT NOT NULL DEFAULT 'text'");
   await addColumnIfMissing('info_entries', 'data', "TEXT NOT NULL DEFAULT ''");

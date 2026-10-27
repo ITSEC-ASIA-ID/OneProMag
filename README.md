@@ -105,7 +105,7 @@ have shipped:
 | a lead can add an intern under a member, a sub lead or themselves | the intern level |
 | an intern cannot supervise another intern | "who is training whom" |
 | an intern must report to somebody | no orphan trainees |
-| a member cannot create an intern | only managers add people |
+| a member cannot create an intern | only supervisors add people |
 | an intern is on the board and knows who supervises them | the interns table |
 | a fresh database has the columns the code selects | the fresh-install path |
 
@@ -135,8 +135,8 @@ box is not rendered at all, so no credentials are ever advertised to a visitor.
 | `nadia`  | `pentester123` | Pentester | Member   |
 | `adit`   | `intern123`    | Pentester | Intern   |
 | `laras`  | `intern123`    | Pentester | Intern   |
-| `rina`   | `manager123`   | Project Manager | —  |
-| `hendra` | `manager123`   | Project Manager | —  |
+| `rina`   | `supervisor123`   | Supervisor | —  |
+| `hendra` | `supervisor123`   | Supervisor | —  |
 
 The pentest tree has two branches: `admin → dewi → bagas, sinta` and
 `rafi → yoga → fajar, nadia`. That is what the team status board renders as
@@ -148,16 +148,21 @@ the box.
 cases an intern can have — a member and a lead — and they populate the board's
 interns table, which is empty until an intern exists.
 
-`rina` and `hendra` are **Project Managers** — a separate role, not part of the
-pentest tree. Bank Nusantara and Dompet Kita name both of them as default PMs;
-the other three clients name one each, so you can see both the single-PM and the
-multi-PM auto-selection behaviour on the create form.
+Two applications ship with **variants** so the third level is visible out of the box:
+`Brimo` (Android, iOS) and `Dompet Kita App` (Android, Partner build). The projects
+*Mobile Banking App v4.2* and *Brimo iOS Build* point at the two Brimo variants; every
+other project tests the application as a whole.
+
+`rina` and `hendra` are **Supervisors** — a separate role, not part of the
+pentest tree. Bank Nusantara and Dompet Kita name both of them as default SVs;
+the other three clients name one each, so you can see both the single-SV and the
+multi-SV auto-selection behaviour on the create form.
 
 New accounts can also be created from the **Register** link on the login page.
 Self-registration always produces an ordinary pentester at level **Member** — the
 role, level and reporting line are decided by the server, never by the request,
 so nobody can register themselves an admin. Promote someone (or mint a Project
-Manager) from the Admin panel. Demo data is only seeded into an empty database.
+Supervisor) from the Admin panel. Demo data is only seeded into an empty database.
 
 ---
 
@@ -259,7 +264,7 @@ instead of printing a password that no longer works:
 Set `ADMIN_PASSWORD` and the file is never used: the password is printed from the
 environment. The generated one is only ever a starting point; set
 `ADMIN_PASSWORD` in `.env` when it has to be known in advance (provisioning, a
-password manager). `ADMIN_USERNAME` and `ADMIN_NAME` are optional. After that
+password supervisor). `ADMIN_USERNAME` and `ADMIN_NAME` are optional. After that
 first admin exists, every other account is created in **Admin panel → Manage
 users**, or by `SEED_DEMO=1` on a throwaway demo box.
 
@@ -464,14 +469,14 @@ pentester — assignable to projects, with their own availability and notes.
   hides the delete buttons for Members as well, but the rule lives on the server
   because the API is reachable directly.
 
-Besides `Pentester` and `Admin` there is a third role, **`Project Manager`**
-(`role: 'Project Manager'` in `ENUMS.role`):
+Besides `Pentester` and `Admin` there is a third role, **`Supervisor`**
+(`role: 'Supervisor'` in `ENUMS.role`):
 
-- A PM **owns engagements** rather than testing them, so PMs never appear in the
+- A SV **owns engagements** rather than testing them, so SVs never appear in the
   "Who pentest" picker and never appear on the team status board.
 - Every user row carries `phone` and `email`. The drawer renders them as
   `tel:` / `mailto:` links, and the admin pages show them on each card.
-- PMs are curated under **Admin panel → Manage users**.
+- SVs are curated under **Admin panel → Manage users**.
 
 ### Project list
 - **Grid card view is the default**; table view is one click away, both remembered
@@ -557,10 +562,10 @@ the drawer's retest queue) remains where the whole history lives.
 
 The staff directory: everyone with a login, one row each, as a table of
 **Full name · Role · E-mail · Number phone**. Reachable from the sidebar by anyone —
-a tester looking for the project manager who owns the engagement should not have to
+a tester looking for the project supervisor who owns the engagement should not have to
 ask an admin.
 
-The list is **divided by role** — **Project managers** first, then **Pentesters** —
+The list is **divided by role** — **Project supervisors** first, then **Pentesters** —
 each with its own count, because the question is "who do I ask about this project",
 not "who exists". Administrator accounts are **not listed**: an admin is operations,
 they belong in **Manage users**, and showing them here invites asking the wrong
@@ -851,7 +856,7 @@ Everyone can read and write notes; the author is recorded and shown in the foote
   (~576px of 1138 at 1440 wide) while the badges keep their natural size
 - **Delete sits beside Edit** in the drawer header rather than in a separate
   danger zone at the bottom of the Overview tab
-- Table columns: Project / Category / **PM** / Pentesters / Retests / Status. There is
+- Table columns: Project / Category / **SV** / Pentesters / Retests / Status. There is
   no Client column — the client is folded under the project name as
   **`Client – Application`** (e.g. `Bank Nusantara – Qitta`), so nothing is lost while
   the table gains a whole column of breathing room.
@@ -862,7 +867,7 @@ Everyone can read and write notes; the author is recorded and shown in the foote
 - Category is a **single pill**. A Mobile project reads `Mobile Android` rather than
   a `Mobile` pill stacked above a separate `Android` pill, which in a narrow cell
   wrapped onto its own line and looked like two unrelated labels.
-- The **PM** column is icon-only: the manager's avatar, with their full name in the
+- The **SV** column is icon-only: the supervisor's avatar, with their full name in the
   tooltip. Clicking it opens that person's detail card (see *People* below).
   The Project column absorbs the spare width (see *Quick assign* above for how)
   and its `Client – Application` sub-line wraps, so long names stay on one line
@@ -1107,7 +1112,8 @@ a nine-column sheet cannot be read on a phone by scrolling sideways.
 | Status   | from the property list — `Incoming` · `Ready` · `Ongoing` · `Done` · `Hold` out of the box, editable in **Admin panel → Properties** |
 | Start date | date — **not asked on create**; stamped with today the first time the project moves to `Ongoing`; editable afterwards |
 | End date | date — **not asked on create**; stamped with today when it moves to `Done`; cleared again if it is re-opened |
-| Project manager | **one PM** — searchable dropdown of `Project Manager` users. **Auto-selected** from the chosen client's default PMs; still editable |
+| Project supervisor | **one SV** — searchable dropdown of `Supervisor` **and** `Pentester` users (a small team has no separate supervisor role, so a lead can own the engagement). **Auto-selected** from the chosen client's default SVs; still editable, and may be left **empty** |
+| Variant app | optional — the chosen application's variants, only shown when it has any. Leave it on **Whole application** for a normal engagement |
 | Who pentest | **multiple** pentesters, picker **with a name search box** |
 | Notes    | free text (scope, creds location, out-of-scope)           |
 
@@ -1115,7 +1121,7 @@ Defaults on create: `Dev` / `Grey Box` / `Incoming` / `Web`.
 
 ### Manage users (Admin panel)
 **Admin panel → Manage users** is the one page for every account: the pentest
-tree on top, the project managers below, and a tab when you only want one of them.
+tree on top, the project supervisors below, and a tab when you only want one of them.
 
 The two used to be separate pages. They were built on the same `users` table, the
 same create path and the same question — *who works here?* — so adding a person
@@ -1124,8 +1130,8 @@ different copy for the same account. One page, one **New user** form (pick the
 role and the fields follow) and one **Import** now cover both.
 
 Everything on that page is a `users` row with a `role` of `Pentester` or
-`Project Manager`; the difference is what the role owns. A pentester joins the
-reporting tree below. A project manager sits outside it and owns engagements.
+`Supervisor`; the difference is what the role owns. A pentester joins the
+reporting tree below. A project supervisor sits outside it and owns engagements.
 
 Both roles carry the same **contact details** — a phone number and an e-mail — and
 both are set in the same place: **Edit** (the pencil) on the person's row. They are
@@ -1152,7 +1158,7 @@ member and often the lead. The two levels above stay strict — a sub lead can o
 report to a lead — because "who owns this engagement" has exactly one answer.
 
 Open **Admin panel → Manage users** to see the tree, add people under a branch,
-move someone to a different manager, or remove them. Every row carries the buttons
+move someone to a different supervisor, or remove them. Every row carries the buttons
 for what can hang off it: `+ Sub lead`, `+ Member` and `+ Intern` on a lead,
 `+ Member` and `+ Intern` on a sub lead, `+ Intern` on a member row. Each button
 carries that person as the supervisor, so adding someone to a specific person is
@@ -1168,7 +1174,7 @@ rules:
 - an `Intern` must report to a `Member`, a `Sub Lead` or a `Lead` — and never to
   another intern, so "who is training whom" stays answerable
 - nobody can report to themselves, and reporting loops are rejected
-- a manager who still has people under them cannot be deleted (the API returns
+- a supervisor who still has people under them cannot be deleted (the API returns
   `409` and names how many reports must be moved first)
 
 #### Importing a team
@@ -1185,7 +1191,7 @@ as often as from a chat message:
 | --- | --- | --- |
 | 1 | Full name | required |
 | 2 | Username | else `first.last` from the name; `.2`, `.3` appended when already taken |
-| 3 | Password | else the dialog's default — `pentester123` / `manager123` per role |
+| 3 | Password | else the dialog's default — `pentester123` / `supervisor123` per role |
 | — | Phone / e-mail | recognised **by shape, anywhere on the line**: any cell containing `@` is the address (and is validated — `rina@bank` is rejected rather than silently becoming a username), a cell of six or more digits is the phone. Both are stored on the account and printed on the person's row |
 | 4 | Level | `Lead`, `Sub Lead`, `Member` or `Intern`, picked up **wherever it appears** |
 | 5 | Reports to | name or username of the parent; blank means "the nearest legal parent" |
@@ -1250,12 +1256,12 @@ people silently is how a board starts lying.
 **Interns get their own table**, below the bench, with its own heading and count.
 An intern is a person learning the job: putting them in the tree beside the people
 training them answers "who is on the bench" with a list you have to read every level
-pill to interpret, and it hides the one thing a manager wants from that level — who
+pill to interpret, and it hides the one thing a supervisor wants from that level — who
 each trainee is attached to, which the row says in words (`under Bagas Nugroho`).
 The table is sorted by supervisor, then name, and it only exists once an intern does:
 a team with none keeps the single unlabelled table it always had.
 
-Rows are **pentesters only**: Project Managers own engagements rather than test
+Rows are **pentesters only**: Supervisors own engagements rather than test
 them, and **Administrators** are operations — both live in *Users* and *Manage
 users*, not on the bench. Hiding an admin whose reports are pentesters does not
 orphan them: a sub lead whose lead is not shown becomes a top-level row carrying
@@ -1331,7 +1337,7 @@ is the only category that owns the platform field, open retests count statuses
 `'Incoming'`/`'Ongoing'`). Their label, colour and order are fully editable. A
 property an admin adds is ordinary and can be deleted as soon as nothing uses it;
 deleting one that is still in use is refused with the count, the same rule as
-deleting a client or a project manager.
+deleting a client or a project supervisor.
 
 ### Clients & applications (catalogue)
 Each client owns a list of applications — for example *Bank Nusantara* owns
@@ -1365,48 +1371,84 @@ Bluewave Finance; BF; Paylater App;;Jakarta, contact: Ops
 
 Only **Admin**, **Lead** and **Sub Lead** see and can use the Admin panel.
 
-#### Project managers (same page)
-The **Project managers** half of that page manages the `Project Manager` role.
+#### Project supervisors (same page)
+The **Project supervisors** half of that page manages the `Supervisor` role.
 
-A project has **exactly one** project manager (`projects.manager_id`). A client
-can name **several** default PMs (`client_managers`, a many-to-many join), which
-is what drives auto-selection:
+A project has **exactly one** project supervisor (`projects.supervisor_id`), and that
+slot may be **empty**: a client may name no default, and a project may simply have
+nobody accountable yet. The supervisor is not necessarily a `Supervisor`-role account
+— a **`Pentester`** can hold it too, because a small team has no separate
+supervisory role and the lead who wins the work is the one who owns it. The picker
+lists both, tagged `SV` or `PT`, supervisors first.
 
-- Open **New project**, choose a client, and the PM dropdown is filled in for you.
-- A client with **one** default PM selects that PM and says so in the hint.
+A client can name **several** default SVs (`client_supervisors`, a many-to-many join),
+which is what drives auto-selection:
+
+- Open **New project**, choose a client, and the SV dropdown is filled in for you.
+- A client with **one** default SV selects that SV and says so in the hint.
 - A client with **several** selects the first, and the hint turns amber and names
   the count so it is obvious a choice was involved — never a silent pick.
-- A client with **none** leaves the field empty and says so.
+- A client with **none** leaves the field empty and says so — an empty SV is a
+  legitimate state, not an unset field.
 - The value is always editable, and **editing an existing project never
   re-triggers the auto-pick**: touching the client on an existing engagement must
   not silently reassign its owner.
 
-The manager page lists every PM with contact details and the clients they are the
-default for. Deleting a PM that still owns projects is refused server-side
-(`Cannot delete: N project(s) are still owned by this manager. Reassign them first.`)
+The supervisor page lists every SV with contact details and the clients they are the
+default for. Deleting a SV that still owns projects is refused server-side
+(`Cannot delete: N project(s) are still owned by this supervisor. Reassign them first.`)
 with the same warning surfaced in the confirmation dialog before the request.
 
-On the project list the PM appears in its own **PM** column, immediately left of
-**Pentesters**, and as a tagged `PM` line on each card. The column shows only the
-manager's avatar — the name is on the tooltip, because a clickable face identifies a
+On the project list the SV appears in its own **SV** column, immediately left of
+**Pentesters**, and as a tagged `SV` line on each card. The column shows only the
+supervisor's avatar — the name is on the tooltip, because a clickable face identifies a
 person faster than a repeated full name, and it keeps the row narrow.
 
+#### Variant apps (Client → Application → Variant)
+The catalogue has an **optional third level**. A client owns applications, and an
+application may own **variants** — separate builds of the same product: the Android
+and iOS builds of one app, a partner-branded copy, a second release:
+
+```
+Bank Nusantara
+  └─ Brimo
+       ├─ Android   <- variant
+       └─ iOS       <- variant
+  └─ Qitta          (no variants)
+```
+
+- **Optional at every level.** An application with no variants is normal; the client
+  card shows one quiet `+ Variant` line and nothing else. A project points at a
+  variant only when the engagement is about that build.
+- **Managed where applications are.** `Admin panel → Clients & apps`, under each
+  application: `+ Variant` adds one, the pencil renames it, the trash deletes it.
+  Creating and renaming is open to everyone signed in, like every other create;
+  **deleting a variant is a delete** (admin, lead or sub lead), because the projects
+  that point at it fall back to the whole application.
+- **One application's variants only.** The project form's *Variant app* field lists
+  the variants of the application currently selected, and it only appears when that
+  application has any. Changing the application **clears** the variant — a variant
+  means nothing outside its parent, and keeping a stale one would be a lie.
+- **Where it shows.** On the project table as a chip after `Client – App`, on the
+  card next to the client line, and in the drawer as `Client / App / Variant` plus a
+  `Variant app` row. Projects without a variant print nothing extra.
+
 ### People
-Any avatar of a **Project Manager** or a **Pentester** is a button — in the table, on
+Any avatar of a **Supervisor** or a **Pentester** is a button — in the table, on
 a card, in the drawer, and on the team status board. Clicking one opens a person card:
 
 - name, level and role, `@username`, and current availability (with the `auto` marker
   when the status is derived rather than set by hand);
 - phone and e-mail as `tel:` / `mailto:` links;
 - their availability note, when they have one;
-- **Project manager for** — every engagement they own, as a chip (hidden when they
-  own none, and for pentesters who are not PMs);
+- **Project supervisor for** — every engagement they own, as a chip (hidden when they
+  own none, and for pentesters who are not SVs);
 - **Pentesting** — every project they are assigned to, with `N active · M done`
-  (omitted entirely for a PM, who does not sit on the test bench);
+  (omitted entirely for a SV, who does not sit on the test bench);
 - **Reporting to this person** — their direct reports in the hierarchy.
 
 Opened **from a project row**, the same card is compact: it answers *who is this* and
-stops. The "Project manager for" and "Pentesting" blocks are dropped there, because
+stops. The "Project supervisor for" and "Pentesting" blocks are dropped there, because
 you clicked a face on a project and the list of everything that person works on is
 noise — the full card is one click away on the team board or in Users, where "how
 busy is this person" is the actual question.
@@ -1427,7 +1469,7 @@ Raising one **does not touch the project's status**. A finished engagement stays
 finished; the request is the thing that is open, and it appears in **Active
 projects** as its own `Retest - <name>` row (with its own status control) and in the
 **Retest queue** card until it is closed. Closing a project and then queueing a
-retest therefore never reopens the engagement behind the project manager's back.
+retest therefore never reopens the engagement behind the project supervisor's back.
 
 A project can carry **unlimited retests**, each with:
 - auto code (`RT-007-01`, `RT-007-02`, …) derived from the highest existing sequence,
@@ -1487,12 +1529,33 @@ every request, which is why the board cannot go stale.
 unique, not validated beyond the obvious, because the source of truth for a
 person's contact details is HR, not this app.
 
-`projects.manager_id` is `INTEGER REFERENCES users(id) ON DELETE SET NULL`:
-exactly one PM per project, and deleting a PM cannot orphan-project the row
-(the delete is separately refused while any project still points at it).
-`client_managers(client_id, user_id)` is the many-to-many of a client's default
-PMs. Every one of these columns is added by `addColumnIfMissing()` in both
+`projects.supervisor_id` is `INTEGER REFERENCES users(id) ON DELETE SET NULL`:
+exactly one SV per project (possibly none), and deleting a SV cannot orphan-project
+the row (the delete is separately refused while any project still points at it).
+`client_supervisors(client_id, user_id)` is the many-to-many of a client's default
+SVs. Every one of these columns is added by `addColumnIfMissing()` in both
 migration paths (the `v1.6` block), so an existing database upgrades in place.
+
+`application_variants(application_id, name, notes, created_at)` is the optional
+third catalogue level, `UNIQUE (application_id, name)` and
+`ON DELETE CASCADE` from its application — a variant has no meaning without the app
+it belongs to. `projects.variant_id` is
+`INTEGER REFERENCES application_variants(id) ON DELETE SET NULL`: deleting a variant
+returns its projects to the whole application instead of taking them with it. The
+API rejects a variant that belongs to a different application, so the pairing
+cannot drift (`resolveVariantId`), and a project whose application changes drops its
+variant rather than keeping one that no longer applies.
+
+### Renamed in v1.13: Project Manager → Supervisor
+The role was renamed, so the schema was too: `client_managers` → `client_supervisors`
+and `projects.manager_id` → `projects.supervisor_id`, plus
+`UPDATE users SET role = 'Supervisor'` for the old value. `migrateSupervisorNames()`
+handles a database that arrives in **either** state — old names only (a plain
+`RENAME`), or both present (the old `addColumnIfMissing('projects','manager_id')`
+minted the column in one release, the new one would mint `supervisor_id` in the
+next) — by copying the values across and then dropping the old column/table. It is
+guarded and idempotent, and runs before `createIndexes()` so the new indexes exist on
+old installs too.
 
 `documents` is keyed by `(scope, scope_id, env)` — the same client/application
 pairing `info_entries` uses, plus which environment the sheet describes — and holds
@@ -1631,7 +1694,7 @@ OneProMag/
 │   └── js/
 │       ├── app.js       views, state, interactions, admin panel
 │       ├── api.js       fetch wrapper
-│       ├── ui.js        modal/toast/badge/segmented primitives, team + PM cell
+│       ├── ui.js        modal/toast/badge/segmented primitives, team + SV cell
 │       ├── props.js     categories/statuses registry (filled at boot)
 │       └── icons.js     inline SVG icon set, platform/subrole maps
 ├── backups/             created when the backup profile runs (git-ignored)
@@ -1669,13 +1732,13 @@ other session for that user so a stolen cookie dies with the old password.
 | PATCH  | `/api/devices/:id`          | update; changing `kind` drops the old kind's fields |
 | PATCH  | `/api/devices/bulk`         | `{updates:[{id,...cells}]}` — save many rows at once; all-or-nothing, max 500, rejects duplicate ids |
 | DELETE | `/api/devices/:id`          | delete a device                  |
-| GET    | `/api/users`                | list pentesters (sorted by hierarchy), PMs excluded |
+| GET    | `/api/users`                | list pentesters (sorted by hierarchy), SVs excluded |
 | GET    | `/api/directory`            | the staff directory: every account, name · role · level · e-mail · phone, alphabetical |
-| GET    | `/api/people/:id`           | one person + `managerOf`, `pentesterOn`, `reports` |
-| GET    | `/api/managers`             | list project managers |
-| POST   | `/api/managers`             | add a PM: `{ username, name, password, phone, email }` |
-| PATCH  | `/api/managers/:id`         | rename / update `{ name, phone, email }` |
-| DELETE | `/api/managers/:id`         | remove (409 while they still own projects) |
+| GET    | `/api/people/:id`           | one person + `supervisorOf`, `pentesterOn`, `reports` |
+| GET    | `/api/supervisors`             | list project supervisors |
+| POST   | `/api/supervisors`             | add a SV: `{ username, name, password, phone, email }` |
+| PATCH  | `/api/supervisors/:id`         | rename / update `{ name, phone, email }` |
+| DELETE | `/api/supervisors/:id`         | remove (409 while they still own projects) |
 | GET    | `/api/stats`                | dashboard counters + clients/apps; `mineActive`/`mineAll` mirror `?mine=1` |
 | GET    | `/healthz`                  | readiness: process up **and** a database round trip; `503` + `{ok:false,db:"down"}` when Postgres is unreachable |
 | GET    | `/api/properties`           | project categories + statuses (`key`, `label`, `tone`, `position`, `locked`) |
@@ -1700,8 +1763,8 @@ other session for that user so a stolen cookie dies with the old password.
 | PATCH  | `/api/retests/:id`          | update retest                    |
 | DELETE | `/api/retests/:id`          | delete retest                    |
 | GET    | `/api/clients`              | list clients                     |
-| POST   | `/api/clients`              | create client (Admin/Lead/Sub Lead); `{ managerIds: [] }` sets default PMs |
-| PATCH  | `/api/clients/:id`          | rename / edit client, incl. `managerIds` |
+| POST   | `/api/clients`              | create client (Admin/Lead/Sub Lead); `{ supervisorIds: [] }` sets default SVs |
+| PATCH  | `/api/clients/:id`          | rename / edit client, incl. `supervisorIds` |
 | DELETE | `/api/clients/:id`          | delete client (409 while in use) |
 | GET    | `/api/applications`         | list applications                |
 | POST   | `/api/applications`         | create application               |

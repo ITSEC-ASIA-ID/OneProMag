@@ -18,7 +18,7 @@ CREATE TABLE IF NOT EXISTS users (
   -- (Leave / Exam / Research-Learning / Other) overrides that until cleared.
   availability      TEXT NOT NULL DEFAULT '',
   availability_note TEXT NOT NULL DEFAULT '',
-  -- Contact details. Shown wherever a person is listed so a PM can be reached
+  -- Contact details. Shown wherever a person is listed so a SV can be reached
   -- without leaving the app. Free text: Indonesian numbers and 
   -- international ones both have to fit, so no format is enforced.
   phone         TEXT NOT NULL DEFAULT '',
@@ -43,11 +43,11 @@ CREATE TABLE IF NOT EXISTS clients (
   created_at TEXT NOT NULL
 );
 
--- Which project managers usually handle a client.
--- Many-to-many: one PM can own several clients, and a client can be covered by
--- more than one PM. The project form pre-selects these when the client is
+-- Which project supervisors usually handle a client.
+-- Many-to-many: one SV can own several clients, and a client can be covered by
+-- more than one SV. The project form pre-selects these when the client is
 -- picked, which is the whole point of the table.
-CREATE TABLE IF NOT EXISTS client_managers (
+CREATE TABLE IF NOT EXISTS client_supervisors (
   client_id INTEGER NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
   user_id   INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   PRIMARY KEY (client_id, user_id)
@@ -60,6 +60,19 @@ CREATE TABLE IF NOT EXISTS applications (
   notes      TEXT NOT NULL DEFAULT '',
   created_at TEXT NOT NULL,
   UNIQUE (client_id, name)
+);
+
+-- A variant app is a child of an application: the same client's product, shipped
+-- in several shapes — "Mobile Banking App" with an Android build, an iOS build and
+-- a partner-branded build, say. It is optional at every level: an application may
+-- have none, and a project may point at none.
+CREATE TABLE IF NOT EXISTS application_variants (
+  id             INTEGER PRIMARY KEY AUTOINCREMENT,
+  application_id INTEGER NOT NULL REFERENCES applications(id) ON DELETE CASCADE,
+  name           TEXT NOT NULL,
+  notes          TEXT NOT NULL DEFAULT '',
+  created_at     TEXT NOT NULL,
+  UNIQUE (application_id, name)
 );
 
 -- Free-form information library.
@@ -170,10 +183,13 @@ CREATE TABLE IF NOT EXISTS projects (
   client         TEXT NOT NULL DEFAULT '',
   client_id      INTEGER REFERENCES clients(id) ON DELETE SET NULL,
   application_id INTEGER REFERENCES applications(id) ON DELETE SET NULL,
-  -- The one project manager accountable for this engagement.
-  -- Deliberately a single column, not a join table: exactly one PM owns a
-  -- project, while a CLIENT may have several default PMs (client_managers).
-  manager_id     INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  -- Which variant of the application this engagement tests. Optional: most
+  -- projects test the application itself.
+  variant_id     INTEGER REFERENCES application_variants(id) ON DELETE SET NULL,
+  -- The one project supervisor accountable for this engagement.
+  -- Deliberately a single column, not a join table: exactly one SV owns a
+  -- project, while a CLIENT may have several default SVs (client_supervisors).
+  supervisor_id     INTEGER REFERENCES users(id) ON DELETE SET NULL,
   category       TEXT NOT NULL DEFAULT 'Web',
   -- Only meaningful when category = 'Mobile': Android | iOS
   platform       TEXT NOT NULL DEFAULT '',

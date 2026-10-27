@@ -439,12 +439,181 @@ test('an intern is on the availability board, and knows who supervises them', as
 });
 
 /* ============================================================
+   Variant apps — the optional third level, Client -> Application -> Variant.
+   ============================================================ */
+
+/** A client + application to hang variants off, so tests never fight over seed rows. */
+async function freshApplication(user) {
+  const client = await call('POST /api/clients', user, {
+    body: { name: `Variant Client ${Math.random().toString(36).slice(2, 8)}` },
+  });
+  const application = await call('POST /api/applications', user, {
+    body: { clientId: client.client.id, name: 'Mobile App' },
+  });
+  return { client: client.client, application: application.application };
+}
+
+test('an application owns its variants, and they come back with it', async () => {
+  const user = await lead();
+  const { application } = await freshApplication(user);
+
+  assert.deepEqual(application.variants, [], 'a new application starts with no variants');
+
+  const created = await call('POST /api/applications/:id/variants', user, {
+    params: { id: application.id },
+    body: { name: 'Android' },
+  });
+  assert.equal(created.variant.name, 'Android');
+  assert.equal(created.variant.applicationId, application.id);
+
+  const { applications } = await call('GET /api/applications', user, {
+    query: { clientId: application.clientId },
+  });
+  const reloaded = applications.find((a) => Number(a.id) === Number(application.id));
+  assert.equal(reloaded.variants.length, 1, 'the list route carries the variants');
+  assert.equal(reloaded.variants[0].name, 'Android');
+});
+
+test('two variants of one application cannot share a name', async () => {
+  const user = await lead();
+  const { application } = await freshApplication(user);
+  await call('POST /api/applications/:id/variants', user, {
+    params: { id: application.id },
+    body: { name: 'iOS' },
+  });
+  await assert.rejects(
+    () =>
+      call('POST /api/applications/:id/variants', user, {
+        params: { id: application.id },
+        body: { name: 'ios' },
+      }),
+    { status: 409 }
+  );
+});
+
+test('a project can point at a variant of its own application, and only its own', async () => {
+  const user = await lead();
+  const { client, application } = await freshApplication(user);
+  const android = await call('POST /api/applications/:id/variants', user, {
+    params: { id: application.id },
+    body: { name: 'Android' },
+  });
+  const other = (
+    await call('POST /api/applications', user, { body: { clientId: client.id, name: 'Web App' } })
+  ).application;
+  const strayVariant = await call('POST /api/applications/:id/variants', user, {
+    params: { id: other.id },
+    body: { name: 'Android' },
+  });
+
+  // The happy path: a project on the application, narrowed to one variant.
+  const { project } = await call('POST /api/projects', user, {
+    body: {
+      name: 'Android build test',
+      clientId: client.id,
+      applicationId: application.id,
+      variantId: android.variant.id,
+    },
+  });
+  assert.equal(project.variantName, 'Android', 'the drawer prints the variant name');
+  assert.equal(project.variantId, android.variant.id);
+
+  // The variant of a DIFFERENT application is refused, not silently attached.
+  await assert.rejects(
+    () =>
+      call('POST /api/projects', user, {
+        body: {
+          name: 'Wrong variant',
+          clientId: client.id,
+          applicationId: application.id,
+          variantId: strayVariant.variant.id,
+        },
+      }),
+    (err) => err.status === 400 && /different application/i.test(err.message)
+  );
+
+  // Switching the application drops the variant instead of keeping a stale one.
+  const patched = await call('PATCH /api/projects/:id', user, {
+    params: { id: project.id },
+    body: { applicationId: other.id },
+  });
+  assert.equal(patched.project.variantId, null, 'the old variant belonged to the old application');
+  assert.equal(patched.project.variantName, '');
+});
+
+test('a variant is optional on the project — most engagements test the application', async () => {
+  const user = await lead();
+  const { client, application } = await freshApplication(user);
+  const { project } = await call('POST /api/projects', user, {
+    body: { name: 'Whole app', clientId: client.id, applicationId: application.id },
+  });
+  assert.equal(project.variantId, null);
+  assert.equal(project.variantName, '');
+});
+
+test('an application with a project on one of its variants cannot be deleted', async () => {
+  const user = await lead();
+  const { client, application } = await freshApplication(user);
+  const variant = await call('POST /api/applications/:id/variants', user, {
+    params: { id: application.id },
+    body: { name: 'iOS' },
+  });
+  await call('POST /api/projects', user, {
+    body: {
+      name: 'iOS build test',
+      clientId: client.id,
+      applicationId: application.id,
+      variantId: variant.variant.id,
+    },
+  });
+  await assert.rejects(
+    () => call('DELETE /api/applications/:id', user, { params: { id: application.id } }),
+    (err) => err.status === 409 && /still use this application/i.test(err.message)
+  );
+});
+
+test('deleting a variant is a delete: member out, lead in, projects keep the application', async () => {
+  const user = await lead();
+  const { client, application } = await freshApplication(user);
+  const variant = await call('POST /api/applications/:id/variants', user, {
+    params: { id: application.id },
+    body: { name: 'Partner build' },
+  });
+  const { project } = await call('POST /api/projects', user, {
+    body: {
+      name: 'Partner build test',
+      clientId: client.id,
+      applicationId: application.id,
+      variantId: variant.variant.id,
+    },
+  });
+
+  const memberUser = await member();
+  await assert.rejects(
+    () => call('DELETE /api/variants/:id', memberUser, { params: { id: variant.variant.id } }),
+    { status: 403 }
+  );
+
+  await call('DELETE /api/variants/:id', user, { params: { id: variant.variant.id } });
+  const after = await call('GET /api/projects/:id', user, { params: { id: project.id } });
+  assert.equal(after.project.variantId, null, 'the project keeps its application');
+  assert.equal(after.project.applicationId, application.id);
+});
+
+/* ============================================================
    Schema — a fresh database must end up with every column the code reads.
    ============================================================ */
 
 test('a fresh database has the columns the code selects', async () => {
   const columns = (await db.all('PRAGMA table_info(projects)')).map((c) => c.name);
-  for (const needed of ['started_at', 'ended_at', 'client_id', 'application_id', 'manager_id']) {
+  for (const needed of [
+    'started_at',
+    'ended_at',
+    'client_id',
+    'application_id',
+    'variant_id',
+    'supervisor_id',
+  ]) {
     assert.ok(columns.includes(needed), `projects.${needed} missing from a fresh install`);
   }
 });

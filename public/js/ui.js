@@ -66,7 +66,7 @@ export const statusBadge = (status) => {
 
 /**
  * Availability pill. `automatic` is shown as a subtle "auto" marker so a
- * manager can tell a derived status from one the pentester set by hand.
+ * supervisor can tell a derived status from one the pentester set by hand.
  */
 export const availabilityBadge = (status, automatic = false) =>
   `<span class="badge avail-badge" data-tone="${AVAILABILITY[status]?.tone || 'slate'}">
@@ -398,27 +398,27 @@ export function pentesterRow(p, opts = {}) {
 }
 
 /* ============================================================
-   project manager cell
+   project supervisor cell
    ============================================================ */
 /**
- * The one project manager of a project, rendered as an avatar pill so the table
+ * The one project supervisor of a project, rendered as an avatar pill so the table
  * and card can show a person rather than a bare name. Falls back to a muted
- * "No PM" so an unowned engagement is visible instead of silently blank.
+ * "No SV" so an unowned engagement is visible instead of silently blank.
  */
-export function managerCell(person, cls = '') {
+export function supervisorCell(person, cls = '') {
   const name = typeof person === 'string' ? person : person?.name || '';
   const id = typeof person === 'string' ? null : person?.id || null;
   if (!name) {
-    return `<span class="pm-cell pm-empty ${cls}">${icon.userCheck(13)}<span>No PM</span></span>`;
+    return `<span class="sv-cell sv-empty ${cls}">${icon.userCheck(13)}<span>No SV</span></span>`;
   }
   // Icon only: the name is redundant once it is a clickable person, and the
-  // column header says PM. The title still spells the name out for tooltips and
+  // column header says SV. The title still spells the name out for tooltips and
   // for anyone scanning without hovering.
-  return `<span class="pm-cell ${cls}">${avatar(name, 'sm', id)}</span>`;
+  return `<span class="sv-cell ${cls}">${avatar(name, 'sm', id)}</span>`;
 }
 
 /**
- * Phone + email pair, used in the drawer, manager lists and the team tree.
+ * Phone + email pair, used in the drawer, supervisor lists and the team tree.
  *
  * The value sits in its own `<span class="ci-text">` rather than as a bare text node:
  * a list row has one line to spend on a contact detail, and an anonymous flex item
@@ -621,7 +621,7 @@ export function bindCombobox(root, id, onChange, signal) {
 }
 
 /* ============================================================
-   person card (click a PM or a pentester)
+   person card (click a SV or a pentester)
    ============================================================ */
 /** Small clickable chip used for the project lists on a person card. */
 const personProjectChip = (p) =>
@@ -636,7 +636,7 @@ const personProjectChip = (p) =>
  * those places needing to know how a person is shaped.
  */
 export function personCardHTML(data, opts = {}) {
-  const { person, managerOf = [], pentesterOn = [], reports = [] } = data;
+  const { person, supervisorOf = [], pentesterOn = [], reports = [] } = data;
   // `compact` drops the two "which projects" blocks. It is what the project list
   // asks for: there the row already IS a project, so the person card answers "who
   // is this" and stops — the full load belongs to the team board, where the
@@ -661,8 +661,8 @@ export function personCardHTML(data, opts = {}) {
           (AVAILABILITY[person.status] || {}).tone || 'slate'
         }">${escapeHtml(person.status)}${
           // Only label it "auto" for people the team board derives it for: a
-          // PM's On Project is about engagements, not bench availability.
-          person.automatic && person.role !== 'Project Manager'
+          // SV's On Project is about engagements, not bench availability.
+          person.automatic && person.role !== 'Supervisor'
             ? '<em class="avail-auto">auto</em>'
             : ''
         }</span>
@@ -681,16 +681,16 @@ export function personCardHTML(data, opts = {}) {
       }
 
       ${
-        showProjects && managerOf.length
+        showProjects && supervisorOf.length
           ? `<div class="pc-block">
-               <div class="pc-block-label">${icon.userCheck(13)} Project manager for<em>${managerOf.length}</em></div>
-               <div class="pc-projects">${managerOf.map(personProjectChip).join('')}</div>
+               <div class="pc-block-label">${icon.userCheck(13)} Project supervisor for<em>${supervisorOf.length}</em></div>
+               <div class="pc-projects">${supervisorOf.map(personProjectChip).join('')}</div>
              </div>`
           : ''
       }
 
       ${
-        !showProjects || person.role === 'Project Manager'
+        !showProjects || person.role === 'Supervisor'
           ? ''
           : `<div class="pc-block">
                <div class="pc-block-label">${icon.users(13)} Pentesting<em>${openProjects.length} active${

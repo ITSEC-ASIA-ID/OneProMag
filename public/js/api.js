@@ -41,7 +41,7 @@ export const api = {
   users: () => request('GET', '/api/users'),
   directory: () => request('GET', '/api/directory'),
   person: (id) => request('GET', `/api/people/${id}`),
-  managers: () => request('GET', '/api/managers'),
+  supervisors: () => request('GET', '/api/supervisors'),
   info: (scope, scopeId, env = 'Dev') =>
     request(
       'GET',
@@ -58,9 +58,9 @@ export const api = {
   createInfo: (payload) => request('POST', '/api/info', payload),
   updateInfo: (id, payload) => request('PATCH', `/api/info/${id}`, payload),
   deleteInfo: (id) => request('DELETE', `/api/info/${id}`),
-  createManager: (payload) => request('POST', '/api/managers', payload),
-  updateManager: (id, payload) => request('PATCH', `/api/managers/${id}`, payload),
-  deleteManager: (id) => request('DELETE', `/api/managers/${id}`),
+  createSupervisor: (payload) => request('POST', '/api/supervisors', payload),
+  updateSupervisor: (id, payload) => request('PATCH', `/api/supervisors/${id}`, payload),
+  deleteSupervisor: (id) => request('DELETE', `/api/supervisors/${id}`),
   stats: () => request('GET', '/api/stats'),
 
   properties: () => request('GET', '/api/properties'),
@@ -97,6 +97,20 @@ export const api = {
   createApplication: (payload) => request('POST', '/api/applications', payload),
   updateApplication: (id, payload) => request('PATCH', `/api/applications/${id}`, payload),
   deleteApplication: (id) => request('DELETE', `/api/applications/${id}`),
+
+  // Variant apps: the optional third level, Client -> Application -> Variant.
+  variants: (query = {}) => {
+    const params = new URLSearchParams();
+    for (const [k, v] of Object.entries(query)) {
+      if (v !== '' && v !== undefined && v !== null && v !== false) params.set(k, v);
+    }
+    const qs = params.toString();
+    return request('GET', `/api/variants${qs ? `?${qs}` : ''}`);
+  },
+  createVariant: (applicationId, payload) =>
+    request('POST', `/api/applications/${applicationId}/variants`, payload),
+  updateVariant: (id, payload) => request('PATCH', `/api/variants/${id}`, payload),
+  deleteVariant: (id) => request('DELETE', `/api/variants/${id}`),
 
   projects: (query = {}) => {
     const params = new URLSearchParams();

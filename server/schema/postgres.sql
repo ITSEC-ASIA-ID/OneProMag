@@ -41,10 +41,10 @@ CREATE TABLE IF NOT EXISTS clients (
   created_at TEXT NOT NULL
 );
 
--- Which project managers usually handle a client. Mirrors client_managers in
--- sqlite.sql: many-to-many, so one PM can own several clients and a client can
--- be covered by several PMs.
-CREATE TABLE IF NOT EXISTS client_managers (
+-- Which project supervisors usually handle a client. Mirrors client_supervisors in
+-- sqlite.sql: many-to-many, so one SV can own several clients and a client can
+-- be covered by several SVs.
+CREATE TABLE IF NOT EXISTS client_supervisors (
   client_id INTEGER NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
   user_id   INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   PRIMARY KEY (client_id, user_id)
@@ -57,6 +57,19 @@ CREATE TABLE IF NOT EXISTS applications (
   notes      TEXT NOT NULL DEFAULT '',
   created_at TEXT NOT NULL,
   UNIQUE (client_id, name)
+);
+
+-- A variant app is a child of an application: the same client's product, shipped
+-- in several shapes — "Mobile Banking App" with an Android build, an iOS build and
+-- a partner-branded build, say. It is optional at every level: an application may
+-- have none, and a project may point at none.
+CREATE TABLE IF NOT EXISTS application_variants (
+  id             SERIAL PRIMARY KEY,
+  application_id INTEGER NOT NULL REFERENCES applications(id) ON DELETE CASCADE,
+  name           TEXT NOT NULL,
+  notes          TEXT NOT NULL DEFAULT '',
+  created_at     TEXT NOT NULL,
+  UNIQUE (application_id, name)
 );
 
 -- Free-form information library (see the SQLite schema for the reasoning).
@@ -138,10 +151,13 @@ CREATE TABLE IF NOT EXISTS projects (
   client         TEXT NOT NULL DEFAULT '',
   client_id      INTEGER REFERENCES clients(id) ON DELETE SET NULL,
   application_id INTEGER REFERENCES applications(id) ON DELETE SET NULL,
-  -- The one project manager accountable for this engagement. Single column on
-  -- purpose: a project has exactly one PM, while a client may have several
-  -- default PMs (client_managers).
-  manager_id     INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  -- Which variant of the application this engagement tests. Optional: most
+  -- projects test the application itself.
+  variant_id     INTEGER REFERENCES application_variants(id) ON DELETE SET NULL,
+  -- The one project supervisor accountable for this engagement. Single column on
+  -- purpose: a project has exactly one SV, while a client may have several
+  -- default SVs (client_supervisors).
+  supervisor_id     INTEGER REFERENCES users(id) ON DELETE SET NULL,
   category       TEXT NOT NULL DEFAULT 'Web',
   -- Only meaningful when category = 'Mobile': Android | iOS
   platform       TEXT NOT NULL DEFAULT '',
