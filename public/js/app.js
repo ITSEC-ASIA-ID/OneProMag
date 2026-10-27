@@ -5034,18 +5034,20 @@ function variantSelectOptions(applicationId, selectedId = '') {
   );
 }
 
-/** The line under the sub-app picker: the note that explains it, if there is one. */
+/**
+ * The line under the sub-app picker: only that sub app's own note, if it has one.
+ * No sub app chosen, no note written — no line at all.
+ */
 function variantDetailHTML(applicationId, variantId) {
   const variant = findVariant(variantId);
-  if (!variant) return 'Only when the engagement is about one sub app of this application.';
-  return variant.notes
-    ? `${h(variant.name)} — ${h(variant.notes)}`
-    : 'Only when the engagement is about one sub app of this application.';
+  if (!variant || !variant.notes) return '';
+  return `${h(variant.name)} — ${h(variant.notes)}`;
 }
 
 function openProjectForm(project = null) {
   const editing = Boolean(project);
   const isMobile = (project?.category || 'Web') === 'Mobile';
+  const variantHintHTML = variantDetailHTML(project?.applicationId, project?.variantId);
   const body = `
     <div class="field">
       <label for="p-name">Project name <span class="required">*</span></label>
@@ -5074,10 +5076,6 @@ function openProjectForm(project = null) {
         })}
       </div>
     </div>
-    <span class="hint form-hint">
-      Clients and applications are curated in the Admin panel.
-    </span>
-
     <!--
       Sub apps are optional. The field only shows up when the chosen application
       HAS sub apps, so a team that never splits an application into products never
@@ -5088,10 +5086,7 @@ function openProjectForm(project = null) {
       <select class="select" id="p-variant">
         ${variantSelectOptions(project?.applicationId, project?.variantId)}
       </select>
-      <span class="hint" id="p-variant-hint">${variantDetailHTML(
-        project?.applicationId,
-        project?.variantId
-      )}</span>
+      <span class="hint" id="p-variant-hint" ${variantHintHTML ? '' : 'hidden'}>${variantHintHTML}</span>
     </div>
 
     <!--
@@ -5196,8 +5191,15 @@ function openProjectForm(project = null) {
       const variantField = modal.querySelector('#variant-field');
       const variantSelect = modal.querySelector('#p-variant');
       const variantHint = modal.querySelector('#p-variant-hint');
+      // The hint only ever carries the chosen sub app's own note, so an empty
+      // result hides the line instead of printing a sentence about nothing.
+      const setVariantHint = (html) => {
+        if (!variantHint) return;
+        variantHint.innerHTML = html;
+        variantHint.hidden = !html;
+      };
       variantSelect?.addEventListener('change', () => {
-        if (variantHint) variantHint.innerHTML = variantDetailHTML(null, variantSelect.value);
+        setVariantHint(variantDetailHTML(null, variantSelect.value));
       });
       // A variant belongs to exactly one application, so switching the
       // application must never carry the old variant over.
@@ -5206,9 +5208,7 @@ function openProjectForm(project = null) {
         const items = variantItems(applicationId);
         variantSelect.innerHTML = variantSelectOptions(applicationId, keep);
         variantField.hidden = items.length === 0;
-        if (variantHint && !keep) {
-          variantHint.textContent = 'Only when the engagement is about one sub app of this application.';
-        }
+        if (!keep) setVariantHint('');
       };
       setComboboxItems(modal, 'p-app', applicationItems(project?.clientId), project?.applicationId ?? '');
       syncVariants(project?.applicationId, project?.variantId ?? '');
