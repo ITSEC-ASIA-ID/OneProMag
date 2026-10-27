@@ -5326,7 +5326,9 @@ function openRetestForm(projectId, retest = null, onDone) {
 
   openModal({
     title: editing ? 'Edit retest request' : 'New retest request',
-    subtitle: editing ? retest.code : 'Queues this project for client re-verification',
+    subtitle: editing
+      ? retest.code
+      : 'Adds a request to the retest queue — the project keeps its own status',
     body,
     footer: `<div class="spacer"></div>
       <button class="btn" data-cancel>Cancel</button>

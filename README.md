@@ -748,8 +748,8 @@ Everyone can read and write notes; the author is recorded and shown in the foote
   the only place they appear now that the dedicated Finished page is gone. An
   explicit status filter always wins over the Active scope, so picking `Done` while
   on Active projects does show them
-- A project waiting on an open client retest is labelled **`Retest - <name>`** in
-  the Active view, so it is obvious the pending work is a re-verification
+- An open client retest appears in the Active view as its own **`Retest - <name>`**
+  row, so it is obvious the pending work is a re-verification and not a new test
 - Stat cards: **Total projects / Ready / Active / Retest queue** — Ready is the
   "report being prepared" bucket, sitting next to Active
 - **The stat cards follow the scope.** On a company scope they report every
@@ -1306,9 +1306,11 @@ avatar you hit is always the one under your finger.
 
 ### Retests (client request queue)
 A retest is **not a per-finding record** — it is a **client request to test again**.
-Raising one **queues the project**: if the project was already `Done` it flips back
-to `Ongoing`, which puts it back in **Active projects** (and it is labelled
-`Retest - <name>` there) until the retest is closed.
+Raising one **does not touch the project's status**. A finished engagement stays
+finished; the request is the thing that is open, and it appears in **Active
+projects** as its own `Retest - <name>` row (with its own status control) and in the
+**Retest queue** card until it is closed. Closing a project and then queueing a
+retest therefore never reopens the engagement behind the project manager's back.
 
 A project can carry **unlimited retests**, each with:
 - auto code (`RT-007-01`, `RT-007-02`, …) derived from the highest existing sequence,

@@ -1698,16 +1698,15 @@ export const api = {
       }
     }
 
-    // A retest request queues the project for re-verification: if it was
-    // already Done, it comes back to Ongoing so it shows up as work again.
-    if (project.status === 'Done') {
-      await db.run("UPDATE projects SET status = 'Ongoing', updated_at = ? WHERE id = ?", [
-        ts,
-        project.id,
-      ]);
-    } else {
-      await db.run('UPDATE projects SET updated_at = ? WHERE id = ?', [ts, project.id]);
-    }
+    // The project's own status is left alone. Raising a request used to flip a Done
+    // engagement back to Ongoing "so it shows up as work again", which rewrote the
+    // engagement's lifecycle behind the PM's back: closing a project and then
+    // queueing a retest silently reopened it. The retest is what carries the open
+    // work — its own status, its own row in the active lists (labelled
+    // "Retest - <name>") and its own counter in the retest queue — so nothing is
+    // hidden by leaving the project as it was. Only the timestamp moves, because
+    // somebody touched it.
+    await db.run('UPDATE projects SET updated_at = ? WHERE id = ?', [ts, project.id]);
 
     const retest = await db.get('SELECT * FROM retests WHERE id = ?', [Number(inserted.id)]);
     return { retest: shapeRetest(retest) };
