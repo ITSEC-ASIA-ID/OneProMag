@@ -2209,11 +2209,15 @@ svg { display: block; }
 /* ============================================================
    Team status board
    ============================================================ */
+.board-page { display: flex; flex-direction: column; gap: 14px; }
+
+/* The four numbers are also the filter. A card is a button, so it carries the
+   button reset and a pressed state, and the number you were reading anyway is
+   what narrows the list to it — no second row of filter pills to keep in sync. */
 .board-summary {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   gap: 12px;
-  margin-bottom: 16px;
 }
 .bs-card {
   position: relative;
@@ -2223,7 +2227,23 @@ svg { display: block; }
   background: var(--surface);
   border: 1px solid var(--border);
   box-shadow: var(--shadow-sm);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.15s, box-shadow 0.15s, transform 0.15s, background 0.15s;
 }
+.bs-card:hover {
+  border-color: color-mix(in srgb, var(--accent, var(--primary)) 45%, var(--border));
+  box-shadow: var(--shadow-md, var(--shadow));
+  transform: translateY(-1px);
+}
+.bs-card:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--primary-ring); }
+.bs-card[aria-pressed='true'] {
+  border-color: color-mix(in srgb, var(--accent, var(--primary)) 65%, var(--border));
+  background: color-mix(in srgb, var(--accent, var(--primary)) 8%, var(--surface));
+}
+.bs-card[aria-pressed='true']::before { width: 4px; }
+.bs-card[aria-pressed='true'] .bs-label { color: var(--accent, var(--primary)); }
 .bs-card::before {
   content: '';
   position: absolute;
@@ -2255,6 +2275,87 @@ svg { display: block; }
 }
 .bs-sub { display: block; margin-top: 2px; font-size: 11.5px; color: var(--muted); }
 
+/* Search + count strip. It sits between the numbers and the rows so "show me
+   Dewi" and "show me the idle people" are in the same place. */
+.board-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.bt-search {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1 1 300px;
+  min-width: 0;
+  height: 36px;
+  padding: 0 12px;
+  border-radius: var(--r-md, 10px);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--faint);
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.bt-search:focus-within {
+  border-color: var(--primary-ring);
+  box-shadow: 0 0 0 3px var(--primary-ring);
+}
+.bt-search input {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: 13px;
+  color: var(--ink);
+}
+.bt-search input::placeholder { color: var(--faint); }
+.bt-search input:focus { outline: none; }
+.bt-search input::-webkit-search-cancel-button { cursor: pointer; }
+.bt-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  margin-left: auto;
+  font-size: 12.5px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.bt-count strong { color: var(--ink); font-weight: 620; }
+.bt-clear {
+  padding: 4px 10px;
+  border-radius: var(--r-full);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--ink-2);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.bt-clear:hover { border-color: var(--primary-ring); color: var(--ink); }
+.bt-clear:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--primary-ring); }
+
+.board-empty {
+  padding: 34px 20px 38px;
+  text-align: center;
+  color: var(--muted);
+}
+.board-empty .icon {
+  display: grid;
+  place-items: center;
+  width: 46px;
+  height: 46px;
+  margin: 0 auto 10px;
+  border-radius: 50%;
+  background: var(--surface-2);
+  color: var(--faint);
+}
+.board-empty h3 { margin: 0 0 4px; font-size: 14px; color: var(--ink); }
+.board-empty p { margin: 0 auto 12px; max-width: 42ch; font-size: 12.5px; line-height: 1.5; }
+
 .board-wrap {
   border-radius: var(--r-lg);
   border: 1px solid var(--border);
@@ -2284,22 +2385,55 @@ svg { display: block; }
 .board-table th.col-avail { width: 12%; }
 .board-table th.col-idle { width: 12%; }
 .board-table th.col-note { width: 20%; }
-.board-table tbody tr { border-bottom: 1px solid var(--border); }
+.board-table tbody tr { border-bottom: 1px solid var(--border); transition: background 0.12s; }
 .board-table tbody tr:last-child { border-bottom: 0; }
 .board-table tbody tr:hover { background: var(--surface-2); }
-.board-table td { padding: 12px 14px; vertical-align: top; }
+.board-table td { padding: 13px 14px; vertical-align: top; }
 
-.board-person { display: flex; align-items: center; gap: 9px; }
+.board-person { display: flex; align-items: center; gap: 9px; min-width: 0; }
 .bp-meta { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
-.bp-meta strong { font-size: 13px; font-weight: 600; color: var(--ink); }
+/* The name is the one thing on the row that opens a card, so it says so on hover. */
+.bp-meta strong {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
+  cursor: pointer;
+  border-radius: 5px;
+  margin-left: -3px;
+  padding: 0 3px;
+}
+.bp-meta strong:hover { color: var(--primary-fg); background: var(--primary-soft); }
+.bp-meta strong:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--primary-ring); }
+
+/* The reporting tree, drawn instead of explained. The server already returns the
+   rows in tree order, so an indent plus a hairline per level is enough to read
+   "these two report to Dewi" — no group header eating a row, no brackets.
+   `inset Npx 0 0 -N+1` paints a 1px vertical rule at x=N over the whole cell, which
+   is why a sub-row needs two shadows: its own level and its parent's. */
+.board-row[data-depth='1'] .cell-person {
+  padding-left: 36px;
+  background-image: linear-gradient(var(--border), var(--border));
+  background-size: 1px 100%;
+  background-position: 20px 0;
+  background-repeat: no-repeat;
+}
+.board-row[data-depth='2'] .cell-person {
+  padding-left: 54px;
+  background-image:
+    linear-gradient(var(--border), var(--border)),
+    linear-gradient(var(--border), var(--border));
+  background-size: 1px 100%, 1px 100%;
+  background-position: 20px 0, 38px 0;
+  background-repeat: no-repeat;
+}
 .board-muted { color: var(--faint); }
-.board-projects { display: flex; flex-direction: column; gap: 5px; align-items: flex-start; }
+.board-projects { display: flex; flex-direction: column; gap: 4px; align-items: flex-start; }
 .board-chip {
   display: inline-flex;
   align-items: center;
   gap: 7px;
   max-width: 100%;
-  padding: 3px 10px;
+  padding: 4px 11px 4px 9px;
   border-radius: var(--r-full);
   border: 1px solid var(--border);
   background: var(--surface-2);
@@ -2325,7 +2459,25 @@ svg { display: block; }
   font-size: 11px;
   font-weight: 600;
   color: var(--faint);
+  padding-left: 7px;
+  border-left: 1px solid var(--border);
 }
+/* The status of the engagement, at a glance, without reading the word: the same
+   tone the status pill uses in the drawer and the lists. */
+.chip-dot {
+  flex: 0 0 auto;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--slate, #64748b);
+}
+.chip-dot[data-tone='blue'] { background: var(--blue, #3b82f6); }
+.chip-dot[data-tone='violet'] { background: var(--violet, #8b5cf6); }
+.chip-dot[data-tone='amber'] { background: var(--amber, #f59e0b); }
+.chip-dot[data-tone='green'] { background: var(--green, #22c55e); }
+.chip-dot[data-tone='cyan'] { background: var(--cyan, #06b6d4); }
+.chip-dot[data-tone='rose'] { background: var(--rose, #f43f5e); }
+.chip-name { overflow-wrap: anywhere; }
 .board-chip:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--primary-ring); }
 /* A retest is work on an engagement that is already finished, so it reads as a
    sibling of the project chips rather than another project: same shape, a dashed
@@ -2395,43 +2547,103 @@ svg { display: block; }
 }
 .board-more { font-size: 11.5px; color: var(--muted); padding-left: 3px; }
 
-.idle-days {
-  display: inline-block;
-  font-size: 17px;
+.idle-badge {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 1px;
+  padding: 1px 8px;
+  border-radius: var(--r-full);
+  font-size: 15px;
   font-weight: 660;
   font-variant-numeric: tabular-nums;
   letter-spacing: -0.01em;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
   color: var(--ink);
 }
-.idle-days em { font-style: normal; font-size: 12px; font-weight: 600; color: var(--faint); margin-left: 1px; }
+.idle-badge em { font-style: normal; font-size: 11px; font-weight: 600; color: var(--faint); }
+/* Age is the signal: two weeks is normal slack, two months is a bench problem. */
+.idle-badge[data-age='warn'] {
+  border-color: color-mix(in srgb, var(--amber) 40%, var(--border));
+  background: color-mix(in srgb, var(--amber) 10%, var(--surface-2));
+  color: var(--ink);
+}
+.idle-badge[data-age='warn'] em { color: color-mix(in srgb, var(--amber) 70%, var(--ink)); }
+.idle-badge[data-age='hot'] {
+  border-color: color-mix(in srgb, var(--rose) 45%, var(--border));
+  background: color-mix(in srgb, var(--rose) 10%, var(--surface-2));
+}
+.idle-badge[data-age='hot'] em { color: color-mix(in srgb, var(--rose) 75%, var(--ink)); }
+.idle-since { display: block; margin-top: 3px; font-size: 11.5px; }
 
 .board-note {
-  display: block;
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
   width: 100%;
   text-align: left;
-  padding: 0;
+  padding: 3px 6px;
+  margin: -3px -6px;
   border: 0;
   background: transparent;
   color: var(--ink-2);
   font: inherit;
   font-size: 12.5px;
+  line-height: 1.45;
   cursor: text;
   border-radius: var(--r-sm);
+  transition: background 0.12s, color 0.12s;
 }
 .board-note:hover { color: var(--ink); background: var(--surface-3); }
 .board-note:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--primary-ring); }
+/* A note that exists is content and always visible. "Add a note…" on all seven
+   rows was noise, so the empty state is a pencil that appears on hover or
+   keyboard focus — and stays put on touch, where there is no hover. */
+.board-note.is-empty {
+  color: var(--faint);
+  opacity: 0;
+  transition: opacity 0.12s, background 0.12s, color 0.12s;
+}
+.board-row:hover .board-note.is-empty,
+.board-note.is-empty:focus-visible { opacity: 1; }
+.board-note .note-text {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.board-note.is-empty .note-pen { opacity: 0.9; }
+.board-note .note-pen {
+  display: inline-flex;
+  flex: 0 0 auto;
+  margin-top: 2px;
+  color: var(--faint);
+}
+.board-note:not(.is-empty) .note-pen { opacity: 0; transition: opacity 0.12s; }
+.board-row:hover .board-note:not(.is-empty) .note-pen { opacity: 1; }
 
 /* availability pill + menu */
 .avail-btn {
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  padding: 0;
-  border: 0;
+  padding: 3px 8px 3px 7px;
+  margin: -3px -8px -3px -7px;
+  border: 1px solid transparent;
   background: transparent;
   font: inherit;
   cursor: pointer;
   border-radius: var(--r-full);
+  transition: background 0.12s, border-color 0.12s, box-shadow 0.12s;
+}
+.avail-btn:hover {
+  border-color: var(--border);
+  background: var(--surface-3);
+}
+.avail-btn:hover svg { color: var(--ink-2); }
+.avail-btn[aria-expanded='true'] {
+  border-color: var(--primary-ring);
+  background: var(--primary-soft);
 }
 .avail-btn:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--primary-ring); }
 .avail-btn svg { color: var(--faint); }
@@ -2511,18 +2723,20 @@ svg { display: block; }
 @media (max-width: 1000px) {
   /* The top search is the first thing to go: the filter bar has its own. */
   .topbar .search { display: none; }
-  .board-summary { grid-template-columns: repeat(2, 1fr); }
-}
-@media (max-width: 620px) {
-  /* Two rows: identity + actions on top, the page tabs underneath as a
-     full-width segmented strip. Without the wrap the tabs push the action
-     buttons past the right edge and the whole page scrolls sideways. */
-  .topbar { flex-wrap: wrap; row-gap: 10px; }
-  .topbar-title { flex: 1 1 auto; }
-  /* Five columns cannot fit a phone. Rather than a sideways scroll nobody
-     notices (the table looked cut off), each row becomes a stacked card with
-     its own field labels, so every value is visible without scrolling. */
+  .board-summary { grid-template-columns: repeat(2, 1fr); gap: 9px; }
+  .board-toolbar { gap: 8px; }
+  .bt-search { flex: 1 1 100%; }
+  .bs-val { font-size: 20px; }
+  /* Five columns need ~900px of content and a tablet has 660, which was not a
+     narrow table but a broken one: chips squeezed to three words per line and the
+     avatar sat on top of the name. Below 1000px each row becomes a stacked card
+     with its own field labels instead, so every value stays readable and the
+     status pill keeps its place beside the name. */
   .board-table, .board-table tbody, .board-table tr, .board-table td { display: block; width: auto; }
+  /* The stacked card is already indented by its own padding; a tree rail here
+     would push the name off the edge. */
+  .board-row[data-depth='1'] .cell-person,
+  .board-row[data-depth='2'] .cell-person { padding-left: 14px; background-image: none; }
   .board-table thead { display: none; }
   .board-table tbody tr {
     display: grid;
@@ -2532,8 +2746,6 @@ svg { display: block; }
     border-bottom: 1px solid var(--border);
   }
   .board-table td { padding: 0; }
-  /* Person and status share the first line: the status pill belongs beside
-     the name, not on a line of its own. */
   .board-table .cell-person { grid-column: 1; min-width: 0; }
   .board-table .cell-avail { grid-column: 2; justify-self: end; align-self: center; }
   .board-table .cell-doing,
@@ -2551,11 +2763,18 @@ svg { display: block; }
   }
   .board-table td:empty { display: none; }
   .board-table .board-note { text-align: left; }
+  /* No hover on a touch screen: the pencil that adds a note must be visible. */
+  .board-note.is-empty { opacity: 1; }
   .board-table .board-chip { max-width: 100%; }
   .board-table .board-assign { margin-top: 2px; }
   .board-wrap { overflow-x: visible; }
-  .board-summary { gap: 9px; }
-  .bs-val { font-size: 20px; }
+}
+@media (max-width: 620px) {
+  /* Two rows: identity + actions on top, the page tabs underneath as a
+     full-width segmented strip. Without the wrap the tabs push the action
+     buttons past the right edge and the whole page scrolls sideways. */
+  .topbar { flex-wrap: wrap; row-gap: 10px; }
+  .topbar-title { flex: 1 1 auto; }
 }
 @media (prefers-reduced-motion: reduce) {
   .avail-menu { animation: none; }

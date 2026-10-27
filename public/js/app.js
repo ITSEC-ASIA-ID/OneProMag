@@ -36,7 +36,7 @@ import {
   setComboboxValue,
   bindCombobox,
 } from './ui.js';
-import { icon, CATEGORY, STATUS, ENV, DEVICE_KIND } from './icons.js';
+import { icon, CATEGORY, STATUS, ENV, DEVICE_KIND, AVAILABILITY } from './icons.js';
 import { setProperties, propKeys, propList, propOptions, propLabel, propTone } from './props.js';
 
 const root = document.getElementById('root');
@@ -145,6 +145,11 @@ const state = {
   deviceKind: localStorage.getItem('opm-device-kind') || 'Android',
   deviceQuery: '',
   devicesLoading: false,
+  // Team board: the card you clicked and the text in its search box. View state,
+  // not data — it survives a repaint but is deliberately not remembered between
+  // sessions, because a board that opens pre-filtered hides a whole status.
+  boardFilter: '',
+  boardQuery: '',
   // Rows-per-page for the wide EDC sheet; 0 means "show everything".
   deviceLimit: 50,
   // Paging for the four project lists. 50 is the default; the choice is
@@ -6053,17 +6058,69 @@ function canEditRow(person) {
   return Number(state.user.id) === Number(person.id);
 }
 
+/**
+ * Which rows the board shows, given the filter card and the search box.
+ *
+ * The filter matches the person AND their work: typing "brimo" finds whoever is
+ * assigned to the Brimo engagement, because "who is on this client's project" is
+ * the question this page exists to answer, and the project name is nowhere else on
+ * the row.
+ */
+function boardMatches(p) {
+  const filter = state.boardFilter || '';
+  if (filter && p.status !== filter) return false;
+  const q = (state.boardQuery || '').trim().toLowerCase();
+  if (!q) return true;
+  const hay = [
+    p.name,
+    p.subrole,
+    p.status,
+    p.availabilityNote,
+    ...(p.currentProjects || []).map((pr) => `${pr.name} ${pr.status}`),
+    ...(p.currentRetests || []).map((rt) => `retest ${rt.projectName} ${rt.status}`),
+  ]
+    .join(' ')
+    .toLowerCase();
+  return hay.includes(q);
+}
+
+function boardRows() {
+  return (state.board || []).filter(boardMatches);
+}
+
+/**
+ * How deep in the reporting tree a row sits: Lead 0, Sub Lead 1, Member 2.
+ *
+ * The server already returns the board in tree order, so the depth only has to be
+ * drawn — a 1px rail and an indent are enough to read "these two report to Dewi"
+ * without a group header eating a row.
+ */
+const BOARD_DEPTH = { Lead: 0, 'Sub Lead': 1, Member: 2 };
+
+function boardChipHTML(kind, pr) {
+  const isRetest = kind === 'retest';
+  const tone = propTone('status', pr.status, 'slate');
+  const label = isRetest ? `Retest - ${pr.projectName}` : pr.name;
+  const title = isRetest
+    ? `Retest on ${pr.projectName} — ${pr.title || pr.code || 'client request'} · ${pr.status}`
+    : `${pr.name} · ${pr.status}`;
+  return `<button type="button" class="board-chip${isRetest ? ' board-chip-retest' : ''}"
+            data-open-project="${isRetest ? pr.projectId : pr.id}" title="${h(title)}">
+       <span class="chip-dot" data-tone="${tone}" aria-hidden="true"></span>
+       <span class="chip-name">${h(label)}</span>
+       <em>${h(pr.status)}</em>
+     </button>`;
+}
+
 function boardRowHTML(p) {
   const editable = canEditRow(p);
   const projects = p.currentProjects || [];
-  // Retests are listed beside the engagements that own them, labelled so nobody
-  // mistakes one for a second project. They open the same drawer: the retest queue
-  // lives there.
   const retests = p.currentRetests || [];
-  // The full list: a pentester's workload is the point of this column, so
-  // nothing is truncated behind a "+N more" counter.
-  // The assign affordance is rendered even when the list is empty: an idle
-  // pentester is exactly the person a manager wants to put on something.
+  const depth = BOARD_DEPTH[p.subrole] ?? 2;
+  // The full list: a pentester's workload is the point of this column, so nothing
+  // is hidden behind a "+N more" counter. The assign affordance is rendered even
+  // when the list is empty — an idle pentester is exactly who a manager wants to
+  // put on something.
   const assignBtn = editable
     ? `<button type="button" class="board-assign" data-assign-open="${p.id}">
          ${icon.plus(11)} Assign project
@@ -6072,37 +6129,41 @@ function boardRowHTML(p) {
   const anyWork = projects.length + retests.length > 0;
   const projectCell = anyWork
     ? `<div class="board-projects">
-         ${projects
-           .map(
-             (pr) => `<button type="button" class="board-chip" data-open-project="${pr.id}"
-                        title="${h(pr.name)}">${h(pr.name)}<em>${h(pr.status)}</em></button>`
-           )
-           .join('')}
-         ${retests
-           .map(
-             (rt) => `<button type="button" class="board-chip board-chip-retest" data-open-project="${rt.projectId}"
-                        title="Retest on ${h(rt.projectName)} — ${h(rt.title || rt.code || 'client request')}">Retest - ${h(
-                          rt.projectName
-                        )}<em>${h(rt.status)}</em></button>`
-           )
-           .join('')}
+         ${projects.map((pr) => boardChipHTML('project', pr)).join('')}
+         ${retests.map((rt) => boardChipHTML('retest', rt)).join('')}
          ${assignBtn}
        </div>`
     : `<div class="board-projects">
-         ${p.status === 'Idle' ? '<span class="board-muted">Nothing assigned</span>' : ''}
+         <span class="board-muted">Nothing assigned</span>
          ${assignBtn}
        </div>`;
 
   // `data-label` is what the stacked phone layout uses as its row heading.
+  const idleDays = p.status === 'Idle' && p.idleSince ? daysSince(p.idleSince) : null;
   const idleCell =
-    p.status === 'Idle' && p.idleSince
-      ? `<span class="idle-days">${daysSince(p.idleSince)}<em>d</em></span>
-         <span class="board-muted">since ${fmtDate(p.idleSince)}</span>`
+    idleDays === null
+      ? ''
+      : `<span class="idle-badge" data-age="${idleDays > 60 ? 'hot' : idleDays > 14 ? 'warn' : 'ok'}">
+           ${idleDays}<em>d</em>
+         </span>
+         <span class="board-muted idle-since">since ${fmtDate(p.idleSince)}</span>`;
+  const idleLabel = idleDays === null ? '' : ' data-label="Idle since"';
+
+  const noteCell = editable
+    ? `<button type="button" class="board-note${p.availabilityNote ? '' : ' is-empty'}"
+         data-avail-note="${p.id}" title="${p.availabilityNote ? 'Edit note' : 'Add a note'}">
+         ${
+           p.availabilityNote
+             ? `<span class="note-text">${h(p.availabilityNote)}</span><span class="note-pen">${icon.edit(12)}</span>`
+             : `<span class="note-pen">${icon.edit(12)}</span><span>Add a note…</span>`
+         }
+       </button>`
+    : p.availabilityNote
+      ? `<span class="note-text">${h(p.availabilityNote)}</span>`
       : '';
-  const idleLabel = p.status === 'Idle' && p.idleSince ? ' data-label="Idle since"' : '';
 
   return `
-    <tr data-board-row="${p.id}" data-status="${h(p.status)}">
+    <tr class="board-row" data-board-row="${p.id}" data-status="${h(p.status)}" data-depth="${depth}">
       <td class="cell-person">
         <div class="board-person">
           ${avatar(p.name, 'sm', p.id)}
@@ -6116,80 +6177,115 @@ function boardRowHTML(p) {
         ${
           editable
             ? `<button type="button" class="avail-btn" data-avail-open="${p.id}"
+                 data-tone="${AVAILABILITY[p.status]?.tone || 'slate'}"
                  aria-haspopup="menu" aria-label="Set availability for ${h(p.name)}">
                  ${availabilityBadge(p.status, p.automatic)}${icon.chevronDown(12)}
                </button>`
             : availabilityBadge(p.status, p.automatic)
         }
       </td>
-      <td class="cell-doing" data-label="Doing">${projectCell}</td>
+      <td class="cell-doing" data-label="Projects &amp; retests">${projectCell}</td>
       <td class="cell-idle"${idleLabel}>${idleCell}</td>
-      <td class="cell-note" data-label="Notes">
-        ${
-          editable
-            ? `<button type="button" class="board-note" data-avail-note="${p.id}">
-                 ${p.availabilityNote ? h(p.availabilityNote) : '<span class="board-muted">Add a note…</span>'}
-               </button>`
-            : p.availabilityNote
-              ? h(p.availabilityNote)
-              : ''
-        }
-      </td>
+      <td class="cell-note" data-label="Notes">${noteCell}</td>
     </tr>`;
 }
 
-function teamHTML() {
-  const rows = state.board || [];
-  const t = state.boardTotals || { people: 0, idle: 0, onProject: 0, unavailable: 0, idleDays: 0 };
-
-  const summary = `
-    <div class="board-summary">
-      <div class="bs-card" data-tone="amber">
-        <span class="bs-label">On project</span>
-        <span class="bs-val">${t.onProject}</span>
-        <span class="bs-sub">currently assigned</span>
-      </div>
-      <div class="bs-card" data-tone="green">
-        <span class="bs-label">Idle</span>
-        <span class="bs-val">${t.idle}</span>
-        <span class="bs-sub">${t.idleDays} total idle day${t.idleDays === 1 ? '' : 's'}</span>
-      </div>
-      <div class="bs-card" data-tone="violet">
-        <span class="bs-label">Unavailable</span>
-        <span class="bs-val">${t.unavailable}</span>
-        <span class="bs-sub">leave, exam, research</span>
-      </div>
-      <div class="bs-card" data-tone="slate">
-        <span class="bs-label">Team size</span>
-        <span class="bs-val">${t.people}</span>
-        <span class="bs-sub">pentesters on the board</span>
-      </div>
-    </div>`;
-
+/** The table on its own, so a filter change repaints it without touching the
+ *  toolbar (which would steal focus from the search box mid-typing). */
+function boardTableHTML() {
+  const rows = boardRows();
   if (!rows.length) {
-    return `${summary}
-      <div class="empty">
-        <div class="icon">${icon.users(28)}</div>
-        <h3>Nobody on the board</h3>
-        <p>Add pentesters under Admin panel → Manage users and they will appear here.</p>
+    const filtered = Boolean(state.boardFilter || (state.boardQuery || '').trim());
+    return `<div class="board-empty">
+        <div class="icon">${icon.users(26)}</div>
+        <h3>${filtered ? 'Nobody matches' : 'Nobody on the board'}</h3>
+        <p>${
+          filtered
+            ? 'No pentester matches that filter and search. Clear them to see the whole team.'
+            : 'Add pentesters under Admin panel → Manage users and they will appear here.'
+        }</p>
+        ${filtered ? '<button class="btn" data-board-clear>Clear filter</button>' : ''}
       </div>`;
   }
+  return `<table class="board-table">
+      <thead>
+        <tr>
+          <th class="col-person">Pentester</th>
+          <th class="col-avail">Status</th>
+          <th class="col-doing">Projects &amp; retests</th>
+          <th class="col-idle">Idle since</th>
+          <th class="col-note">Notes</th>
+        </tr>
+      </thead>
+      <tbody>${rows.map((p) => boardRowHTML(p)).join('')}</tbody>
+    </table>`;
+}
 
-  return `${summary}
-    <div class="board-wrap">
-      <table class="board-table">
-        <thead>
-          <tr>
-            <th class="col-person">Pentester</th>
-            <th class="col-avail">Status</th>
-            <th class="col-doing">Assigned project / current doing</th>
-            <th class="col-idle">Idle since</th>
-            <th class="col-note">Notes</th>
-          </tr>
-        </thead>
-        <tbody>${rows.map((p) => boardRowHTML(p)).join('')}</tbody>
-      </table>
-    </div>`;
+/** "5 of 7" — the count line, so a filter never silently hides people. */
+function boardCountHTML() {
+  const total = (state.board || []).length;
+  const shown = boardRows().length;
+  const filtered = Boolean(state.boardFilter || (state.boardQuery || '').trim());
+  return filtered
+    ? `<span class="bt-count">Showing <strong>${shown}</strong> of ${total}</span>
+       <button class="bt-clear" data-board-clear>Clear</button>`
+    : `<span class="bt-count"><strong>${total}</strong> pentester${total === 1 ? '' : 's'}</span>`;
+}
+
+/** The four cards: they double as the filter. One control, two jobs — the number
+ *  you were reading anyway is the button that narrows the list to it. */
+/** Just the four cards — the caller owns the .board-summary grid around them, so
+ *  an in-place repaint never nests a second grid inside the first. */
+function boardSummaryHTML() {
+  const t = state.boardTotals || { people: 0, idle: 0, onProject: 0, unavailable: 0, idleDays: 0 };
+  const filter = state.boardFilter || '';
+  const card = (key, tone, label, value, sub) => `
+    <button type="button" class="bs-card" data-tone="${tone}" data-board-filter="${key}"
+            aria-pressed="${filter === key}" title="${
+              key ? `Show only ${label.toLowerCase()}` : 'Show everyone'
+            }">
+      <span class="bs-label">${label}</span>
+      <span class="bs-val">${value}</span>
+      <span class="bs-sub">${sub}</span>
+    </button>`;
+
+  return `
+      ${card('', 'slate', 'Team size', t.people, 'everyone on the board')}
+      ${card('On Project', 'amber', 'On project', t.onProject, 'currently assigned')}
+      ${card('Idle', 'green', 'Idle', t.idle, `${t.idleDays} total idle day${t.idleDays === 1 ? '' : 's'}`)}
+      ${card('Unavailable', 'violet', 'Unavailable', t.unavailable, 'leave, exam, research')}`;
+}
+
+function teamHTML() {
+  return `<div class="board-page">
+    <div class="board-summary">${boardSummaryHTML()}</div>
+    <div class="board-toolbar">
+      <label class="bt-search">
+        ${icon.search(14)}
+        <input id="board-search" type="search" placeholder="Search a name, level, project or note…"
+               value="${h(state.boardQuery || '')}" autocomplete="off">
+      </label>
+      <div class="bt-meta">${boardCountHTML()}</div>
+    </div>
+    <div class="board-wrap">${boardTableHTML()}</div>
+  </div>`;
+}
+
+/** Repaints the rows and the count only — the toolbar keeps its focus. */
+function repaintBoard() {
+  const page = document.querySelector('.board-page');
+  if (!page) return;
+  const wrap = page.querySelector('.board-wrap');
+  if (wrap) wrap.innerHTML = boardTableHTML();
+  const meta = page.querySelector('.bt-meta');
+  if (meta) meta.innerHTML = boardCountHTML();
+  // The cards are the totals, so they move with the rows — a status change that
+  // repainted only the table left "On project 5" sitting over four people.
+  const summary = page.querySelector('.board-summary');
+  if (summary) summary.innerHTML = boardSummaryHTML();
+  page.querySelectorAll('[data-board-filter]').forEach((b) => {
+    b.setAttribute('aria-pressed', String((state.boardFilter || '') === b.dataset.boardFilter));
+  });
 }
 
 async function loadBoard() {
@@ -6206,51 +6302,102 @@ async function loadBoard() {
 }
 
 function bindTeam() {
-  const host = document.getElementById('content');
-  if (!host) return;
+  // Delegated from the page wrapper, which `mountContent` re-creates on every
+  // render: a filter change repaints the table without rebinding anything, and no
+  // listener can stack up on the stable `#content`.
+  const page = document.querySelector('.board-page');
+  if (!page) return;
 
-  host.querySelectorAll('[data-open-project]').forEach((btn) => {
-    btn.addEventListener('click', () => openProject(Number(btn.dataset.openProject)));
+  const noteButton = (el) => el.closest('[data-avail-note]');
+  const personFor = (id, list) => list.find((p) => Number(p.id) === Number(id));
+
+  page.addEventListener('click', (e) => {
+    const filterCard = e.target.closest('[data-board-filter]');
+    if (filterCard) {
+      // Clicking the active card again clears it, so the same control widens and
+      // narrows and there is no separate "all" button to hunt for.
+      const next = filterCard.dataset.boardFilter || '';
+      state.boardFilter = state.boardFilter === next ? '' : next;
+      repaintBoard();
+      return;
+    }
+
+    if (e.target.closest('[data-board-clear]')) {
+      state.boardFilter = '';
+      state.boardQuery = '';
+      const search = page.querySelector('#board-search');
+      if (search) search.value = '';
+      repaintBoard();
+      return;
+    }
+
+    const note = noteButton(e.target);
+    if (note) {
+      const person = personFor(note.dataset.availNote, state.board);
+      if (person) openAvailabilityNote(person);
+      return;
+    }
+
+    const avail = e.target.closest('[data-avail-open]');
+    if (avail) {
+      e.stopPropagation();
+      const person = personFor(avail.dataset.availOpen, state.board);
+      if (person) openAvailabilityMenu(person, avail);
+      return;
+    }
+
+    const assign = e.target.closest('[data-assign-open]');
+    if (assign) {
+      e.stopPropagation();
+      const person = personFor(assign.dataset.assignOpen, state.board);
+      if (person) openAssignMenu(person, assign);
+      return;
+    }
+
+    const project = e.target.closest('[data-open-project]');
+    if (project) {
+      openProject(Number(project.dataset.openProject));
+      return;
+    }
+
+    const face = e.target.closest('[data-person]');
+    if (face) {
+      e.stopPropagation();
+      openPerson(Number(face.dataset.person));
+    }
   });
 
-  // The board is a table with its own per-row controls, so a person click needs
-  // its own delegated handler rather than the one used by the project list.
-  host.querySelectorAll('[data-person]').forEach((el) => {
-    const go = (e) => {
-      e.stopPropagation();
-      openPerson(Number(el.dataset.person));
-    };
-    el.addEventListener('click', go);
-    el.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter' || e.key === ' ') {
+  // The name is a `role="button"` span for the same reason as elsewhere: it sits
+  // inside a cell with other controls, so it cannot be a nested <button>.
+  page.addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter' && e.key !== ' ') return;
+    const face = e.target.closest('[data-person]');
+    if (!face) return;
+    e.preventDefault();
+    openPerson(Number(face.dataset.person));
+  });
+
+  const search = page.querySelector('#board-search');
+  if (search) {
+    let t;
+    search.addEventListener('input', () => {
+      clearTimeout(t);
+      t = setTimeout(() => {
+        state.boardQuery = search.value;
+        repaintBoard();
+      }, 140);
+    });
+    // Escape clears the box without leaving the field — the browser's own
+    // behaviour would clear it silently and leave the list filtered.
+    search.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && search.value) {
         e.preventDefault();
-        go(e);
+        search.value = '';
+        state.boardQuery = '';
+        repaintBoard();
       }
     });
-  });
-
-  host.querySelectorAll('[data-avail-open]').forEach((btn) => {
-    btn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      const person = state.board.find((p) => Number(p.id) === Number(btn.dataset.availOpen));
-      if (person) openAvailabilityMenu(person, btn);
-    });
-  });
-
-  host.querySelectorAll('[data-assign-open]').forEach((btn) => {
-    btn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      const person = state.board.find((p) => Number(p.id) === Number(btn.dataset.assignOpen));
-      if (person) openAssignMenu(person, btn);
-    });
-  });
-
-  host.querySelectorAll('[data-avail-note]').forEach((btn) => {
-    btn.addEventListener('click', () => {
-      const person = state.board.find((p) => Number(p.id) === Number(btn.dataset.availNote));
-      if (person) openAvailabilityNote(person);
-    });
-  });
+  }
 }
 
 /** One shared portal menu for the board, reused by every row. */
@@ -6260,6 +6407,10 @@ function closeBoardMenu() {
   if (!boardMenu) return;
   boardMenu.remove();
   boardMenu = null;
+  // The pill that opened it says so — the styling and screen readers both read this.
+  document.querySelectorAll('[data-avail-open][aria-expanded="true"]').forEach((b) => {
+    b.setAttribute('aria-expanded', 'false');
+  });
   document.removeEventListener('mousedown', boardMenuOutside, true);
   document.removeEventListener('keydown', boardMenuEscape, true);
 }
@@ -6310,6 +6461,7 @@ function openAvailabilityMenu(person, toggle) {
     }`;
   document.body.appendChild(menu);
   boardMenu = menu;
+  toggle.setAttribute('aria-expanded', 'true');
 
   // Position under the pill, flipping up when the lower half of the screen is
   // too tight — the same lesson the project status dropdown taught us.
@@ -6367,7 +6519,14 @@ async function saveAvailability(person, payload, opts = {}) {
     const res = await api.updateAvailability(person.id, payload);
     state.board = res.board;
     state.boardTotals = (await api.availability()).totals;
-    mountContent();
+    // Repaint the table only when the board is the page on screen: a full
+    // re-mount would throw away what is typed in the search box.
+    if (state.nav === 'team') {
+      state.boardLoaded = true;
+      repaintBoard();
+    } else {
+      mountContent();
+    }
     if (!opts.silent) toast(`${person.name} → ${res.pentester?.status || 'updated'}`);
     return true;
   } catch (err) {

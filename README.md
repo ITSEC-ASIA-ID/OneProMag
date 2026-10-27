@@ -1201,11 +1201,20 @@ now?**
 
 | Column | Meaning |
 | --- | --- |
-| Pentester | Avatar, name and level pill |
-| Status | On Project · Idle · Leave · Exam · Research/Learning · Other |
-| Assigned project / current doing | **Every** project they are currently on, as chips (no "+N more" truncation — this is the widest column and long names wrap); each chip opens the project, and the row carries a quick **Assign project** button. Open retest requests on their projects appear too, as **`Retest - <project>`** chips in the retest queue's amber dashed style |
-| Idle since | While idle: number of days plus the date they last finished something. Someone who has never closed a project starts counting from today, since there is no evidence of an earlier idle start |
-| Notes | Free text, editable in place |
+| Pentester | Avatar, name and level pill. The name opens the person card |
+| Status | On Project · Idle · Leave · Exam · Research/Learning · Other — click it to change; the pill doubles as the menu |
+| Projects & retests | **Every** project they are currently on, as chips with the engagement's status dot (no "+N more" truncation — this is the widest column and long names wrap); each chip opens the project, and the row carries a quick **Assign project** button. Open retest requests on their projects appear too, as **`Retest - <project>`** chips in the retest queue's amber dashed style |
+| Idle since | While idle: number of days plus the date they last finished something. Someone who has never closed a project starts counting from today, since there is no evidence of an earlier idle start. The badge turns amber past two weeks and rose past two months — a bench problem should be visible without reading the number |
+| Notes | Free text, editable in place. A row with no note shows only a pencil on hover (always on touch); rows you cannot edit show nothing rather than a dash |
+
+The four cards above the table (**Team size · On project · Idle · Unavailable**)
+are also the filter: pressing one narrows the list to it and pressing it again
+clears it. They read from the same numbers they set, so they can never disagree
+with the rows underneath. A search box beside them matches a **name, level,
+status, note, project or retest** — typing `brimo` finds the people on the Brimo
+engagement, which is the question this page exists to answer. Both filters live
+in a "Showing N of M" line with a **Clear** button, because a filter that hides
+people silently is how a board starts lying.
 
 Rows are **pentesters only**: Project Managers own engagements rather than test
 them, and **Administrators** are operations — both live in *Users* and *Manage
@@ -1214,7 +1223,10 @@ orphan them: a sub lead whose lead is not shown becomes a top-level row carrying
 its own members, so nobody disappears from the board.
 
 Rows follow the reporting tree — a lead, then that lead's sub lead with its
-members, then the next sub lead, and so on.
+members, then the next sub lead, and so on. The nesting is drawn rather than
+announced: each level indents and carries a hairline down its left edge, so "these
+two report to Dewi" is visible in the shape of the table, with no group header
+taking a row of its own.
 
 A **retest** belongs to a project, not to a person: whoever is assigned to the
 project does it. So an open retest (any status but `Done`) is listed beside the
@@ -1224,11 +1236,13 @@ which is what stops their idle clock from running against them. The project chip
 itself only appears while the engagement is unfinished; the retest chip appears
 regardless, which is the case retests exist for.
 
-On a phone the five columns cannot fit, so each row becomes a **stacked card**:
-the table header is hidden, the person and status share the first line, and the
-remaining fields appear below under small uppercase labels (`DOING`,
-`IDLE SINCE`, `NOTES`). Fields with no value are omitted rather than showing a
-dash, and nothing scrolls sideways.
+Below 1000px the five columns cannot fit — at 1000px the content area is only
+~660px, which squeezed each chip to three words a line and put the avatar on top of
+the name. So the table stacks: the header is hidden, the person and status share
+the first line, and the remaining fields appear below under small uppercase labels
+(`PROJECTS & RETESTS`, `IDLE SINCE`, `NOTES`). Fields with no value are omitted
+rather than showing a dash, nothing scrolls sideways, and the tree indent is
+dropped because the card is already inset.
 
 **Automatic status.** `On Project` and `Idle` are derived on the **server**, on
 every read, from the real assignment table:
