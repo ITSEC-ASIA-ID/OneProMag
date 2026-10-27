@@ -44,6 +44,8 @@ const root = document.getElementById('root');
 const ENUMS = {
   category: ['Web', 'Mobile', 'API', 'EDC'],
   platform: ['Android', 'iOS', 'API'],
+  // A variant app can be more than a mobile build, so it carries its own list.
+  variantPlatform: ['Android', 'iOS', 'Web', 'API', 'Desktop', 'Other'],
   env: ['Dev', 'Prod'],
   method: ['Black Box', 'Grey Box', 'White Box'],
   // Working statuses first, then the two terminal outcomes, then Hold.
@@ -51,8 +53,9 @@ const ENUMS = {
   // Lead > Sub Lead > Member > Intern. An intern is the trainee level: they test
   // alongside whoever supervises them and get their own table on the board.
   subrole: ['Lead', 'Sub Lead', 'Member', 'Intern'],
-  // Supervisor is its own role. SVs own engagements; they are not
-  // pentesters and never appear in the "who pentest" picker.
+  // Project Manager is its own role. PMs own engagements; they are not
+  // pentesters and never appear in the "who pentest" picker. (Supervisor is the
+  // name of the project FIELD, which accepts a PM or a pentester.)
   role: ['Pentester', 'Project Manager', 'Admin'],
 };
 
@@ -703,7 +706,11 @@ function variantItems(applicationId) {
   const id = Number(applicationId);
   if (!id) return [];
   const app = state.applications.find((a) => Number(a.id) === id);
-  return (app?.variants || []).map((v) => ({ value: v.id, label: v.name }));
+  return (app?.variants || []).map((v) => ({
+    value: v.id,
+    label: v.name,
+    sub: variantMeta(v).replace(/ · /g, ' · '),
+  }));
 }
 
 function applicationOptions(clientId, selectedId, placeholder) {
@@ -1535,14 +1542,33 @@ function applicationBlockHTML(a) {
     </div>`;
 }
 
+/**
+ * "Android · com.bank.brimo · v4.2.0", skipping whatever is unset.
+ *
+ * A variant is usually NAMED after its platform ("Android", "iOS"), so the platform
+ * is dropped while it merely repeats the name — "Android — Android v4.2.0" reads
+ * like a bug, not like information.
+ */
+function variantMeta(v) {
+  const same = String(v.platform || '').toLowerCase() === String(v.name || '').toLowerCase();
+  return [same ? '' : v.platform, v.identifier, v.version ? `v${v.version.replace(/^v/i, '')}` : '']
+    .filter(Boolean)
+    .join(' · ');
+}
+
 function variantRowHTML(v) {
+  const meta = variantMeta(v);
   return `
     <div class="variant-row">
-      <span class="variant-stem" aria-hidden="true"></span>
-      <span class="variant-name">${h(v.name)}</span>
-      <span class="variant-count">${v.projectCount} project${v.projectCount === 1 ? '' : 's'}</span>
-      <button class="app-act" data-variant-edit="${v.id}" aria-label="Rename variant">${icon.edit()}</button>
-      <button class="app-act danger" data-variant-del="${v.id}" aria-label="Delete variant">${icon.trash()}</button>
+      <span class="variant-body">
+        <span class="variant-top">
+          <span class="variant-name">${h(v.name)}</span>
+          <span class="variant-count">${v.projectCount} project${v.projectCount === 1 ? '' : 's'}</span>
+        </span>
+        ${meta ? `<span class="variant-meta" title="${h(meta)}">${h(meta)}</span>` : ''}
+      </span>
+      <button class="app-act" data-variant-edit="${v.id}" aria-label="Edit variant ${h(v.name)}">${icon.edit()}</button>
+      <button class="app-act danger" data-variant-del="${v.id}" aria-label="Delete variant ${h(v.name)}">${icon.trash()}</button>
     </div>`;
 }
 
@@ -1637,17 +1663,40 @@ function openVariantForm(applicationId = null, variant = null) {
   const app = state.applications.find((a) => Number(a.id) === appId);
   if (!app) return toast('Application not found', 'err');
   openModal({
-    title: editing ? 'Rename variant app' : 'New variant app',
+    title: editing ? 'Edit variant app' : 'New variant app',
     subtitle: app.name,
     body: `
       <div class="field">
         <label for="v-name">Variant name <span class="required">*</span></label>
         <input class="input" id="v-name" placeholder="e.g. Android, iOS, Partner build" value="${h(variant?.name || '')}" />
         <span class="hint">
-          A variant is a separate build of the same application — a platform, a
+          A sub-application: a separate build of the same application — a platform, a
           white-label copy, a second release. Projects point at a variant when the
           engagement is about that build instead of the application as a whole.
         </span>
+      </div>
+      <div class="form-row">
+        <div class="field">
+          <label for="v-platform">Platform</label>
+          <select class="select" id="v-platform">
+            <option value="">Not set</option>
+            ${ENUMS.variantPlatform
+              .map(
+                (p) =>
+                  `<option value="${h(p)}" ${variant?.platform === p ? 'selected' : ''}>${h(p)}</option>`
+              )
+              .join('')}
+          </select>
+        </div>
+        <div class="field">
+          <label for="v-version">Version</label>
+          <input class="input" id="v-version" placeholder="e.g. 4.2.1" value="${h(variant?.version || '')}" maxlength="40" />
+        </div>
+      </div>
+      <div class="field">
+        <label for="v-identifier">Identifier</label>
+        <input class="input mono" id="v-identifier" placeholder="com.bank.brimo or https://app.example.id" value="${h(variant?.identifier || '')}" maxlength="120" />
+        <span class="hint">What you actually open it by: a package name, a bundle id, or a base URL.</span>
       </div>
       <div class="field">
         <label for="v-notes">Notes</label>
@@ -1661,7 +1710,13 @@ function openVariantForm(applicationId = null, variant = null) {
       modal.querySelector('[data-save]').addEventListener('click', async () => {
         const name = modal.querySelector('#v-name').value.trim();
         if (!name) return toast('Variant name is required', 'err');
-        const payload = { name, notes: modal.querySelector('#v-notes').value };
+        const payload = {
+          name,
+          platform: modal.querySelector('#v-platform').value,
+          identifier: modal.querySelector('#v-identifier').value.trim(),
+          version: modal.querySelector('#v-version').value.trim(),
+          notes: modal.querySelector('#v-notes').value,
+        };
         const btn = modal.querySelector('[data-save]');
         btn.disabled = true;
         try {
@@ -1684,7 +1739,7 @@ async function deleteVariant(variant) {
   if (!variant) return;
   const ok = await confirmDialog({
     title: 'Delete variant app?',
-    message: `"${variant.name}" will be removed. Projects that point at it keep their application, but lose the variant.`,
+    message: `"${variant.name}" will be removed, with any notes filed on it. Projects that point at it keep their application, but lose the variant.`,
     confirmLabel: 'Delete variant',
   });
   if (!ok) return;
@@ -5026,10 +5081,22 @@ function variantSelectOptions(applicationId, selectedId = '') {
     items
       .map(
         (i) =>
-          `<option value="${i.value}" ${String(i.value) === chosen ? 'selected' : ''}>${h(i.label)}</option>`
+          `<option value="${i.value}" ${String(i.value) === chosen ? 'selected' : ''}>${h(
+            i.sub ? `${i.label} — ${i.sub}` : i.label
+          )}</option>`
       )
       .join('')
   );
+}
+
+/** The line under the variant picker: what that build actually is. */
+function variantDetailHTML(applicationId, variantId) {
+  const variant = findVariant(variantId);
+  if (!variant) return 'Only when the engagement is about one build of this application.';
+  const meta = variantMeta(variant);
+  return meta
+    ? `${h(variant.name)}: ${h(meta)}${variant.notes ? ` — ${h(variant.notes)}` : ''}`
+    : `${h(variant.name)} — no identifier or version recorded yet.`;
 }
 
 function openProjectForm(project = null) {
@@ -5077,7 +5144,10 @@ function openProjectForm(project = null) {
       <select class="select" id="p-variant">
         ${variantSelectOptions(project?.applicationId, project?.variantId)}
       </select>
-      <span class="hint">Only when the engagement is about one build of this application.</span>
+      <span class="hint" id="p-variant-hint">${variantDetailHTML(
+        project?.applicationId,
+        project?.variantId
+      )}</span>
     </div>
 
     <!--
@@ -5181,6 +5251,10 @@ function openProjectForm(project = null) {
       const pmHint = modal.querySelector('#p-supervisor-hint');
       const variantField = modal.querySelector('#variant-field');
       const variantSelect = modal.querySelector('#p-variant');
+      const variantHint = modal.querySelector('#p-variant-hint');
+      variantSelect?.addEventListener('change', () => {
+        if (variantHint) variantHint.innerHTML = variantDetailHTML(null, variantSelect.value);
+      });
       // A variant belongs to exactly one application, so switching the
       // application must never carry the old variant over.
       const syncVariants = (applicationId, keep = '') => {
@@ -5188,6 +5262,9 @@ function openProjectForm(project = null) {
         const items = variantItems(applicationId);
         variantSelect.innerHTML = variantSelectOptions(applicationId, keep);
         variantField.hidden = items.length === 0;
+        if (variantHint && !keep) {
+          variantHint.textContent = 'Only when the engagement is about one build of this application.';
+        }
       };
       setComboboxItems(modal, 'p-app', applicationItems(project?.clientId), project?.applicationId ?? '');
       syncVariants(project?.applicationId, project?.variantId ?? '');
@@ -5799,7 +5876,13 @@ function tabBody(project, retests, tab) {
         <div class="info-item span-2"><div class="k">Application</div><div class="v">${h(project.applicationName || '—')}</div></div>
         ${
           project.variantName
-            ? `<div class="info-item span-2"><div class="k">Variant app</div><div class="v">${h(project.variantName)}</div></div>`
+            ? `<div class="info-item span-2"><div class="k">Variant app</div><div class="v">${h(
+                project.variantName
+              )}${
+                variantMeta(findVariant(project.variantId) || {})
+                  ? `<div class="v-sub">${h(variantMeta(findVariant(project.variantId) || {}))}</div>`
+                  : ''
+              }</div></div>`
             : ''
         }
         <div class="info-item span-2">

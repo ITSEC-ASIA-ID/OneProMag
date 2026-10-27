@@ -61,6 +61,9 @@ export const ENUMS = {
   category: ['Web', 'Mobile', 'API', 'EDC'],
   // Platform only applies to Mobile projects.
   platform: ['Android', 'iOS', 'API'],
+  // A variant can be more than a mobile build, so it gets its own list rather than
+  // borrowing the project one.
+  variantPlatform: ['Android', 'iOS', 'Web', 'API', 'Desktop', 'Other'],
   env: ['Dev', 'Prod'],
   method: ['Black Box', 'Grey Box', 'White Box'],
   // Display order used by the status dropdown, the segmented control and the
@@ -229,8 +232,14 @@ const SEED_CONTACTS = {
  * several builds.
  */
 const SEED_VARIANTS = {
-  'Bank Nusantara||Brimo': ['Android', 'iOS'],
-  'Dompet Kita||Dompet Kita App': ['Android', 'Partner build'],
+  'Bank Nusantara||Brimo': [
+    { name: 'Android', platform: 'Android', identifier: 'id.co.banknusantara.brimo', version: '4.2.0' },
+    { name: 'iOS', platform: 'iOS', identifier: 'id.co.banknusantara.brimo', version: '4.1.3' },
+  ],
+  'Dompet Kita||Dompet Kita App': [
+    { name: 'Android', platform: 'Android', identifier: 'id.dompetkita.app', version: '2.8.1' },
+    { name: 'Partner build', platform: 'Android', identifier: 'id.dompetkita.partner', version: '2.8.1' },
+  ],
 };
 
 const SEED_CLIENTS = [
@@ -708,13 +717,13 @@ async function seed() {
         );
         const appId = Number(appRow.id);
         appIdByKey.set(`${name}||${appName}`, appId);
-        for (const variantName of SEED_VARIANTS[`${name}||${appName}`] || []) {
+        for (const v of SEED_VARIANTS[`${name}||${appName}`] || []) {
           const variantRow = await tx.get(
-            `INSERT INTO application_variants (application_id, name, notes, created_at)
-             VALUES (?, ?, ?, ?) RETURNING id`,
-            [appId, variantName, '', now()]
+            `INSERT INTO application_variants (application_id, name, platform, identifier, version, notes, created_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING id`,
+            [appId, v.name, v.platform || '', v.identifier || '', v.version || '', '', now()]
           );
-          variantIdByKey.set(`${name}||${appName}||${variantName}`, Number(variantRow.id));
+          variantIdByKey.set(`${name}||${appName}||${v.name}`, Number(variantRow.id));
         }
       }
       for (const username of supervisors) {
@@ -940,7 +949,7 @@ async function seedPropertiesIfEmpty() {
  *
  * 12 — retest rows in the active lists, paging, properties, documents per env.
  */
-export const SCHEMA_VERSION = 15;
+export const SCHEMA_VERSION = 16;
 
 let appliedSchemaVersion = 0;
 
@@ -1295,6 +1304,10 @@ async function migrateSqlite() {
     'INTEGER REFERENCES applications(id) ON DELETE SET NULL'
   );
   await addColumnIfMissing('projects', 'platform', "TEXT NOT NULL DEFAULT ''");
+  // v29: a variant app carries its own platform / identifier / version.
+  await addColumnIfMissing('application_variants', 'platform', "TEXT NOT NULL DEFAULT ''");
+  await addColumnIfMissing('application_variants', 'identifier', "TEXT NOT NULL DEFAULT ''");
+  await addColumnIfMissing('application_variants', 'version', "TEXT NOT NULL DEFAULT ''");
   // v29: an engagement may test one variant of its application (optional).
   await addColumnIfMissing(
     'projects',
@@ -1347,6 +1360,10 @@ async function migratePostgres() {
     'INTEGER REFERENCES applications(id) ON DELETE SET NULL'
   );
   await addColumnIfMissing('projects', 'platform', "TEXT NOT NULL DEFAULT ''");
+  // v29: a variant app carries its own platform / identifier / version.
+  await addColumnIfMissing('application_variants', 'platform', "TEXT NOT NULL DEFAULT ''");
+  await addColumnIfMissing('application_variants', 'identifier', "TEXT NOT NULL DEFAULT ''");
+  await addColumnIfMissing('application_variants', 'version', "TEXT NOT NULL DEFAULT ''");
   // v29: an engagement may test one variant of its application (optional).
   await addColumnIfMissing(
     'projects',

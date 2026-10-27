@@ -1435,11 +1435,21 @@ Bank Nusantara
   └─ Qitta          (no variants)
 ```
 
+- **A variant has detail of its own.** Beyond the name, it records a **platform**
+  (`Android` · `iOS` · `Web` · `API` · `Desktop` · `Other`), an **identifier** — the
+  thing you actually open it by, a package name (`id.co.banknusantara.brimo`), a
+  bundle id or a base URL — and a **version**. All of it is optional: only the name is
+  required, because a team names a variant long before anyone knows its bundle id.
+  The client card prints them under the name (`id.co.banknusantara.brimo · v4.2.0`),
+  the project's variant picker appends them to the option
+  (`iOS — id.co.banknusantara.brimo · v4.1.3`), and the drawer prints them under
+  `Variant app`.
 - **Optional at every level.** An application with no variants is normal; the client
   card shows one quiet `+ Variant` line and nothing else. A project points at a
   variant only when the engagement is about that build.
 - **Managed where applications are.** `Admin panel → Clients & apps`, under each
-  application: `+ Variant` adds one, the pencil renames it, the trash deletes it.
+  application: `+ Variant` adds one, the pencil edits it, the trash deletes it
+  (with its notes and sheets).
   Creating and renaming is open to everyone signed in, like every other create;
   **deleting a variant is a delete** (admin, lead or sub lead), because the projects
   that point at it fall back to the whole application.
@@ -1557,7 +1567,8 @@ the row (the delete is separately refused while any project still points at it).
 SVs. Every one of these columns is added by `addColumnIfMissing()` in both
 migration paths (the `v1.6` block), so an existing database upgrades in place.
 
-`application_variants(application_id, name, notes, created_at)` is the optional
+`application_variants(application_id, name, platform, identifier, version, notes,
+created_at)` is the optional
 third catalogue level, `UNIQUE (application_id, name)` and
 `ON DELETE CASCADE` from its application — a variant has no meaning without the app
 it belongs to. `projects.variant_id` is

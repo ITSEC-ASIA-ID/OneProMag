@@ -320,9 +320,34 @@ function shapeVariant(row) {
     id: Number(row.id),
     applicationId: Number(row.application_id),
     name: row.name,
+    // What tells one build of the same product from its siblings.
+    platform: row.platform || '',
+    identifier: row.identifier || '',
+    version: row.version || '',
     notes: row.notes || '',
     createdAt: row.created_at,
     projectCount: Number(row.project_count ?? 0),
+  };
+}
+
+/**
+ * The editable half of a variant. Optional on purpose: a team names a variant long
+ * before anyone knows its bundle id, so anything but the name may be empty.
+ */
+function variantFields(body, row = {}) {
+  const text = (key, max = 120) => {
+    if (body[key] === undefined) return row[key] ?? '';
+    return String(body[key] || '').trim().slice(0, max);
+  };
+  const platform = text('platform', 24);
+  if (platform && !ENUMS.variantPlatform.includes(platform)) {
+    throw new HttpError(400, `Unknown platform: ${platform}`);
+  }
+  return {
+    platform,
+    identifier: text('identifier', 120),
+    version: text('version', 40),
+    notes: body.notes === undefined ? row.notes ?? '' : String(body.notes),
   };
 }
 
@@ -2182,10 +2207,20 @@ export const api = {
     );
     if (clash) throw new HttpError(409, 'That application already has a variant with this name');
 
+    const detail = variantFields(ctx.body || {});
     const row = await db.get(
-      `INSERT INTO application_variants (application_id, name, notes, created_at)
-       VALUES (?, ?, ?, ?) RETURNING id`,
-      [applicationId, name, String((ctx.body || {}).notes || ''), nowISO()]
+      `INSERT INTO application_variants
+         (application_id, name, platform, identifier, version, notes, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING id`,
+      [
+        applicationId,
+        name,
+        detail.platform,
+        detail.identifier,
+        detail.version,
+        detail.notes,
+        nowISO(),
+      ]
     );
     const created = await db.get(
       `SELECT v.*, 0 AS project_count FROM application_variants v WHERE v.id = ?`,
@@ -2207,11 +2242,11 @@ export const api = {
     );
     if (clash) throw new HttpError(409, 'That application already has a variant with this name');
 
-    await db.run('UPDATE application_variants SET name = ?, notes = ? WHERE id = ?', [
-      name,
-      body.notes !== undefined ? String(body.notes) : row.notes,
-      row.id,
-    ]);
+    const detail = variantFields(body, row);
+    await db.run(
+      'UPDATE application_variants SET name = ?, platform = ?, identifier = ?, version = ?, notes = ? WHERE id = ?',
+      [name, detail.platform, detail.identifier, detail.version, detail.notes, row.id]
+    );
     const updated = await db.get(
       `SELECT v.*, (SELECT COUNT(*) FROM projects p WHERE p.variant_id = v.id) AS project_count
          FROM application_variants v WHERE v.id = ?`,

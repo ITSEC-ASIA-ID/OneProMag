@@ -474,6 +474,62 @@ test('an application owns its variants, and they come back with it', async () =>
   assert.equal(reloaded.variants[0].name, 'Android');
 });
 
+test('a variant carries its own platform, identifier and version', async () => {
+  const user = await lead();
+  const { application } = await freshApplication(user);
+
+  const created = await call('POST /api/applications/:id/variants', user, {
+    params: { id: application.id },
+    body: {
+      name: 'Android',
+      platform: 'Android',
+      identifier: 'id.co.bank.brimo',
+      version: '4.2.0',
+    },
+  });
+  assert.equal(created.variant.platform, 'Android');
+  assert.equal(created.variant.identifier, 'id.co.bank.brimo');
+  assert.equal(created.variant.version, '4.2.0');
+
+  // Partial edits keep the fields the request does not mention.
+  const patched = await call('PATCH /api/variants/:id', user, {
+    params: { id: created.variant.id },
+    body: { version: '4.2.1' },
+  });
+  assert.equal(patched.variant.version, '4.2.1', 'a rename must not blank the identifier');
+  assert.equal(patched.variant.identifier, 'id.co.bank.brimo');
+  assert.equal(patched.variant.platform, 'Android');
+
+  // It comes back through the application list too, which is what the card reads.
+  const { applications } = await call('GET /api/applications', user, {
+    query: { clientId: application.clientId },
+  });
+  const reloaded = applications.find((a) => Number(a.id) === Number(application.id));
+  assert.equal(reloaded.variants[0].platform, 'Android');
+
+  // Only the name is required: a variant is often just a name at first.
+  const bare = await call('POST /api/applications/:id/variants', user, {
+    params: { id: application.id },
+    body: { name: 'iOS' },
+  });
+  assert.equal(bare.variant.platform, '');
+  assert.equal(bare.variant.identifier, '');
+  assert.equal(bare.variant.version, '');
+});
+
+test('a variant platform outside the list is refused', async () => {
+  const user = await lead();
+  const { application } = await freshApplication(user);
+  await assert.rejects(
+    () =>
+      call('POST /api/applications/:id/variants', user, {
+        params: { id: application.id },
+        body: { name: 'Weird', platform: 'Symbian' },
+      }),
+    (err) => err.status === 400 && /platform/i.test(err.message)
+  );
+});
+
 test('two variants of one application cannot share a name', async () => {
   const user = await lead();
   const { application } = await freshApplication(user);
