@@ -645,7 +645,12 @@ export function personCardHTML(data, opts = {}) {
   const openProjects = pentesterOn.filter((p) => p.status !== 'Done');
   const doneProjects = pentesterOn.filter((p) => p.status === 'Done');
 
-  const roleLine = [person.subrole || 'Member', person.role].filter(Boolean).join(' · ');
+  // A project manager has no level in the pentest tree, so "Member · Project
+  // Manager" would invent one. Admins keep theirs — they can still be a lead.
+  const roleLine =
+    person.role === 'Project Manager'
+      ? person.role
+      : [person.subrole || 'Member', person.role].filter(Boolean).join(' · ');
 
   return `
     <div class="person-card">
@@ -661,8 +666,9 @@ export function personCardHTML(data, opts = {}) {
           (AVAILABILITY[person.status] || {}).tone || 'slate'
         }">${escapeHtml(person.status)}${
           // Only label it "auto" for people the team board derives it for: a
-          // SV's On Project is about engagements, not bench availability.
-          person.automatic && person.role !== 'Supervisor'
+          // project manager's On Project is about engagements they own, not bench
+          // availability.
+          person.automatic && person.role !== 'Project Manager'
             ? '<em class="avail-auto">auto</em>'
             : ''
         }</span>
@@ -690,7 +696,7 @@ export function personCardHTML(data, opts = {}) {
       }
 
       ${
-        !showProjects || person.role === 'Supervisor'
+        !showProjects || person.role === 'Project Manager'
           ? ''
           : `<div class="pc-block">
                <div class="pc-block-label">${icon.users(13)} Pentesting<em>${openProjects.length} active${

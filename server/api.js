@@ -270,7 +270,9 @@ async function supervisorsByClient(clientIds) {
  * because an engagement can be filed before anyone is assigned to it. Admins are
  * operations, not supervisors, so they are not in this pool.
  */
-const SUPERVISOR_ROLES = ['Supervisor', 'Pentester'];
+// Who may be named as a project's supervisor (SV): a Project Manager account, or a
+// pentester. Admin accounts run the tool, they do not own engagements.
+const SUPERVISOR_ROLES = ['Project Manager', 'Pentester'];
 const canSupervise = (row) => Boolean(row) && SUPERVISOR_ROLES.includes(row.role);
 
 /** Replaces the default-supervisor set of one client. */
@@ -294,7 +296,7 @@ async function resolveSupervisorId(tx, value) {
   const row = await tx.get('SELECT id, role FROM users WHERE id = ?', [id]);
   if (!row) throw new HttpError(400, 'Selected supervisor does not exist');
   if (!canSupervise(row)) {
-    throw new HttpError(400, 'A supervisor must be a Supervisor account or a pentester');
+    throw new HttpError(400, 'A supervisor must be a project manager or a pentester');
   }
   return id;
 }
@@ -360,14 +362,52 @@ async function resolveVariantId(tx, value, applicationId) {
 }
 
 /**
- * A note can only hang off a client or application that really exists; without
- * this a typo'd scopeId would silently create orphan notes nothing links to.
+ * Deletes the notes and the fixed sheets of a set of targets.
+ *
+ * `info_entries.scope_id` and `documents.scope_id` cannot be foreign keys (they
+ * point at a client OR an application OR a variant depending on `scope`), so
+ * nothing cascades. Without this the rows survive as unreachable litter: the target
+ * is gone from the picker and `GET /api/info` 404s, so nobody can ever see or
+ * delete them again.
+ */
+async function purgeInfoFor(tx, scope, ids) {
+  const list = (ids || []).map(Number).filter(Boolean);
+  if (!list.length) return;
+  const marks = list.map(() => '?').join(',');
+  for (const table of ['info_entries', 'documents']) {
+    await tx.run(`DELETE FROM ${table} WHERE scope = ? AND scope_id IN (${marks})`, [scope, ...list]);
+  }
+}
+
+/**
+ * Where a note or a sheet can hang: a client, an application, or one variant of an
+ * application. Defined once so a new level cannot be half-supported.
+ */
+const INFO_SCOPES = new Set(['client', 'application', 'variant']);
+
+function assertInfoScope(scope) {
+  if (!INFO_SCOPES.has(scope)) {
+    throw new HttpError(400, "Scope must be 'client', 'application' or 'variant'");
+  }
+}
+
+/**
+ * A note can only hang off a target that really exists; without this a typo'd
+ * scopeId would silently create orphan notes nothing links to.
  */
 async function assertScopeExists(scope, scopeId) {
-  const table = scope === 'client' ? 'clients' : 'applications';
+  const table =
+    scope === 'client' ? 'clients' : scope === 'variant' ? 'application_variants' : 'applications';
   const row = await db.get(`SELECT id FROM ${table} WHERE id = ?`, [scopeId]);
   if (!row) {
-    throw new HttpError(404, scope === 'client' ? 'Client not found' : 'Application not found');
+    throw new HttpError(
+      404,
+      scope === 'client'
+        ? 'Client not found'
+        : scope === 'variant'
+          ? 'Variant app not found'
+          : 'Application not found'
+    );
   }
 }
 
@@ -387,7 +427,7 @@ function documentEnv(scope, raw) {
     throw new HttpError(400, "Environment must be 'Dev' or 'Prod'");
   }
   if (scope === 'client' && env !== 'Dev') {
-    throw new HttpError(400, 'Only applications have a production environment');
+    throw new HttpError(400, 'Only applications and their variants have a production environment');
   }
   return env;
 }
@@ -1056,7 +1096,7 @@ async function buildBoard() {
   // missing person.
   const users = (await listUsers())
     .map(shapePentester)
-    .filter((u) => u.role !== 'Supervisor' && u.role !== 'Admin');
+    .filter((u) => u.role !== 'Project Manager' && u.role !== 'Admin');
   const assignments = await activeAssignments();
   const openRetests = await openRetestsByProject();
   const lastFinished = await lastFinishedByUser();
@@ -1356,7 +1396,7 @@ export const api = {
     // (which counts project_pentesters rows) would always say Idle for them.
     // Their load is the engagements they own instead.
     const owned = managing.map(mapProject).filter((p) => p.status !== 'Done');
-    const derived = person.availability || (person.role === 'Supervisor'
+    const derived = person.availability || (person.role === 'Project Manager'
       ? owned.length ? 'On Project' : 'Idle'
       : live.length ? 'On Project' : 'Idle');
 
@@ -1366,7 +1406,7 @@ export const api = {
         createdAt: row.created_at,
         status: derived,
         automatic: !person.availability,
-        currentProjects: person.role === 'Supervisor' ? owned : live,
+        currentProjects: person.role === 'Project Manager' ? owned : live,
       },
       supervisorOf: managing.map(mapProject),
       pentesterOn: testing.map(mapProject),
@@ -1380,7 +1420,7 @@ export const api = {
    * separate job. `pool: true` tells the picker to label each row with its role.
    */
   'GET /api/supervisors': async () => {
-    const rank = { Supervisor: 0, Pentester: 1 };
+    const rank = { 'Project Manager': 0, Pentester: 1 };
     const supervisors = (await listUsers())
       .map(shapePentester)
       .filter((u) => SUPERVISOR_ROLES.includes(u.role))
@@ -1488,7 +1528,7 @@ export const api = {
       (await db.get("SELECT COUNT(*) AS n FROM users WHERE role = 'Pentester'"))?.n ?? 0
     );
     const supervisors = Number(
-      (await db.get("SELECT COUNT(*) AS n FROM users WHERE role = 'Supervisor'"))?.n ?? 0
+      (await db.get("SELECT COUNT(*) AS n FROM users WHERE role = 'Project Manager'"))?.n ?? 0
     );
     const applications = (
       await db.all('SELECT COUNT(*) AS n FROM applications')
@@ -2011,22 +2051,28 @@ export const api = {
         `Cannot delete: ${used.n} project(s) still use this client. Reassign or delete them first.`
       );
     }
-    // info_entries.scope_id cannot be a foreign key (it points at clients OR
-    // applications depending on `scope`), so nothing cascades. Without this the
-    // client's notes survive as unreachable rows: the target is gone from the
-    // picker and GET /api/info 404s, so nobody can ever see or delete them.
     await db.transaction(async (tx) => {
-      // The application ids MUST be read before the client row goes: applications
-      // declare ON DELETE CASCADE, so deleting the client erases them first and a
-      // later lookup returns nothing, silently leaking every application note.
+      // The child ids MUST be read before the client row goes: applications and
+      // variants declare ON DELETE CASCADE, so deleting the client erases them
+      // first and a later lookup returns nothing, silently leaking their notes.
       const apps = await tx.all('SELECT id FROM applications WHERE client_id = ?', [row.id]);
-      for (const a of apps) {
-        await tx.run("DELETE FROM info_entries WHERE scope = 'application' AND scope_id = ?", [
-          Number(a.id),
-        ]);
-      }
-      await tx.run("DELETE FROM info_entries WHERE scope = 'client' AND scope_id = ?", [row.id]);
+      const appIds = apps.map((a) => Number(a.id));
+      const variants = appIds.length
+        ? await tx.all(
+            `SELECT id FROM application_variants WHERE application_id IN (${appIds
+              .map(() => '?')
+              .join(',')})`,
+            appIds
+          )
+        : [];
       await tx.run('DELETE FROM clients WHERE id = ?', [row.id]);
+      await purgeInfoFor(tx, 'client', [row.id]);
+      await purgeInfoFor(tx, 'application', appIds);
+      await purgeInfoFor(
+        tx,
+        'variant',
+        variants.map((v) => Number(v.id))
+      );
     });
     return { ok: true };
   },
@@ -2180,7 +2226,10 @@ export const api = {
     requireDeleter(ctx, 'a variant app');
     const row = await db.get('SELECT * FROM application_variants WHERE id = ?', [ctx.params.id]);
     if (!row) throw new HttpError(404, 'Variant app not found');
-    await db.run('DELETE FROM application_variants WHERE id = ?', [row.id]);
+    await db.transaction(async (tx) => {
+      await tx.run('DELETE FROM application_variants WHERE id = ?', [row.id]);
+      await purgeInfoFor(tx, 'variant', [row.id]);
+    });
     return { ok: true };
   },
 
@@ -2207,11 +2256,18 @@ export const api = {
               c.name AS client_name,
               a.name AS app_name,
               a.client_id AS app_client_id,
-              ac.name AS app_client_name
+              ac.name AS app_client_name,
+              v.name AS variant_name
          FROM info_entries e
          LEFT JOIN users u ON u.id = e.created_by
          LEFT JOIN clients c ON e.scope = 'client' AND c.id = e.scope_id
-         LEFT JOIN applications a ON e.scope = 'application' AND a.id = e.scope_id
+         LEFT JOIN application_variants v ON e.scope = 'variant' AND v.id = e.scope_id
+         -- One join for both note kinds: a variant note is filed under the
+         -- application that owns the variant, so it prints with the same
+         -- "Client / Application" breadcrumb as an application note.
+         LEFT JOIN applications a
+                ON (e.scope = 'application' AND a.id = e.scope_id)
+                OR (e.scope = 'variant' AND a.id = v.application_id)
          LEFT JOIN clients ac ON ac.id = a.client_id
         WHERE LOWER(e.title) LIKE ?
            OR LOWER(e.body) LIKE ?
@@ -2230,7 +2286,8 @@ export const api = {
             ? entry.scopeId
             : (row.app_client_id == null ? null : Number(row.app_client_id)),
         clientName: entry.scope === 'client' ? row.client_name || '' : row.app_client_name || '',
-        appName: entry.scope === 'application' ? row.app_name || '' : '',
+        appName: entry.scope === 'client' ? '' : row.app_name || '',
+        variantName: entry.scope === 'variant' ? row.variant_name || '' : '',
       };
     });
     return { results, total: results.length };
@@ -2239,9 +2296,7 @@ export const api = {
   'GET /api/info': async (ctx) => {
     const scope = String(ctx.query.scope || '');
     const scopeId = Number(ctx.query.scopeId);
-    if (scope !== 'client' && scope !== 'application') {
-      throw new HttpError(400, "Scope must be 'client' or 'application'");
-    }
+    assertInfoScope(scope);
     if (!scopeId) throw new HttpError(400, 'scopeId is required');
     await assertScopeExists(scope, scopeId);
     const env = documentEnv(scope, ctx.query.env);
@@ -2256,9 +2311,7 @@ export const api = {
   'GET /api/docs/:scope/:scopeId': async (ctx) => {
     const scope = String(ctx.params.scope || '');
     const scopeId = Number(ctx.params.scopeId);
-    if (scope !== 'client' && scope !== 'application') {
-      throw new HttpError(400, "Scope must be 'client' or 'application'");
-    }
+    assertInfoScope(scope);
     if (!scopeId) throw new HttpError(400, 'scopeId is required');
     await assertScopeExists(scope, scopeId);
     const env = documentEnv(scope, ctx.query.env);
@@ -2268,9 +2321,7 @@ export const api = {
   'PATCH /api/docs/:scope/:scopeId': async (ctx) => {
     const scope = String(ctx.params.scope || '');
     const scopeId = Number(ctx.params.scopeId);
-    if (scope !== 'client' && scope !== 'application') {
-      throw new HttpError(400, "Scope must be 'client' or 'application'");
-    }
+    assertInfoScope(scope);
     if (!scopeId) throw new HttpError(400, 'scopeId is required');
     await assertScopeExists(scope, scopeId);
 
@@ -2299,9 +2350,7 @@ export const api = {
     const body = ctx.body || {};
     const scope = String(body.scope || '');
     const scopeId = Number(body.scopeId);
-    if (scope !== 'client' && scope !== 'application') {
-      throw new HttpError(400, "Scope must be 'client' or 'application'");
-    }
+    assertInfoScope(scope);
     if (!scopeId) throw new HttpError(400, 'scopeId is required');
     await assertScopeExists(scope, scopeId);
     const env = documentEnv(scope, body.env);
@@ -2407,8 +2456,19 @@ export const api = {
       );
     }
     await db.transaction(async (tx) => {
+      // The variant ids have to be read first: application_variants declares
+      // ON DELETE CASCADE, so after the application row goes there is nothing left
+      // to look up and every variant note would leak.
+      const variants = await tx.all('SELECT id FROM application_variants WHERE application_id = ?', [
+        row.id,
+      ]);
       await tx.run('DELETE FROM applications WHERE id = ?', [row.id]);
-      await tx.run("DELETE FROM info_entries WHERE scope = 'application' AND scope_id = ?", [row.id]);
+      await purgeInfoFor(tx, 'application', [row.id]);
+      await purgeInfoFor(
+        tx,
+        'variant',
+        variants.map((v) => Number(v.id))
+      );
     });
     return { ok: true };
   },
@@ -2510,8 +2570,9 @@ export const api = {
       username: body.username,
       name: body.name,
       password: body.password,
-      role: 'Supervisor',
-      // SVs sit outside the pentest tree, so no subrole/parent is validated.
+      role: 'Project Manager',
+      // Project managers sit outside the pentest tree, so no subrole/parent is
+      // validated.
       subrole: 'Member',
       parentId: null,
       phone: body.phone,
@@ -2523,7 +2584,7 @@ export const api = {
   'PATCH /api/supervisors/:id': async (ctx) => {
     requireCatalogManager(ctx);
     const row = await db.get('SELECT * FROM users WHERE id = ?', [ctx.params.id]);
-    if (!row || row.role !== 'Supervisor') throw new HttpError(404, 'Project supervisor not found');
+    if (!row || row.role !== 'Project Manager') throw new HttpError(404, 'Project manager not found');
     const body = ctx.body || {};
     const name = body.name !== undefined ? String(body.name).trim() : row.name;
     if (!name) throw new HttpError(400, 'Name is required');
@@ -2539,12 +2600,12 @@ export const api = {
   'DELETE /api/supervisors/:id': async (ctx) => {
     requireCatalogManager(ctx);
     const row = await db.get('SELECT * FROM users WHERE id = ?', [ctx.params.id]);
-    if (!row || row.role !== 'Supervisor') throw new HttpError(404, 'Project supervisor not found');
+    if (!row || row.role !== 'Project Manager') throw new HttpError(404, 'Project manager not found');
     const owned = await db.get('SELECT COUNT(*) AS n FROM projects WHERE supervisor_id = ?', [row.id]);
     if (Number(owned.n) > 0) {
       throw new HttpError(
         409,
-        `Cannot delete: ${owned.n} project(s) are still owned by this supervisor. Reassign them first.`
+        `Cannot delete: ${owned.n} project(s) still name this person as supervisor. Reassign them first.`
       );
     }
     await db.run('DELETE FROM users WHERE id = ?', [row.id]);
@@ -2558,7 +2619,7 @@ export const api = {
     // Supervisors are a separate role: they own engagements, they do not
     // test them, so they must never appear in the pentest hierarchy. Admins can
     // still carry a pentest subrole, so they stay in the tree as before.
-    const users = (await listUsers()).map(shapePentester).filter((u) => u.role !== 'Supervisor');
+    const users = (await listUsers()).map(shapePentester).filter((u) => u.role !== 'Project Manager');
     return { pentesters: users, tree: buildPentesterTree(users) };
   },
 

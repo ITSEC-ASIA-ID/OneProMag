@@ -135,8 +135,8 @@ box is not rendered at all, so no credentials are ever advertised to a visitor.
 | `nadia`  | `pentester123` | Pentester | Member   |
 | `adit`   | `intern123`    | Pentester | Intern   |
 | `laras`  | `intern123`    | Pentester | Intern   |
-| `rina`   | `supervisor123`   | Supervisor | —  |
-| `hendra` | `supervisor123`   | Supervisor | —  |
+| `rina`   | `manager123`   | Project Manager | —  |
+| `hendra` | `manager123`   | Project Manager | —  |
 
 The pentest tree has two branches: `admin → dewi → bagas, sinta` and
 `rafi → yoga → fajar, nadia`. That is what the team status board renders as
@@ -153,8 +153,8 @@ Two applications ship with **variants** so the third level is visible out of the
 *Mobile Banking App v4.2* and *Brimo iOS Build* point at the two Brimo variants; every
 other project tests the application as a whole.
 
-`rina` and `hendra` are **Supervisors** — a separate role, not part of the
-pentest tree. Bank Nusantara and Dompet Kita name both of them as default SVs;
+`rina` and `hendra` are **Project Managers** (`PM`) — a separate role, not part of
+the pentest tree; it is the role that usually owns engagements. Bank Nusantara and Dompet Kita name both of them as default SVs;
 the other three clients name one each, so you can see both the single-SV and the
 multi-SV auto-selection behaviour on the create form.
 
@@ -162,7 +162,7 @@ New accounts can also be created from the **Register** link on the login page.
 Self-registration always produces an ordinary pentester at level **Member** — the
 role, level and reporting line are decided by the server, never by the request,
 so nobody can register themselves an admin. Promote someone (or mint a Project
-Supervisor) from the Admin panel. Demo data is only seeded into an empty database.
+Manager) from the Admin panel. Demo data is only seeded into an empty database.
 
 ---
 
@@ -469,11 +469,15 @@ pentester — assignable to projects, with their own availability and notes.
   hides the delete buttons for Members as well, but the rule lives on the server
   because the API is reachable directly.
 
-Besides `Pentester` and `Admin` there is a third role, **`Supervisor`**
-(`role: 'Supervisor'` in `ENUMS.role`):
+Besides `Pentester` and `Admin` there is a third role, **`Project Manager`**
+(`role: 'Project Manager'` in `ENUMS.role`, printed as **PM**):
 
-- A SV **owns engagements** rather than testing them, so SVs never appear in the
+- A PM **owns engagements** rather than testing them, so PMs never appear in the
   "Who pentest" picker and never appear on the team status board.
+- The role is *not* called Supervisor. **Supervisor** (SV) is the name of the field
+  on a project — "who owns this engagement" — and that field accepts a **Project
+  Manager or a Pentester**, or nobody at all. A small team has no separate PM
+  account, so the lead who won the work owns it directly.
 - Every user row carries `phone` and `email`. The drawer renders them as
   `tel:` / `mailto:` links, and the admin pages show them on each card.
 - SVs are curated under **Admin panel → Manage users**.
@@ -588,18 +592,30 @@ the reporting tree — is **Admin panel → Manage users** (*Accounts and roles*
 
 ### Information center
 
-Free-form notes for every **client** and every **application**, so the next
-tester on an engagement does not have to rediscover the environment.
+Free-form notes for every **client**, every **application** and every **variant
+app**, so the next tester on an engagement does not have to rediscover the
+environment.
 
-Reached from the sidebar. Two panes: the client/application tree on the left with
-per-target note counts, the note library on the right.
+Reached from the sidebar. Two panes: the target tree on the left with per-target
+note counts, the note library on the right.
 
 The left tree is **one collapsible group per client**, with its applications
-nested underneath. A client with a dozen applications used to push everything else
-out of reach, and a flat list made it hard to see which applications belonged
-together. Each group has a chevron; the group holding the current selection is
-always open, so clicking an application can never leave the active row hidden
-inside a collapsed parent.
+nested underneath and the variants of those applications nested once more. A client
+with a dozen applications used to push everything else out of reach, and a flat list
+made it hard to see which applications belonged together. Each group has a chevron;
+the group holding the current selection is always open, so clicking an application —
+or a variant — can never leave the active row hidden inside a collapsed parent.
+
+A **variant is a target of its own**: the Android and iOS builds of one application
+find different things, so `Brimo / Android` has its own notes, its own table sheet
+and its own Dev/Prod pair. Nothing is shared upwards: a note filed on the variant
+does not appear on the application, and a note on the application does not appear on
+its variants. The variant level only shows up for applications that actually have
+variants, and deleting a variant deletes the notes and sheets filed on it (a row
+whose target is gone can never be read again — the picker no longer lists it and
+`GET /api/info` 404s). Deleting an application or a client does the same for every
+level below it, and `pruneOrphanNotes()` sweeps any that a manual database edit left
+behind.
 
 ### The table sheet behaves like the Devices sheet
 
@@ -653,11 +669,12 @@ to drag it.
 
 ### Dev and Prod sheets on applications
 
-Every **application** carries **two independent sets** of those documents, one per
-environment, selected with a **Dev / Prod** switch above the blocks. **Dev is the
-default** — production testing is the exception, and landing on Prod by accident
-would be a foot-gun, so the switch always opens on Dev even if the last
-application you looked at was on Prod.
+Every **application** — and every **variant** of one — carries **two independent
+sets** of those documents, one per environment, selected with a **Dev / Prod** switch
+above the blocks. **Dev is the default** — production testing is the exception, and
+landing on Prod by accident would be a foot-gun, so the switch always opens on Dev
+even if the last target you looked at was on Prod. Clients have no environment: a
+client is an organisation, not a deployment.
 
 The two sets are genuinely separate: `documents` is keyed on
 `(scope, scope_id, env)`, so writing the Prod sheet leaves the Dev notes and table
@@ -1112,7 +1129,7 @@ a nine-column sheet cannot be read on a phone by scrolling sideways.
 | Status   | from the property list — `Incoming` · `Ready` · `Ongoing` · `Done` · `Hold` out of the box, editable in **Admin panel → Properties** |
 | Start date | date — **not asked on create**; stamped with today the first time the project moves to `Ongoing`; editable afterwards |
 | End date | date — **not asked on create**; stamped with today when it moves to `Done`; cleared again if it is re-opened |
-| Project supervisor | **one SV** — searchable dropdown of `Supervisor` **and** `Pentester` users (a small team has no separate supervisor role, so a lead can own the engagement). **Auto-selected** from the chosen client's default SVs; still editable, and may be left **empty** |
+| Project supervisor | **one SV** — searchable dropdown of `Project Manager` **and** `Pentester` users (a small team has no separate PM account, so a lead can own the engagement). **Auto-selected** from the chosen client's default SVs; still editable, and may be left **empty** |
 | Variant app | optional — the chosen application's variants, only shown when it has any. Leave it on **Whole application** for a normal engagement |
 | Who pentest | **multiple** pentesters, picker **with a name search box** |
 | Notes    | free text (scope, creds location, out-of-scope)           |
@@ -1121,7 +1138,7 @@ Defaults on create: `Dev` / `Grey Box` / `Incoming` / `Web`.
 
 ### Manage users (Admin panel)
 **Admin panel → Manage users** is the one page for every account: the pentest
-tree on top, the project supervisors below, and a tab when you only want one of them.
+tree on top, the project managers below, and a tab when you only want one of them.
 
 The two used to be separate pages. They were built on the same `users` table, the
 same create path and the same question — *who works here?* — so adding a person
@@ -1130,8 +1147,8 @@ different copy for the same account. One page, one **New user** form (pick the
 role and the fields follow) and one **Import** now cover both.
 
 Everything on that page is a `users` row with a `role` of `Pentester` or
-`Supervisor`; the difference is what the role owns. A pentester joins the
-reporting tree below. A project supervisor sits outside it and owns engagements.
+`Project Manager`; the difference is what the role owns. A pentester joins the
+reporting tree below. A project manager sits outside it and owns engagements.
 
 Both roles carry the same **contact details** — a phone number and an e-mail — and
 both are set in the same place: **Edit** (the pencil) on the person's row. They are
@@ -1191,7 +1208,7 @@ as often as from a chat message:
 | --- | --- | --- |
 | 1 | Full name | required |
 | 2 | Username | else `first.last` from the name; `.2`, `.3` appended when already taken |
-| 3 | Password | else the dialog's default — `pentester123` / `supervisor123` per role |
+| 3 | Password | else the dialog's default — `pentester123` / `manager123` per role |
 | — | Phone / e-mail | recognised **by shape, anywhere on the line**: any cell containing `@` is the address (and is validated — `rina@bank` is rejected rather than silently becoming a username), a cell of six or more digits is the phone. Both are stored on the account and printed on the person's row |
 | 4 | Level | `Lead`, `Sub Lead`, `Member` or `Intern`, picked up **wherever it appears** |
 | 5 | Reports to | name or username of the parent; blank means "the nearest legal parent" |
@@ -1261,7 +1278,7 @@ each trainee is attached to, which the row says in words (`under Bagas Nugroho`)
 The table is sorted by supervisor, then name, and it only exists once an intern does:
 a team with none keeps the single unlabelled table it always had.
 
-Rows are **pentesters only**: Supervisors own engagements rather than test
+Rows are **pentesters only**: project managers own engagements rather than test
 them, and **Administrators** are operations — both live in *Users* and *Manage
 users*, not on the bench. Hiding an admin whose reports are pentesters does not
 orphan them: a sub lead whose lead is not shown becomes a top-level row carrying
@@ -1371,15 +1388,16 @@ Bluewave Finance; BF; Paylater App;;Jakarta, contact: Ops
 
 Only **Admin**, **Lead** and **Sub Lead** see and can use the Admin panel.
 
-#### Project supervisors (same page)
-The **Project supervisors** half of that page manages the `Supervisor` role.
+#### Project managers (same page)
+The **Project managers** half of that page manages the `Project Manager` role.
 
-A project has **exactly one** project supervisor (`projects.supervisor_id`), and that
-slot may be **empty**: a client may name no default, and a project may simply have
-nobody accountable yet. The supervisor is not necessarily a `Supervisor`-role account
-— a **`Pentester`** can hold it too, because a small team has no separate
-supervisory role and the lead who wins the work is the one who owns it. The picker
-lists both, tagged `SV` or `PT`, supervisors first.
+**Supervisor (SV)** is the field, not the role. A project has **exactly one**
+project supervisor (`projects.supervisor_id`), and that slot may be **empty**: a
+client may name no default, and a project may simply have nobody accountable yet.
+The supervisor does not have to be an account whose role is `Project Manager` — a
+**`Pentester`** can hold it too, because a small team has no separate management
+account and the lead who wins the work is the one who owns it. The picker lists
+both, tagged `PM` or `PT`, project managers first.
 
 A client can name **several** default SVs (`client_supervisors`, a many-to-many join),
 which is what drives auto-selection:
@@ -1432,9 +1450,12 @@ Bank Nusantara
 - **Where it shows.** On the project table as a chip after `Client – App`, on the
   card next to the client line, and in the drawer as `Client / App / Variant` plus a
   `Variant app` row. Projects without a variant print nothing extra.
+- **Notes live on it too.** The Information center treats a variant as a target in
+  its own right — its own note cards and its own Dev/Prod sheets, nested in the tree
+  under its application. See [Information center](#information-center).
 
 ### People
-Any avatar of a **Supervisor** or a **Pentester** is a button — in the table, on
+Any avatar of a **project manager** or a **Pentester** is a button — in the table, on
 a card, in the drawer, and on the team status board. Clicking one opens a person card:
 
 - name, level and role, `@username`, and current availability (with the `auto` marker
@@ -1546,19 +1567,24 @@ API rejects a variant that belongs to a different application, so the pairing
 cannot drift (`resolveVariantId`), and a project whose application changes drops its
 variant rather than keeping one that no longer applies.
 
-### Renamed in v1.13: Project Manager → Supervisor
-The role was renamed, so the schema was too: `client_managers` → `client_supervisors`
-and `projects.manager_id` → `projects.supervisor_id`, plus
-`UPDATE users SET role = 'Supervisor'` for the old value. `migrateSupervisorNames()`
-handles a database that arrives in **either** state — old names only (a plain
-`RENAME`), or both present (the old `addColumnIfMissing('projects','manager_id')`
-minted the column in one release, the new one would mint `supervisor_id` in the
-next) — by copying the values across and then dropping the old column/table. It is
-guarded and idempotent, and runs before `createIndexes()` so the new indexes exist on
-old installs too.
+### Renamed in v1.13: the supervisor columns
+The **role stayed `Project Manager`**. What was renamed is the field that says who
+owns an engagement: `client_managers` → `client_supervisors` and
+`projects.manager_id` → `projects.supervisor_id`, because that field is called
+Supervisor (SV) now. `migrateSupervisorNames()` handles a database that arrives in
+**either** state — old names only (a plain `RENAME`), or both present (the old
+`addColumnIfMissing('projects','manager_id')` minted the column in one release, the
+new one would mint `supervisor_id` in the next) — by copying the values across and
+then dropping the old column/table. It is guarded and idempotent, and runs before
+`createIndexes()` so the new indexes exist on old installs too.
 
-`documents` is keyed by `(scope, scope_id, env)` — the same client/application
-pairing `info_entries` uses, plus which environment the sheet describes — and holds
+One release in between also rewrote the role value to `'Supervisor'`. The same
+migration now repairs that with `UPDATE users SET role = 'Project Manager' WHERE
+role = 'Supervisor'`: the account type was never meant to change, only the field.
+
+`documents` is keyed by `(scope, scope_id, env)` — the same `client` /
+`application` / `variant` pairing `info_entries` uses, plus which environment the
+sheet describes — and holds
 `text_body` plus `table_json` (the identical JSON grid shape as
 `info_entries.data`, so one parser serves both). `updated_by` is `ON DELETE SET
 NULL`: the document outlives the person who last edited it. Saving is a single

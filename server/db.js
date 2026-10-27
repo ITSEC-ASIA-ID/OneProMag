@@ -68,10 +68,11 @@ export const ENUMS = {
   // a new request arrives, the report gets prepared, testing runs, and then the
   // project is either finished or put on hold.
   status: ['Incoming', 'Ready', 'Ongoing', 'Done', 'Hold'],
-  // Supervisor is its own role: SVs own engagements and are assignable as
-  // a project's supervisor, but they are not pentesters and never appear in the
-  // "who pentest" picker.
-  role: ['Pentester', 'Supervisor', 'Admin'],
+  // A Project Manager (PM) is its own account type: PMs own engagements and are
+  // assignable as a project's supervisor (SV), but they are not pentesters and
+  // never appear in the "who pentest" picker. A pentester may own an engagement
+  // too — the SV field accepts both.
+  role: ['Pentester', 'Project Manager', 'Admin'],
   // Availability board. '' always means "automatic", never a stored choice.
   availability: ['', 'On Project', 'Idle', 'Leave', 'Exam', 'Research/Learning', 'Other'],
   // Pentester hierarchy, highest first. An intern is the trainee level below a
@@ -184,8 +185,8 @@ const now = () => new Date().toISOString();
 // one under a member and one under a lead, because those are the two people an
 // intern is actually attached to in practice (and the board keeps them in their own
 // table, so the demo has to show it non-empty).
-// The last two are Supervisors: they own engagements instead of testing
-// them, so they have no subrole/supervisor (a SV reports to nobody in the tree).
+// The last two are Project Managers: they own engagements instead of testing
+// them, so they have no place in the (subrole) tree — a PM reports to nobody in it.
 const SEED_USERS = [
   ['admin', 'Arif Wicaksono', 'Admin', 'Lead', 'admin123', null, ''],
   ['rafi', 'Rafi Pratama', 'Pentester', 'Lead', 'pentester123', null, ''],
@@ -197,8 +198,8 @@ const SEED_USERS = [
   ['nadia', 'Nadia Puspita', 'Pentester', 'Member', 'pentester123', 'yoga', ''],
   ['adit', 'Adit Saputra', 'Pentester', 'Intern', 'intern123', 'bagas', ''],
   ['laras', 'Laras Ayu', 'Pentester', 'Intern', 'intern123', 'rafi', ''],
-  ['rina', 'Rina Kusuma', 'Supervisor', 'Member', 'supervisor123', null, ''],
-  ['hendra', 'Hendra Wijaya', 'Supervisor', 'Member', 'supervisor123', null, ''],
+  ['rina', 'Rina Kusuma', 'Project Manager', 'Member', 'manager123', null, ''],
+  ['hendra', 'Hendra Wijaya', 'Project Manager', 'Member', 'manager123', null, ''],
 ];
 
 // Contact details per seeded username. Kept in a separate map so the user
@@ -939,7 +940,7 @@ async function seedPropertiesIfEmpty() {
  *
  * 12 — retest rows in the active lists, paging, properties, documents per env.
  */
-export const SCHEMA_VERSION = 14;
+export const SCHEMA_VERSION = 15;
 
 let appliedSchemaVersion = 0;
 
@@ -1169,8 +1170,11 @@ async function migrateSupervisorNames() {
       await db.exec('DROP INDEX IF EXISTS idx_projects_manager');
     }
 
-    // The role value itself. Idempotent: after the first boot nothing matches.
-    await db.run("UPDATE users SET role = 'Supervisor' WHERE role = 'Project Manager'");
+    // The ROLE was never renamed: "Project Manager" is still the account type, it
+    // is only the project's owner field that is called Supervisor. A database that
+    // booted on the intermediate release stored the wrong value, so put it back.
+    // Idempotent: after one boot nothing matches.
+    await db.run("UPDATE users SET role = 'Project Manager' WHERE role = 'Supervisor'");
   } catch (err) {
     console.error('[db] supervisor rename failed:', err.message);
     failedMigrations.push(`supervisor rename: ${err.message}`);
@@ -1215,17 +1219,33 @@ async function addColumnIfMissing(table, column, definition) {
  * page can reach and no user can delete. Runs once per boot; the two statements
  * are cheap and idempotent.
  */
+/**
+ * Notes and sheets whose target no longer exists.
+ *
+ * The delete routes purge their own children, but nothing else does: a row written
+ * by an older release, or a target removed by hand in psql, would keep a note on a
+ * page nobody can open. This is the belt to that braces, run once per boot.
+ */
+const INFO_SCOPE_TABLES = [
+  ['client', 'clients'],
+  ['application', 'applications'],
+  ['variant', 'application_variants'],
+];
+
 async function pruneOrphanNotes() {
-  try {
-    await db.run(
-      "DELETE FROM info_entries WHERE scope = 'client' AND scope_id NOT IN (SELECT id FROM clients)"
-    );
-    await db.run(
-      "DELETE FROM info_entries WHERE scope = 'application' AND scope_id NOT IN (SELECT id FROM applications)"
-    );
-  } catch (err) {
-    // A missing info_entries table on a very old database is not fatal.
-    if (!/no such table|does not exist/i.test(err.message)) throw err;
+  for (const table of ['info_entries', 'documents']) {
+    for (const [scope, owner] of INFO_SCOPE_TABLES) {
+      try {
+        await db.run(
+          `DELETE FROM ${table} WHERE scope = ? AND scope_id NOT IN (SELECT id FROM ${owner})`,
+          [scope]
+        );
+      } catch (err) {
+        // A very old database may not have one of these tables yet. That is not
+        // fatal — the next release's schema pass creates them.
+        if (!/no such table|does not exist/i.test(err.message)) throw err;
+      }
+    }
   }
 }
 

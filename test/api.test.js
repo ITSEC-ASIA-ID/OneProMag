@@ -601,6 +601,155 @@ test('deleting a variant is a delete: member out, lead in, projects keep the app
 });
 
 /* ============================================================
+   The role is still Project Manager. Only the PROJECT FIELD is called
+   Supervisor (SV) — the account type was never renamed, and a pentester can hold
+   that field too.
+   ============================================================ */
+
+test('Project Manager is still an account role, alongside Pentester and Admin', async () => {
+  const { ENUMS } = await import('../server/db.js');
+  assert.ok(ENUMS.role.includes('Project Manager'), 'the role must not disappear from the enum');
+  assert.ok(ENUMS.role.includes('Pentester'));
+  const seeded = await db.get("SELECT COUNT(*) AS n FROM users WHERE role = 'Project Manager'");
+  assert.ok(Number(seeded.n) > 0, 'the demo seed still ships people with that role');
+});
+
+test('a project supervisor may be a project manager or a pentester', async () => {
+  const user = await lead();
+  const { supervisors } = await call('GET /api/supervisors', user);
+  const roles = new Set(supervisors.map((u) => u.role));
+  assert.ok(roles.has('Project Manager'), 'project managers are the first half of the pool');
+  assert.ok(roles.has('Pentester'), 'and a pentester may own an engagement too');
+  assert.equal(
+    supervisors[0].role,
+    'Project Manager',
+    'project managers rank above pentesters in the picker'
+  );
+  assert.ok(
+    !roles.has('Admin'),
+    'admins run the tool, they are not offered as a project supervisor'
+  );
+});
+
+/* ============================================================
+   Information center — notes and sheets hang off clients, applications and now
+   variants, with the same rules at every level.
+   ============================================================ */
+
+test('a note can be filed on a variant, and is separate from its application', async () => {
+  const user = await lead();
+  const { application } = await freshApplication(user);
+  const variant = await call('POST /api/applications/:id/variants', user, {
+    params: { id: application.id },
+    body: { name: 'iOS' },
+  });
+
+  await call('POST /api/info', user, {
+    body: { scope: 'variant', scopeId: variant.variant.id, title: 'Variant only', body: 'debug build' },
+  });
+  await call('POST /api/info', user, {
+    body: { scope: 'application', scopeId: application.id, title: 'App wide', body: 'shared config' },
+  });
+
+  const onVariant = await call('GET /api/info', user, {
+    query: { scope: 'variant', scopeId: variant.variant.id, env: 'Dev' },
+  });
+  assert.deepEqual(
+    onVariant.entries.map((e) => e.title),
+    ['Variant only'],
+    'a variant note must not leak onto its application'
+  );
+
+  const onApp = await call('GET /api/info', user, {
+    query: { scope: 'application', scopeId: application.id, env: 'Dev' },
+  });
+  assert.deepEqual(onApp.entries.map((e) => e.title), ['App wide']);
+});
+
+test('a variant has its own Dev and Prod sheets, and clients still have only Dev', async () => {
+  const user = await lead();
+  const { application } = await freshApplication(user);
+  const variant = await call('POST /api/applications/:id/variants', user, {
+    params: { id: application.id },
+    body: { name: 'Android' },
+  });
+  const prod = await call('PATCH /api/docs/:scope/:scopeId', user, {
+    params: { scope: 'variant', scopeId: variant.variant.id },
+    body: { text: 'prod creds', env: 'Prod' },
+  });
+  assert.equal(prod.doc.text, 'prod creds');
+
+  const dev = await call('GET /api/docs/:scope/:scopeId', user, {
+    params: { scope: 'variant', scopeId: variant.variant.id },
+    query: { env: 'Dev' },
+  });
+  assert.equal(dev.doc.text, '', 'Prod content must not appear on the Dev sheet');
+
+  await assert.rejects(
+    () =>
+      call('GET /api/docs/:scope/:scopeId', user, {
+        params: { scope: 'client', scopeId: application.clientId },
+        query: { env: 'Prod' },
+      }),
+    { status: 400 }
+  );
+});
+
+test('an unknown scope is refused instead of writing an unreadable row', async () => {
+  const user = await lead();
+  await assert.rejects(
+    () => call('POST /api/info', user, { body: { scope: 'project', scopeId: 1, title: 'x' } }),
+    (err) => err.status === 400 && /scope/i.test(err.message)
+  );
+});
+
+test('deleting a variant takes its notes and sheets with it', async () => {
+  const user = await lead();
+  const { application } = await freshApplication(user);
+  const variant = await call('POST /api/applications/:id/variants', user, {
+    params: { id: application.id },
+    body: { name: 'Doomed' },
+  });
+  const id = variant.variant.id;
+  await call('POST /api/info', user, { body: { scope: 'variant', scopeId: id, title: 'Note', body: 'x' } });
+  await call('PATCH /api/docs/:scope/:scopeId', user, {
+    params: { scope: 'variant', scopeId: id },
+    body: { text: 'sheet' },
+  });
+
+  await call('DELETE /api/variants/:id', user, { params: { id } });
+
+  const notes = await db.get('SELECT COUNT(*) AS n FROM info_entries WHERE scope = ? AND scope_id = ?', [
+    'variant',
+    id,
+  ]);
+  const docs = await db.get('SELECT COUNT(*) AS n FROM documents WHERE scope = ? AND scope_id = ?', [
+    'variant',
+    id,
+  ]);
+  assert.equal(Number(notes.n), 0, 'a note left behind would be unreachable, not just untidy');
+  assert.equal(Number(docs.n), 0);
+});
+
+test('deleting an application also clears its variants’ notes', async () => {
+  const user = await lead();
+  const { application } = await freshApplication(user);
+  const variant = await call('POST /api/applications/:id/variants', user, {
+    params: { id: application.id },
+    body: { name: 'Child' },
+  });
+  await call('POST /api/info', user, {
+    body: { scope: 'variant', scopeId: variant.variant.id, title: 'Note', body: 'x' },
+  });
+  await call('DELETE /api/applications/:id', user, { params: { id: application.id } });
+  const left = await db.get('SELECT COUNT(*) AS n FROM info_entries WHERE scope = ? AND scope_id = ?', [
+    'variant',
+    variant.variant.id,
+  ]);
+  assert.equal(Number(left.n), 0);
+});
+
+/* ============================================================
    Schema — a fresh database must end up with every column the code reads.
    ============================================================ */
 
