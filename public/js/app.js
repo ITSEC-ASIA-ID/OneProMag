@@ -843,9 +843,7 @@ function projectCardHTML(row) {
           <h3>${h(rowLabel(row))}</h3>
           <div class="meta client-line">${icon.building(12)}<span>${h(p.client || 'No client')}${
             p.applicationName ? ` &ndash; ${h(p.applicationName)}` : ''
-          }</span>${
-            p.variantName ? `<span class="v-chip" title="Sub app">${h(p.variantName)}</span>` : ''
-          }</div>
+          }${p.variantName ? ` &ndash; ${h(p.variantName)}` : ''}</span></div>
           ${
             p.supervisorName
               ? `<div class="meta sv-line">${icon.userCheck(12)}<span>SV</span>${avatar(
@@ -903,15 +901,17 @@ function projectTableHTML(rows) {
               row.kind === 'retest' ? ' class="prow-retest"' : ''
             }>
               <td class="cell-name">${h(rowLabel(row))}${
-                // The client lives under the project name as "Client - App", so
-                // the list loses a whole column without losing the information.
+                // The client lives under the project name as "Client – App – Sub
+                // app", so the list loses a whole column without losing the
+                // information. One breadcrumb, one colour: the sub app is part of
+                // where this engagement sits, not a tag on it.
                 row.project.client
                   ? `<div class="sub">${h(row.project.client)}${
                       row.project.applicationName ? ` &ndash; ${h(row.project.applicationName)}` : ''
-                    }${row.project.variantName ? ` <span class="v-chip">${h(row.project.variantName)}</span>` : ''}</div>`
+                    }${row.project.variantName ? ` &ndash; ${h(row.project.variantName)}` : ''}</div>`
                   : row.project.applicationName
                     ? `<div class="sub">${h(row.project.applicationName)}${
-                        row.project.variantName ? ` <span class="v-chip">${h(row.project.variantName)}</span>` : ''
+                        row.project.variantName ? ` &ndash; ${h(row.project.variantName)}` : ''
                       }</div>`
                     : ''
               }</td>
@@ -5766,9 +5766,9 @@ function drawerHTML(project, retests, tab) {
       </div>
       <div class="drawer-client">
         ${icon.building(14)}
-        <span>${h(project.client || 'No client')}</span>
-        ${project.applicationName ? `<span class="sep">/</span>${icon.apps()}<span>${h(project.applicationName)}</span>` : ''}
-        ${project.variantName ? `<span class="sep">/</span>${icon.layers(14)}<span>${h(project.variantName)}</span>` : ''}
+        <span>${h(project.client || 'No client')}${
+          project.applicationName ? ` &ndash; ${h(project.applicationName)}` : ''
+        }${project.variantName ? ` &ndash; ${h(project.variantName)}` : ''}</span>
       </div>
       <div class="tabs">
         ${tabs

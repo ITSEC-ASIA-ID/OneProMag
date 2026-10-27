@@ -1452,9 +1452,11 @@ notes and projects against it separately from its siblings.
   sub apps of the application currently selected, and it only appears when that
   application has any. Changing the application **clears** the sub app — one means
   nothing outside its parent, and keeping a stale one would be a lie.
-- **Where it shows.** On the project table as a chip after `Client – App`, on the
-  card next to the client line, and in the drawer as `Client / App / Sub app` plus a
-  `Sub app` row. Projects without one print nothing extra.
+- **Where it shows.** Everywhere as the last part of one plain breadcrumb —
+  `Bank Nusantara – Brilink – Brilink MPOS` — under the project name in the table,
+  under the client on the card, and under the title in the drawer, where a `Sub app`
+  row repeats it in the detail grid. No chip, no second colour: it is part of *where
+  the engagement sits*, not a tag on it. Projects without one print nothing extra.
 - **Notes live on it too.** The Information center treats a sub app as a target in
   its own right — its own note cards and its own Dev/Prod sheets, nested in the tree
   under its application. See [Information center](#information-center).

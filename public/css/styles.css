@@ -1729,17 +1729,6 @@ svg { display: block; }
   transition: all 0.12s;
 }
 .variant-add:hover { color: var(--primary); background: var(--primary-soft); }
-/* The variant printed on a project, next to "Client – Application". */
-.v-chip {
-  display: inline-flex; align-items: center;
-  margin-left: 6px; padding: 1px 7px;
-  border-radius: 999px;
-  background: var(--violet-soft); color: var(--violet);
-  font-size: 10.5px; font-weight: 650; letter-spacing: 0.01em;
-  vertical-align: 1px;
-  max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-}
-
 .loading-line {
   height: 2px;
   border-radius: 2px;
@@ -4037,8 +4026,8 @@ svg { display: block; }
   border-left: 1px solid var(--border);
 }
 .info-target.is-variant { padding-left: 6px; font-size: 12.5px; }
-.info-target.is-variant .it-glyph { color: var(--violet); opacity: 0.8; }
-.info-target.is-variant.on .it-glyph { color: var(--primary-fg); opacity: 1; }
+/* A sub app is a row like any other: the same grey glyph, no colour of its own. */
+.info-target.is-variant .it-glyph { color: var(--faint); }
 .ig-none {
   display: none;
   padding: 4px 0 6px 28px;
