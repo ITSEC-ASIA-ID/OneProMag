@@ -2446,8 +2446,12 @@ svg { display: block; }
    "Reports to" reads as part of the previous sentence. */
 #uf-level-hint {
   display: block;
-  margin: 6px 0 2px;
+  margin: 7px 0 0;
 }
+/* The hint belongs to the level, so the gap goes above the NEXT field rather than
+   under the hint — otherwise "Reports to" reads as the tail of the sentence. */
+#uf-level-hint + * { margin-top: 0; }
+#uf-pent > .field + .field { margin-top: 12px; }
 .bp-under {
   font-style: normal;
   font-size: 10.5px;

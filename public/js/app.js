@@ -7010,7 +7010,7 @@ function usersHTML() {
     <div class="admin-head">
       <p>
         Everyone who can sign in. Pentesters are arranged as a reporting tree — lead,
-        sub lead, member — and project managers own the engagements.
+        sub lead, member, intern — and project managers own the engagements.
       </p>
       <div class="head-acts">
         <button class="btn" data-users-import>${icon.upload(15)} Import</button>
@@ -7033,7 +7033,7 @@ function pentesterSectionHTML() {
   const head = `<div class="admin-sec-head">
       <h3>Pentesters</h3>
       <span class="admin-count">${n}</span>
-      <p>Every sub lead reports to a lead, and every member to a sub lead.</p>
+      <p>Sub leads report to a lead; members and interns attach to whoever runs their work.</p>
       <span class="spacer"></span>
       <button class="btn btn-sm" data-pent-add="Lead">${icon.plus(13)} Lead</button>
     </div>`;
@@ -7125,17 +7125,26 @@ function addInternBtn(parentId, cls = 'btn btn-sm') {
 }
 
 function leadNodeHTML(lead) {
-  const subLeads = lead.children || [];
-  const members = subLeads.flatMap((sl) => sl.children || []);
-  const membersUnderSubLeads = members.filter((m) => m.subrole !== 'Intern');
-  const ownInterns = (lead.children || []).filter((c) => c.subrole === 'Intern');
+  const kids = lead.children || [];
+  // A member may hang off a sub lead or off the lead directly, so both places have
+  // to be drawn — "where are my people" must not depend on how deep they sit.
+  const subLeads = kids.filter((c) => c.subrole === 'Sub Lead');
+  const directMembers = kids.filter((c) => c.subrole === 'Member');
+  const ownInterns = kids.filter((c) => c.subrole === 'Intern');
+  const nestedMembers = subLeads.flatMap((sl) =>
+    (sl.children || []).filter((c) => c.subrole === 'Member')
+  );
+  const memberCount = nestedMembers.length + directMembers.length;
+  const memberBlock = (list) =>
+    `<div class="ts-members">${list.map((m) => memberRowHTML(m) + internRowsHTML(m.id)).join('')}</div>`;
+
   return `
     <section class="tree-lead" data-lead="${lead.id}">
       <header class="tree-head">
         <div class="th-avatar">${avatar(lead.name, '', lead.id)}</div>
         <div class="th-title">
           <strong>${h(lead.name)}</strong>
-          <span>${subroleBadge('Lead')}<em>${subLeads.length} sub lead${subLeads.length === 1 ? '' : 's'} · ${membersUnderSubLeads.length} member${membersUnderSubLeads.length === 1 ? '' : 's'}${
+          <span>${subroleBadge('Lead')}<em>${subLeads.length} sub lead${subLeads.length === 1 ? '' : 's'} · ${memberCount} member${memberCount === 1 ? '' : 's'}${
             ownInterns.length
               ? ` · ${ownInterns.length} intern${ownInterns.length === 1 ? '' : 's'}`
               : ''
@@ -7145,16 +7154,22 @@ function leadNodeHTML(lead) {
         <span class="spacer"></span>
         <div class="th-actions">
           <button class="btn btn-sm" data-pent-add="Sub Lead" data-parent="${lead.id}">${icon.plus()} Sub lead</button>
+          <button class="btn btn-sm" data-pent-add="Member" data-parent="${lead.id}">${icon.plus()} Member</button>
           ${addInternBtn(lead.id)}
           <button class="btn btn-icon" data-pent-edit="${lead.id}" aria-label="Edit ${h(lead.name)}">${icon.edit()}</button>
           <button class="btn btn-icon" data-pent-del="${lead.id}" aria-label="Remove ${h(lead.name)}">${icon.trash()}</button>
         </div>
       </header>
       ${internRowsHTML(lead.id)}
+      ${directMembers.length ? memberBlock(directMembers) : ''}
       ${
         subLeads.length
           ? `<div class="tree-body">${subLeads.map((sl) => subLeadNodeHTML(sl)).join('')}</div>`
-          : `<div class="tree-empty">No sub leads under ${h(lead.name)} yet.</div>`
+          : `<div class="tree-empty">${
+              directMembers.length
+                ? 'No sub leads under ' + h(lead.name) + ' yet.'
+                : 'No sub leads or members under ' + h(lead.name) + ' yet.'
+            }</div>`
       }
     </section>`;
 }
@@ -7337,7 +7352,9 @@ function contactHTML(person, cls = 'th-contact') {
 /** Which levels each level may report to — the same table the server enforces. */
 const PARENT_LEVELS = {
   'Sub Lead': ['Lead'],
-  Member: ['Sub Lead'],
+  // A member answers to whoever runs their work: the sub lead on a big team, the
+  // lead directly on a small one.
+  Member: ['Sub Lead', 'Lead'],
   Intern: ['Member', 'Sub Lead', 'Lead'],
 };
 
@@ -7355,7 +7372,7 @@ function levelHint(subrole) {
   if (subrole === 'Intern') {
     return 'An intern reports to a member, a sub lead or a lead, and gets their own table on Team status.';
   }
-  return 'A member reports to a sub lead.';
+  return 'A member reports to a sub lead, or to the lead directly on a small team.';
 }
 
 /**

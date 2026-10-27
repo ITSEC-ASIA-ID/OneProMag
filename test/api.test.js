@@ -357,6 +357,55 @@ test('an intern must report to somebody', async () => {
   );
 });
 
+test('a lead can add a member directly under themselves', async () => {
+  const user = await lead();
+  const res = await call('POST /api/pentesters', user, {
+    body: {
+      username: 'member_direct',
+      name: 'Member Under Lead',
+      password: 'pentester123',
+      subrole: 'Member',
+      parentId: user.id,
+    },
+  });
+  assert.equal(res.pentester.subrole, 'Member');
+  assert.equal(Number(res.pentester.parent_id), Number(user.id));
+
+  // ...and a member may still sit under a sub lead, which is the usual shape.
+  const { pentesters } = await call('GET /api/pentesters', user);
+  const subLead = pentesters.find((p) => p.username === 'dewi');
+  const viaSubLead = await call('POST /api/pentesters', user, {
+    body: {
+      username: 'member_via_sub',
+      name: 'Member Under Sub Lead',
+      password: 'pentester123',
+      subrole: 'Member',
+      parentId: subLead.id,
+    },
+  });
+  assert.equal(Number(viaSubLead.pentester.parent_id), Number(subLead.id));
+});
+
+test('a member still cannot report to another member', async () => {
+  const user = await lead();
+  const { pentesters } = await call('GET /api/pentesters', user);
+  const other = pentesters.find((p) => p.username === 'bagas');
+
+  await assert.rejects(
+    () =>
+      call('POST /api/pentesters', user, {
+        body: {
+          username: 'member_under_member',
+          name: 'Member Under Member',
+          password: 'pentester123',
+          subrole: 'Member',
+          parentId: other.id,
+        },
+      }),
+    (err) => err.status === 400 && /must report to a sub lead or a lead/i.test(err.message)
+  );
+});
+
 test('a member cannot create an intern — only admin, lead or sub lead can', async () => {
   const user = await member();
   await assert.rejects(

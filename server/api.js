@@ -727,20 +727,23 @@ function requireDeleter(ctx, label) {
    `parent_id` points at the person directly above:
 
        Lead  (no parent)
-         └── Sub Lead  (parent = a Lead)
-               └── Member  (parent = a Sub Lead)
-                     └── Intern  (parent = a Member, a Sub Lead or a Lead)
+         ├── Sub Lead  (parent = a Lead)
+         └── Member    (parent = a Sub Lead or a Lead)
+               └── Intern  (parent = a Member, a Sub Lead or a Lead)
 
-   An intern is the one level that may skip rungs: they are attached to whoever
-   actually supervises them, which is usually a member but often the lead directly
-   on a small team. Every level above them keeps the strict one-level rule.
+   Below a lead the tree is a set, not a chain: a member answers to whoever runs
+   their work, which on a small team is the lead directly, and an intern answers to
+   whoever is training them. A sub lead can only ever report to a lead, so the two
+   levels above stay strict.
 
    Validating this on the server matters: the picker in the UI only
    offers legal choices, but the API is reachable directly.
    ============================================================ */
 const PARENT_SUBROLE = {
   'Sub Lead': ['Lead'],
-  Member: ['Sub Lead'],
+  // A member may sit under the sub lead who runs their day-to-day work, or under the
+  // lead directly when there is no sub lead between them.
+  Member: ['Sub Lead', 'Lead'],
   Intern: ['Member', 'Sub Lead', 'Lead'],
 };
 

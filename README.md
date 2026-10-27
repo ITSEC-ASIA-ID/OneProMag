@@ -1140,28 +1140,31 @@ Pentesters are organised in a four-level reporting tree:
 
 ```
 Lead
-  └── Sub Lead        (reports to a Lead)
-        └── Member    (reports to a Sub Lead)
-              └── Intern  (reports to a Member, a Sub Lead or a Lead)
+  ├── Sub Lead        (reports to a Lead)
+  └── Member          (reports to a Sub Lead or a Lead)
+        └── Intern    (reports to a Member, a Sub Lead or a Lead)
 ```
 
-**Intern** is the trainee level. It is the one level allowed to skip rungs: an
-intern attaches to whoever actually supervises them — usually a member, often the
-lead directly on a small team — because "which rung" is less useful than "whose
-problem are they".
+**Below a lead the tree is a set, not a chain.** A member answers to whoever runs
+their work: the sub lead on a team big enough to have one, the lead directly on a
+small one. An intern answers to whoever is training them, which is usually a
+member and often the lead. The two levels above stay strict — a sub lead can only
+report to a lead — because "who owns this engagement" has exactly one answer.
 
 Open **Admin panel → Manage users** to see the tree, add people under a branch,
-move someone to a different manager, or remove them. Every level carries its own
-**+** button: `+ Sub lead` and `+ Intern` on a lead, `+ Member` and `+ Intern` on a
-sub lead, `+ Intern` on a member row. The intern button carries the supervisor with
-it, so adding a trainee to a specific person is one click and no picker.
+move someone to a different manager, or remove them. Every row carries the buttons
+for what can hang off it: `+ Sub lead`, `+ Member` and `+ Intern` on a lead,
+`+ Member` and `+ Intern` on a sub lead, `+ Intern` on a member row. Each button
+carries that person as the supervisor, so adding someone to a specific person is
+one click and no picker — the dropdown is still there when the person belongs
+somewhere else.
 
 The reporting line is stored as `users.parent_id`, and the server enforces the
 rules:
 
 - a `Lead` cannot have a parent
 - a `Sub Lead` must report to a `Lead`
-- a `Member` must report to a `Sub Lead`
+- a `Member` must report to a `Sub Lead` or a `Lead` — never to another member
 - an `Intern` must report to a `Member`, a `Sub Lead` or a `Lead` — and never to
   another intern, so "who is training whom" stays answerable
 - nobody can report to themselves, and reporting loops are rejected
