@@ -351,9 +351,9 @@ export function toggleTheme() {
 }
 
 /* --- pentester hierarchy ------------------------------------------------ */
-const SUBROLE_RANK = { Lead: 0, 'Sub Lead': 1, Member: 2 };
+const SUBROLE_RANK = { Lead: 0, 'Sub Lead': 1, Member: 2, Intern: 3 };
 
-/** Sorts pentesters Lead -> Sub Lead -> Member, then by name. */
+/** Sorts pentesters Lead -> Sub Lead -> Member -> Intern, then by name. */
 export function sortPentesters(list = []) {
   return [...list].sort(
     (a, b) =>
@@ -364,7 +364,14 @@ export function sortPentesters(list = []) {
 
 /** Small pill showing a pentester's hierarchy level. */
 export function subroleBadge(subrole) {
-  const tone = subrole === 'Lead' ? 'violet' : subrole === 'Sub Lead' ? 'blue' : 'slate';
+  const tone =
+    subrole === 'Lead'
+      ? 'violet'
+      : subrole === 'Sub Lead'
+        ? 'blue'
+        : subrole === 'Intern'
+          ? 'cyan'
+          : 'slate';
   return `<span class="badge subrole" data-tone="${tone}">${escapeHtml(subrole || 'Member')}</span>`;
 }
 

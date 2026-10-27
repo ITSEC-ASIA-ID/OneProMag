@@ -724,27 +724,47 @@ function requireDeleter(ctx, label) {
 /* ============================================================
    Pentester hierarchy (Admin panel)
    ------------------------------------------------------------
-   The tree is strictly three levels, and `parent_id` points at the
-   person directly above:
+   `parent_id` points at the person directly above:
 
        Lead  (no parent)
          └── Sub Lead  (parent = a Lead)
                └── Member  (parent = a Sub Lead)
+                     └── Intern  (parent = a Member, a Sub Lead or a Lead)
+
+   An intern is the one level that may skip rungs: they are attached to whoever
+   actually supervises them, which is usually a member but often the lead directly
+   on a small team. Every level above them keeps the strict one-level rule.
 
    Validating this on the server matters: the picker in the UI only
    offers legal choices, but the API is reachable directly.
    ============================================================ */
-const PARENT_SUBROLE = { 'Sub Lead': 'Lead', Member: 'Sub Lead' };
+const PARENT_SUBROLE = {
+  'Sub Lead': ['Lead'],
+  Member: ['Sub Lead'],
+  Intern: ['Member', 'Sub Lead', 'Lead'],
+};
+
+/** "a member, a sub lead or a lead" — the phrase a human gets for a bad parent. */
+function parentNames(subrole) {
+  const names = (PARENT_SUBROLE[subrole] || []).map((s) => `${article(s)} ${s.toLowerCase()}`);
+  if (names.length <= 1) return names[0] || '';
+  return `${names.slice(0, -1).join(', ')} or ${names[names.length - 1]}`;
+}
+
+/** "an Intern", "a Member" — used so error copy reads like a sentence. */
+function article(word) {
+  return /^[aeiou]/i.test(String(word)) ? 'an' : 'a';
+}
 
 async function validateParent(subrole, parentId, selfId = null) {
-  const expected = PARENT_SUBROLE[subrole];
+  const allowed = PARENT_SUBROLE[subrole];
   // A Lead sits at the top of the tree, so it can never have a parent.
-  if (!expected) {
-    if (parentId) throw new HttpError(400, 'A Lead does not report to anyone');
+  if (!allowed) {
+    if (parentId) throw new HttpError(400, 'A lead does not report to anyone');
     return null;
   }
   if (!parentId) {
-    throw new HttpError(400, `A ${subrole} must report to a ${expected}`);
+    throw new HttpError(400, `${article(subrole)} ${subrole} must report to ${parentNames(subrole)}`);
   }
   const id = Number(parentId);
   if (selfId && id === Number(selfId)) {
@@ -752,8 +772,13 @@ async function validateParent(subrole, parentId, selfId = null) {
   }
   const parent = await db.get('SELECT id, name, subrole, parent_id FROM users WHERE id = ?', [id]);
   if (!parent) throw new HttpError(400, 'That manager does not exist');
-  if (parent.subrole !== expected) {
-    throw new HttpError(400, `A ${subrole} must report to a ${expected}, not a ${parent.subrole}`);
+  if (!allowed.includes(parent.subrole)) {
+    throw new HttpError(
+      400,
+      `${article(subrole)} ${subrole} must report to ${parentNames(subrole)}, not ${article(
+        parent.subrole
+      )} ${parent.subrole.toLowerCase()}`
+    );
   }
   // Guard against a cycle: walk up from the proposed parent.
   let cursor = parent;

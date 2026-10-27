@@ -86,7 +86,7 @@ client, no fixtures file. It sets `DATA_DIR` to a temp directory, `DB=sqlite` an
 (`api['DELETE /api/projects/:id']({ user, params })`), which is possible because
 `api` is a plain map and the demo seed is the fixture.
 
-Eleven cases, chosen because each one is a bug this app has actually had or could
+Nineteen cases, chosen because each one is a bug this app has actually had or could
 have shipped:
 
 | case | what it protects |
@@ -100,7 +100,13 @@ have shipped:
 | creating a retest on a Done project leaves it Done | `8ad1ceb` |
 | a Member may only change their own availability | the availability gate |
 | only a pentester can be attached as a pentester | assignment validation |
-| a locked property cannot be deleted | the workflow rows |
+| a Hold retest is listed as open work, not as history | `6418855` |
+| the retest queue counts every non-Done retest | the same rule, one level up |
+| a lead can add an intern under a member, a sub lead or themselves | the intern level |
+| an intern cannot supervise another intern | "who is training whom" |
+| an intern must report to somebody | no orphan trainees |
+| a member cannot create an intern | only managers add people |
+| an intern is on the board and knows who supervises them | the interns table |
 | a fresh database has the columns the code selects | the fresh-install path |
 
 `.github/workflows/test.yml` runs it on every push and pull request. There is no
@@ -127,6 +133,8 @@ box is not rendered at all, so no credentials are ever advertised to a visitor.
 | `yoga`   | `pentester123` | Pentester | Sub Lead |
 | `fajar`  | `pentester123` | Pentester | Member   |
 | `nadia`  | `pentester123` | Pentester | Member   |
+| `adit`   | `intern123`    | Pentester | Intern   |
+| `laras`  | `intern123`    | Pentester | Intern   |
 | `rina`   | `manager123`   | Project Manager | —  |
 | `hendra` | `manager123`   | Project Manager | —  |
 
@@ -135,6 +143,10 @@ The pentest tree has two branches: `admin → dewi → bagas, sinta` and
 Lead, Sub Lead, Member, Member, Lead, Sub Lead, Member, Member. Fajar ships with
 a manual `Exam` status so both an automatic and a manual row are visible out of
 the box.
+
+`adit` (intern under Bagas) and `laras` (intern under Rafi) are the two supervision
+cases an intern can have — a member and a lead — and they populate the board's
+interns table, which is empty until an intern exists.
 
 `rina` and `hendra` are **Project Managers** — a separate role, not part of the
 pentest tree. Bank Nusantara and Dompet Kita name both of them as default PMs;
@@ -431,7 +443,10 @@ Guessing which account was meant would sign people into the wrong one, which is
 worse than an error message.
 
 ### Roles & hierarchy
-Every pentester carries a **sub-role**, ordered `Lead → Sub Lead → Member`.
+Every pentester carries a **sub-role**, ordered `Lead → Sub Lead → Member → Intern`.
+An intern is the trainee level: they test alongside whoever supervises them, they
+get their own table on the team status board, and they are otherwise an ordinary
+pentester — assignable to projects, with their own availability and notes.
 
 - The level is shown as a small pill on cards, in the drawer and in the picker.
 - In the project drawer the team is **grouped by level** so you can see who runs it.
@@ -553,7 +568,7 @@ person about a retest. The search box filters across both groups and hides a gro
 with no matches.
 
 The Role column carries the account's role and, for pentesters, their level as a
-chip (*Lead*, *Sub Lead*, *Member*), because "Pentester" alone does not tell you
+chip (*Lead*, *Sub Lead*, *Member*, *Intern*), because "Pentester" alone does not tell you
 which one to ask. The e-mail and the number are `mailto:`/`tel:` links, so
 they work from a phone; clicking the avatar opens that person's card.
 
@@ -1121,21 +1136,34 @@ the name, level, project count and two buttons already fill the line.
 
 #### Pentester hierarchy
 
-Pentesters are organised in a strict three-level reporting tree:
+Pentesters are organised in a four-level reporting tree:
 
 ```
 Lead
   └── Sub Lead        (reports to a Lead)
         └── Member    (reports to a Sub Lead)
+              └── Intern  (reports to a Member, a Sub Lead or a Lead)
 ```
 
+**Intern** is the trainee level. It is the one level allowed to skip rungs: an
+intern attaches to whoever actually supervises them — usually a member, often the
+lead directly on a small team — because "which rung" is less useful than "whose
+problem are they".
+
 Open **Admin panel → Manage users** to see the tree, add people under a branch,
-move someone to a different manager, or remove them. The reporting line is stored
-as `users.parent_id`, and the server enforces the rules:
+move someone to a different manager, or remove them. Every level carries its own
+**+** button: `+ Sub lead` and `+ Intern` on a lead, `+ Member` and `+ Intern` on a
+sub lead, `+ Intern` on a member row. The intern button carries the supervisor with
+it, so adding a trainee to a specific person is one click and no picker.
+
+The reporting line is stored as `users.parent_id`, and the server enforces the
+rules:
 
 - a `Lead` cannot have a parent
 - a `Sub Lead` must report to a `Lead`
 - a `Member` must report to a `Sub Lead`
+- an `Intern` must report to a `Member`, a `Sub Lead` or a `Lead` — and never to
+  another intern, so "who is training whom" stays answerable
 - nobody can report to themselves, and reporting loops are rejected
 - a manager who still has people under them cannot be deleted (the API returns
   `409` and names how many reports must be moved first)
@@ -1156,7 +1184,7 @@ as often as from a chat message:
 | 2 | Username | else `first.last` from the name; `.2`, `.3` appended when already taken |
 | 3 | Password | else the dialog's default — `pentester123` / `manager123` per role |
 | — | Phone / e-mail | recognised **by shape, anywhere on the line**: any cell containing `@` is the address (and is validated — `rina@bank` is rejected rather than silently becoming a username), a cell of six or more digits is the phone. Both are stored on the account and printed on the person's row |
-| 4 | Level | `Lead`, `Sub Lead` or `Member`, picked up **wherever it appears** |
+| 4 | Level | `Lead`, `Sub Lead`, `Member` or `Intern`, picked up **wherever it appears** |
 | 5 | Reports to | name or username of the parent; blank means "the nearest legal parent" |
 
 All four of these parse to the same person:
@@ -1215,6 +1243,14 @@ status, note, project or retest** — typing `brimo` finds the people on the Bri
 engagement, which is the question this page exists to answer. Both filters live
 in a "Showing N of M" line with a **Clear** button, because a filter that hides
 people silently is how a board starts lying.
+
+**Interns get their own table**, below the bench, with its own heading and count.
+An intern is a person learning the job: putting them in the tree beside the people
+training them answers "who is on the bench" with a list you have to read every level
+pill to interpret, and it hides the one thing a manager wants from that level — who
+each trainee is attached to, which the row says in words (`under Bagas Nugroho`).
+The table is sorted by supervisor, then name, and it only exists once an intern does:
+a team with none keeps the single unlabelled table it always had.
 
 Rows are **pentesters only**: Project Managers own engagements rather than test
 them, and **Administrators** are operations — both live in *Users* and *Manage
@@ -1649,7 +1685,7 @@ other session for that user so a stolen cookie dies with the old password.
 | PATCH  | `/api/availability/:id`     | set `{ status, note }`; members may only patch themselves |
 | POST   | `/api/projects/:id/pentesters` | quick-assign from the board: `{ userId }`; admin/lead/sub lead only |
 | DELETE | `/api/projects/:id/pentesters/:userId` | remove a pentester from a project from the board |
-| GET    | `/api/pentesters`           | flat list + nested `tree` (Lead → Sub Lead → Member) |
+| GET    | `/api/pentesters`           | flat list + nested `tree` (Lead → Sub Lead → Member → Intern) |
 | POST   | `/api/pentesters`           | add a pentester (parent validated against the level) |
 | PATCH  | `/api/pentesters/:id`       | rename, change level, or re-parent |
 | DELETE | `/api/pentesters/:id`       | remove (blocked while they still manage someone) |

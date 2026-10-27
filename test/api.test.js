@@ -297,6 +297,99 @@ test('the retest queue counts every non-Done retest, not just the two oldest sta
 });
 
 /* ============================================================
+   Interns — the trainee level below a member.
+   ------------------------------------------------------------
+   Two rules matter and neither is visible from the UI alone: an intern may
+   report to a member, a sub lead OR a lead (they attach to whoever actually
+   supervises them), and an intern can never be the supervisor of another
+   intern — that would make "who is training whom" unanswerable.
+   ============================================================ */
+
+test('a lead can add an intern under a member, a sub lead or themselves', async () => {
+  const user = await lead();
+  const people = (await call('GET /api/pentesters', user)).pentesters;
+  const byName = (name) => people.find((p) => p.name === name);
+
+  for (const [username, name, parent] of [
+    ['intern_a', 'Intern Under Member', byName('Bagas Nugroho')],
+    ['intern_b', 'Intern Under Sub Lead', byName('Dewi Lestari')],
+    ['intern_c', 'Intern Under Lead', byName('Rafi Pratama')],
+  ]) {
+    const res = await call('POST /api/pentesters', user, {
+      body: { username, name, password: 'intern123', subrole: 'Intern', parentId: parent.id },
+    });
+    assert.equal(res.pentester.subrole, 'Intern');
+    // `getPublicUser` speaks the database's column names; the client-facing shape
+    // (parentId) is built by shapePentester, so read the raw column here.
+    assert.equal(Number(res.pentester.parent_id), Number(parent.id));
+  }
+});
+
+test('an intern cannot supervise another intern', async () => {
+  const user = await lead();
+  const { pentesters } = await call('GET /api/pentesters', user);
+  const intern = pentesters.find((p) => p.username === 'intern_a');
+
+  await assert.rejects(
+    () =>
+      call('POST /api/pentesters', user, {
+        body: {
+          username: 'intern_d',
+          name: 'Intern Under Intern',
+          password: 'intern123',
+          subrole: 'Intern',
+          parentId: intern.id,
+        },
+      }),
+    // The message names the levels that WOULD be legal, in words.
+    (err) => err.status === 400 && /must report to a member/i.test(err.message)
+  );
+});
+
+test('an intern must report to somebody', async () => {
+  const user = await lead();
+  await assert.rejects(
+    () =>
+      call('POST /api/pentesters', user, {
+        body: { username: 'intern_e', name: 'Orphan Intern', password: 'intern123', subrole: 'Intern' },
+      }),
+    { status: 400 }
+  );
+});
+
+test('a member cannot create an intern — only admin, lead or sub lead can', async () => {
+  const user = await member();
+  await assert.rejects(
+    () =>
+      call('POST /api/pentesters', user, {
+        body: {
+          username: 'intern_f',
+          name: 'Intern By Member',
+          password: 'intern123',
+          subrole: 'Intern',
+          parentId: user.id,
+        },
+      }),
+    { status: 403 }
+  );
+});
+
+test('an intern is on the availability board, and knows who supervises them', async () => {
+  const { board } = await call('GET /api/availability');
+  const intern = board.find((r) => r.username === 'intern_a');
+  assert.ok(intern, 'the intern must be a row on the board, not a hidden account');
+  assert.equal(intern.subrole, 'Intern');
+  assert.ok(intern.parentId, 'and must carry the reporting line the board prints as "under ..."');
+  assert.equal(
+    board.find((r) => Number(r.id) === Number(intern.parentId)).name,
+    'Bagas Nugroho',
+    'the parent row must be on the board too, or "under ..." cannot be resolved'
+  );
+  // The board is the bench plus the interns; the client splits them into two tables.
+  assert.ok(board.some((r) => r.subrole !== 'Intern'), 'the bench is still there');
+});
+
+/* ============================================================
    Schema — a fresh database must end up with every column the code reads.
    ============================================================ */
 

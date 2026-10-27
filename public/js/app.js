@@ -48,7 +48,9 @@ const ENUMS = {
   method: ['Black Box', 'Grey Box', 'White Box'],
   // Working statuses first, then the two terminal outcomes, then Hold.
   status: ['Incoming', 'Ready', 'Ongoing', 'Done', 'Hold'],
-  subrole: ['Lead', 'Sub Lead', 'Member'],
+  // Lead > Sub Lead > Member > Intern. An intern is the trainee level: they test
+  // alongside whoever supervises them and get their own table on the board.
+  subrole: ['Lead', 'Sub Lead', 'Member', 'Intern'],
   // Project Manager is its own role. PMs own engagements; they are not
   // pentesters and never appear in the "who pentest" picker.
   role: ['Pentester', 'Project Manager', 'Admin'],
@@ -559,6 +561,7 @@ function openAccountMenu() {
         <div class="hier-row ${state.user.subrole === 'Lead' ? 'on' : ''}"><span class="hier-dot"></span><strong>Lead</strong><span>Owns the engagement, approves scope</span></div>
         <div class="hier-row ${state.user.subrole === 'Sub Lead' ? 'on' : ''}"><span class="hier-dot"></span><strong>Sub Lead</strong><span>Runs the day-to-day testing</span></div>
         <div class="hier-row ${state.user.subrole === 'Member' ? 'on' : ''}"><span class="hier-dot"></span><strong>Member</strong><span>Executes assigned tasks</span></div>
+        <div class="hier-row ${state.user.subrole === 'Intern' ? 'on' : ''}"><span class="hier-dot"></span><strong>Intern</strong><span>Tests alongside a supervisor</span></div>
       </div>
       ${
         canManageCatalog()
@@ -6084,8 +6087,38 @@ function boardMatches(p) {
   return hay.includes(q);
 }
 
+/** Every row that survives the filter and the search — the bench and the interns. */
 function boardRows() {
   return (state.board || []).filter(boardMatches);
+}
+
+/**
+ * The board is two tables, not one: the bench (leads, sub leads, members) and the
+ * interns. An intern is a person learning the job, so mixing them into the tree
+ * would put a trainee beside the people they are being trained by and make "who is
+ * on the bench" answerable only by reading every level pill.
+ */
+function boardPentesters() {
+  return boardRows().filter((r) => r.subrole !== 'Intern');
+}
+
+function boardInterns() {
+  // Grouped by supervisor, then by name: the table is flat, so the only thing that
+  // gives it structure is the "under <who>" line, and that reads as a group only if
+  // the people under the same supervisor sit together.
+  return boardRows()
+    .filter((r) => r.subrole === 'Intern')
+    .sort(
+      (a, b) =>
+        boardNameById(a.parentId).localeCompare(boardNameById(b.parentId)) ||
+        String(a.name).localeCompare(String(b.name))
+    );
+}
+
+/** Names for "under <who>" on an intern row, from the rows we already hold. */
+function boardNameById(id) {
+  const row = (state.board || []).find((r) => Number(r.id) === Number(id));
+  return row ? row.name : '';
 }
 
 /**
@@ -6112,7 +6145,7 @@ function boardChipHTML(kind, pr) {
      </button>`;
 }
 
-function boardRowHTML(p) {
+function boardRowHTML(p, opts = {}) {
   const editable = canEditRow(p);
   const projects = p.currentProjects || [];
   const retests = p.currentRetests || [];
@@ -6163,13 +6196,19 @@ function boardRowHTML(p) {
       : '';
 
   return `
-    <tr class="board-row" data-board-row="${p.id}" data-status="${h(p.status)}" data-depth="${depth}">
+    <tr class="board-row${opts.interns ? ' is-intern-row' : ''}"${
+      opts.interns ? ' data-intern-row' : ''
+    } data-board-row="${p.id}" data-status="${h(p.status)}" data-depth="${depth}">
       <td class="cell-person">
         <div class="board-person">
           ${avatar(p.name, 'sm', p.id)}
           <div class="bp-meta">
             <strong data-person="${p.id}" role="button" tabindex="0">${h(p.name)}</strong>
-            <span>${subroleBadge(p.subrole)}</span>
+            <span>${subroleBadge(p.subrole)}${
+              p.subrole === 'Intern' && boardNameById(p.parentId)
+                ? `<em class="bp-under">under ${h(boardNameById(p.parentId))}</em>`
+                : ''
+            }</span>
           </div>
         </div>
       </td>
@@ -6192,21 +6231,26 @@ function boardRowHTML(p) {
 
 /** The table on its own, so a filter change repaints it without touching the
  *  toolbar (which would steal focus from the search box mid-typing). */
-function boardTableHTML() {
-  const rows = boardRows();
-  if (!rows.length) {
-    const filtered = Boolean(state.boardFilter || (state.boardQuery || '').trim());
-    return `<div class="board-empty">
-        <div class="icon">${icon.users(26)}</div>
-        <h3>${filtered ? 'Nobody matches' : 'Nobody on the board'}</h3>
-        <p>${
-          filtered
-            ? 'No pentester matches that filter and search. Clear them to see the whole team.'
+/** The empty state for one table, worded for whichever table ran dry. */
+function boardEmptyHTML(kind = 'pentesters') {
+  const filtered = Boolean(state.boardFilter || (state.boardQuery || '').trim());
+  const who = kind === 'interns' ? 'intern' : 'pentester';
+  return `<div class="board-empty">
+      <div class="icon">${icon.users(26)}</div>
+      <h3>${filtered ? `No ${who} matches` : `No ${who}s yet`}</h3>
+      <p>${
+        filtered
+          ? `No ${who} matches that filter and search. Clear them to see everyone.`
+          : kind === 'interns'
+            ? 'Add one with "+ Intern" next to any member under Admin panel → Manage users.'
             : 'Add pentesters under Admin panel → Manage users and they will appear here.'
-        }</p>
-        ${filtered ? '<button class="btn" data-board-clear>Clear filter</button>' : ''}
-      </div>`;
-  }
+      }</p>
+      ${filtered ? '<button class="btn" data-board-clear>Clear filter</button>' : ''}
+    </div>`;
+}
+
+function boardTableHTML(rows = boardPentesters(), opts = {}) {
+  if (!rows.length) return boardEmptyHTML();
   return `<table class="board-table">
       <thead>
         <tr>
@@ -6217,11 +6261,17 @@ function boardTableHTML() {
           <th class="col-note">Notes</th>
         </tr>
       </thead>
-      <tbody>${rows.map((p) => boardRowHTML(p)).join('')}</tbody>
+      <tbody>${rows.map((p) => boardRowHTML(p, opts)).join('')}</tbody>
     </table>`;
 }
 
-/** "5 of 7" — the count line, so a filter never silently hides people. */
+/**
+ * "2 of 9" — the count line, so a filter never silently hides people.
+ *
+ * It counts the whole board, both tables, because both tables are on screen: a
+ * per-table figure here said "Showing 0 of 7" while two interns sat visible below
+ * it. The split is the headings' job; this line answers "did my filter find anyone".
+ */
 function boardCountHTML() {
   const total = (state.board || []).length;
   const shown = boardRows().length;
@@ -6229,7 +6279,7 @@ function boardCountHTML() {
   return filtered
     ? `<span class="bt-count">Showing <strong>${shown}</strong> of ${total}</span>
        <button class="bt-clear" data-board-clear>Clear</button>`
-    : `<span class="bt-count"><strong>${total}</strong> pentester${total === 1 ? '' : 's'}</span>`;
+    : `<span class="bt-count"><strong>${total}</strong> people</span>`;
 }
 
 /** The four cards: they double as the filter. One control, two jobs — the number
@@ -6267,16 +6317,50 @@ function teamHTML() {
       </label>
       <div class="bt-meta">${boardCountHTML()}</div>
     </div>
-    <div class="board-wrap">${boardTableHTML()}</div>
+    <div class="board-tables">${boardSectionsHTML()}</div>
   </div>`;
+}
+
+/**
+ * The two tables, or one when there are no interns yet.
+ *
+ * Headings only exist when the page has something to tell apart: a board with no
+ * interns keeps the single unlabelled table it always had, because a heading that
+ * reads "Pentesters" over the only table on screen is noise.
+ */
+function boardSectionsHTML() {
+  const people = boardPentesters();
+  const interns = boardInterns();
+  const hasInterns = (state.board || []).some((r) => r.subrole === 'Intern');
+
+  const head = (label, n, note) => `
+    <div class="board-sect-head">
+      <h3>${label}</h3>
+      <span class="bt-count"><strong>${n}</strong></span>
+      ${note ? `<p>${note}</p>` : ''}
+    </div>`;
+
+  return `
+    ${hasInterns ? head('Pentesters', people.length) : ''}
+    <div class="board-wrap" data-board-table="pentesters">${boardTableHTML(people)}</div>
+    ${
+      hasInterns
+        ? `${head('Interns', interns.length, 'Trainees — listed apart from the bench')}
+           <div class="board-wrap" data-board-table="interns">${
+             interns.length ? boardTableHTML(interns, { interns: true }) : boardEmptyHTML('interns')
+           }</div>`
+        : ''
+    }`;
 }
 
 /** Repaints the rows and the count only — the toolbar keeps its focus. */
 function repaintBoard() {
   const page = document.querySelector('.board-page');
   if (!page) return;
-  const wrap = page.querySelector('.board-wrap');
-  if (wrap) wrap.innerHTML = boardTableHTML();
+  // Both tables live in one container, so a status change repaints the split too
+  // (an intern changing to Idle must move a number in the interns heading).
+  const tables = page.querySelector('.board-tables');
+  if (tables) tables.innerHTML = boardSectionsHTML();
   const meta = page.querySelector('.bt-meta');
   if (meta) meta.innerHTML = boardCountHTML();
   // The cards are the totals, so they move with the rows — a status change that
@@ -6997,36 +7081,89 @@ function managerSectionHTML() {
   </section>`;
 }
 
+/**
+ * The interns of one person, as rows under them.
+ *
+ * An intern can hang off a member, a sub lead or a lead, so this is called from
+ * all three places rather than nesting one special case. They are drawn at the
+ * deepest indent everywhere, because "trainee" is what the level means — not
+ * "seniority relative to the person above me".
+ */
+function internRowsHTML(parentId) {
+  const interns = (state.pentesters || []).filter(
+    (p) => p.subrole === 'Intern' && Number(p.parentId) === Number(parentId)
+  );
+  if (!interns.length) return '';
+  return `<div class="intern-rows">${interns.map((i) => internRowHTML(i)).join('')}</div>`;
+}
+
+/** How many projects an intern is currently attached to (a member row shows the same). */
+function internProjectCount(id) {
+  return (state.projects || []).filter((p) =>
+    (p.pentesters || []).some((pp) => Number(pp.id) === Number(id))
+  ).length;
+}
+
+function internRowHTML(i) {
+  return `
+    <div class="member-row is-intern" data-member="${i.id}">
+      <span class="tree-rail"></span>
+      ${avatar(i.name, 'sm', i.id)}
+      <strong>${h(i.name)}</strong>
+      ${subroleBadge('Intern')}
+      ${contactHTML(i, 'mr-contact')}
+      <span class="spacer"></span>
+      <span class="mr-meta">${internProjectCount(i.id)} project${internProjectCount(i.id) === 1 ? '' : 's'}</span>
+      <button class="btn btn-icon" data-pent-edit="${i.id}" aria-label="Edit ${h(i.name)}">${icon.edit()}</button>
+      <button class="btn btn-icon" data-pent-del="${i.id}" aria-label="Remove ${h(i.name)}">${icon.trash()}</button>
+    </div>`;
+}
+
+/** "+ Intern", with the parent already chosen — one click, no picker to fight. */
+function addInternBtn(parentId, cls = 'btn btn-sm') {
+  return `<button class="${cls}" data-pent-add="Intern" data-parent="${parentId}">${icon.plus()} Intern</button>`;
+}
+
 function leadNodeHTML(lead) {
   const subLeads = lead.children || [];
-  const members = (subLeads.flatMap((sl) => sl.children || []));
-  const total = 1 + subLeads.length + members.length;
+  const members = subLeads.flatMap((sl) => sl.children || []);
+  const membersUnderSubLeads = members.filter((m) => m.subrole !== 'Intern');
+  const ownInterns = (lead.children || []).filter((c) => c.subrole === 'Intern');
   return `
     <section class="tree-lead" data-lead="${lead.id}">
       <header class="tree-head">
         <div class="th-avatar">${avatar(lead.name, '', lead.id)}</div>
         <div class="th-title">
           <strong>${h(lead.name)}</strong>
-          <span>${subroleBadge('Lead')}<em>${subLeads.length} sub lead${subLeads.length === 1 ? '' : 's'} · ${members.length} member${members.length === 1 ? '' : 's'}</em></span>
+          <span>${subroleBadge('Lead')}<em>${subLeads.length} sub lead${subLeads.length === 1 ? '' : 's'} · ${membersUnderSubLeads.length} member${membersUnderSubLeads.length === 1 ? '' : 's'}${
+            ownInterns.length
+              ? ` · ${ownInterns.length} intern${ownInterns.length === 1 ? '' : 's'}`
+              : ''
+          }</em></span>
           ${contactHTML(lead)}
         </div>
         <span class="spacer"></span>
         <div class="th-actions">
           <button class="btn btn-sm" data-pent-add="Sub Lead" data-parent="${lead.id}">${icon.plus()} Sub lead</button>
+          ${addInternBtn(lead.id)}
           <button class="btn btn-icon" data-pent-edit="${lead.id}" aria-label="Edit ${h(lead.name)}">${icon.edit()}</button>
           <button class="btn btn-icon" data-pent-del="${lead.id}" aria-label="Remove ${h(lead.name)}">${icon.trash()}</button>
         </div>
       </header>
+      ${internRowsHTML(lead.id)}
       ${
         subLeads.length
           ? `<div class="tree-body">${subLeads.map((sl) => subLeadNodeHTML(sl)).join('')}</div>`
-          : `<div class="tree-empty">No sub leads under ${h(lead.name)} yet. ${total ? '' : ''}</div>`
+          : `<div class="tree-empty">No sub leads under ${h(lead.name)} yet.</div>`
       }
     </section>`;
 }
 
 function subLeadNodeHTML(sl) {
-  const members = sl.children || [];
+  // Children include interns of this sub lead; those are drawn by internRowsHTML so
+  // the member count stays a count of members.
+  const kids = sl.children || [];
+  const members = kids.filter((m) => m.subrole !== 'Intern');
   return `
     <div class="tree-sub" data-sub="${sl.id}">
       <div class="ts-head">
@@ -7040,14 +7177,17 @@ function subLeadNodeHTML(sl) {
         <span class="spacer"></span>
         <div class="th-actions">
           <button class="btn btn-sm" data-pent-add="Member" data-parent="${sl.id}">${icon.plus()} Member</button>
+          ${addInternBtn(sl.id)}
           <button class="btn btn-icon" data-pent-edit="${sl.id}" aria-label="Edit ${h(sl.name)}">${icon.edit()}</button>
           <button class="btn btn-icon" data-pent-del="${sl.id}" aria-label="Remove ${h(sl.name)}">${icon.trash()}</button>
         </div>
       </div>
       ${
         members.length
-          ? `<div class="ts-members">${members.map((m) => memberRowHTML(m)).join('')}</div>`
-          : `<div class="ts-members empty-row">No members yet under ${h(sl.name)}.</div>`
+          ? `<div class="ts-members">${members
+              .map((m) => memberRowHTML(m) + internRowsHTML(m.id))
+              .join('')}</div>${internRowsHTML(sl.id)}`
+          : `<div class="ts-members empty-row">No members yet under ${h(sl.name)}.</div>${internRowsHTML(sl.id)}`
       }
     </div>`;
 }
@@ -7065,6 +7205,7 @@ function memberRowHTML(m) {
       ${contactHTML(m, 'mr-contact')}
       <span class="spacer"></span>
       <span class="mr-meta">${assigned} project${assigned === 1 ? '' : 's'}</span>
+      ${addInternBtn(m.id, 'btn btn-sm mr-add-intern')}
       <button class="btn btn-icon" data-pent-edit="${m.id}" aria-label="Edit ${h(m.name)}">${icon.edit()}</button>
       <button class="btn btn-icon" data-pent-del="${m.id}" aria-label="Remove ${h(m.name)}">${icon.trash()}</button>
     </div>`;
@@ -7193,10 +7334,27 @@ function contactHTML(person, cls = 'th-contact') {
   return `<span class="${cls}" title="${h(full)}">${contactLine(person.phone, person.email)}</span>`;
 }
 
+/** Which levels each level may report to — the same table the server enforces. */
+const PARENT_LEVELS = {
+  'Sub Lead': ['Lead'],
+  Member: ['Sub Lead'],
+  Intern: ['Member', 'Sub Lead', 'Lead'],
+};
+
+/** "a member, a sub lead or a lead" — used in both the hint and the placeholder. */
+function parentPhrase(subrole) {
+  const names = (PARENT_LEVELS[subrole] || []).map((s) => s.toLowerCase());
+  if (names.length <= 1) return names[0] || '';
+  return `${names.slice(0, -1).join(', ')} or ${names[names.length - 1]}`;
+}
+
 /** What a level means, in the form's own words. */
 function levelHint(subrole) {
   if (subrole === 'Lead') return 'A lead sits at the top of the tree and reports to nobody.';
   if (subrole === 'Sub Lead') return 'A sub lead reports to a lead.';
+  if (subrole === 'Intern') {
+    return 'An intern reports to a member, a sub lead or a lead, and gets their own table on Team status.';
+  }
   return 'A member reports to a sub lead.';
 }
 
@@ -7206,10 +7364,10 @@ function levelHint(subrole) {
  * switch, because two hand-built copies of this drifted apart once already.
  */
 function parentPickerHTML(subrole, selectedId = null) {
-  const expected = subrole === 'Sub Lead' ? 'lead' : 'sub lead';
+  const expected = parentPhrase(subrole);
   const choices = managerChoices(subrole, selectedId);
   if (!choices.length) {
-    return `<div class="callout"><span>No ${expected} exists yet. Create one before adding a ${subrole}.</span></div>`;
+    return `<div class="callout"><span>No ${expected} exists yet. Create one before adding a ${subrole.toLowerCase()}.</span></div>`;
   }
   return `<select class="select" id="uf-parent">
       <option value="">Select a ${expected}…</option>
@@ -7288,6 +7446,7 @@ function openUserForm(person = null, preset = {}) {
             Lead: 'violet',
             'Sub Lead': 'blue',
             Member: 'slate',
+            Intern: 'cyan',
           })}
           <span class="form-hint" id="uf-level-hint">${levelHint(subrole)}</span>
         </div>
@@ -7360,7 +7519,7 @@ function openUserForm(person = null, preset = {}) {
           } else {
             const sel = modal.querySelector('#uf-parent');
             if (!sel || !sel.value) {
-              toast(`Choose which ${level === 'Sub Lead' ? 'lead' : 'sub lead'} they report to`, 'err');
+              toast(`Choose which ${parentPhrase(level)} they report to`, 'err');
               return;
             }
             payload.parentId = Number(sel.value);
@@ -7460,13 +7619,25 @@ async function refreshUsers() {
   mountContent();
 }
 
-/** Everyone who can legally manage a given level. */
+/**
+ * Everyone who can legally supervise a given level.
+ *
+ * A level's legal parents are a SET, not one level: an intern is attached to
+ * whoever actually supervises them — usually a member, often the lead on a small
+ * team. The label carries the level too, since "Rafi Pratama" and "Rafi Pratama
+ * (lead)" are the same name but a different choice when two people share one.
+ */
 function managerChoices(subrole, currentParentId = null) {
-  const want = subrole === 'Sub Lead' ? 'Lead' : subrole === 'Member' ? 'Sub Lead' : null;
-  if (!want) return [];
+  const allowed = PARENT_LEVELS[subrole];
+  if (!allowed?.length) return [];
   return sortPentesters(state.pentesters)
-    .filter((u) => u.subrole === want)
-    .map((u) => ({ value: u.id, label: u.name, sub: u.subrole, selected: Number(u.id) === Number(currentParentId) }));
+    .filter((u) => allowed.includes(u.subrole || 'Member'))
+    .map((u) => ({
+      value: u.id,
+      label: allowed.length > 1 ? `${u.name} · ${u.subrole.toLowerCase()}` : u.name,
+      sub: u.subrole,
+      selected: Number(u.id) === Number(currentParentId),
+    }));
 }
 
 /* ============================================================
@@ -7486,6 +7657,11 @@ const IMPORT_LEVELS = {
   sub_lead: 'Sub Lead',
   member: 'Member',
   staff: 'Member',
+  // An intern row in a pasted list is the same "magang" people write in a
+  // spreadsheet, so both spellings are accepted.
+  intern: 'Intern',
+  trainee: 'Intern',
+  magang: 'Intern',
 };
 const USERNAME_RE = /^[a-z0-9._-]{3,32}$/;
 const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
@@ -7643,7 +7819,10 @@ function parseImport(text, opts = {}) {
     let parent = null;
     let parentNote = '';
     if (!isPm && level !== 'Lead' && !error) {
-      const expected = level === 'Sub Lead' ? 'Lead' : 'Sub Lead';
+      // Same legal-parent table the form and the server use: an intern may sit under
+      // a member, a sub lead or a lead.
+      const allowed = PARENT_LEVELS[level] || [];
+      const expected = parentPhrase(level);
       if (reportsTo) {
         parent =
           pool.find(
@@ -7652,14 +7831,16 @@ function parseImport(text, opts = {}) {
               String(u.username || '').toLowerCase() === reportsTo.toLowerCase()
           ) || null;
         if (!parent) error = `No one called “${reportsTo}” to report to`;
-        else if (parent.subrole !== expected) {
-          error = `${parent.name} is a ${parent.subrole}, and a ${level} must report to a ${expected}`;
+        else if (!allowed.includes(parent.subrole)) {
+          error = `${parent.name} is a ${parent.subrole}, and a ${level} must report to ${expected}`;
           parent = null;
         }
       } else {
-        parent = [...pool].reverse().find((u) => u.subrole === expected) || null;
+        // The last legal parent in the file, so a list written top-down builds its
+        // own tree; for an intern that is most often the member above them.
+        parent = [...pool].reverse().find((u) => allowed.includes(u.subrole)) || null;
         if (parent) parentNote = 'auto';
-        else error = `No ${expected.toLowerCase()} to report to — add one above this line, or pick another level`;
+        else error = `Nobody to report to — add a ${expected} above this line, or pick another level`;
       }
     }
 

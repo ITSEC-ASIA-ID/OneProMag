@@ -74,9 +74,11 @@ export const ENUMS = {
   role: ['Pentester', 'Project Manager', 'Admin'],
   // Availability board. '' always means "automatic", never a stored choice.
   availability: ['', 'On Project', 'Idle', 'Leave', 'Exam', 'Research/Learning', 'Other'],
-  // Pentester hierarchy, highest first.
-  subrole: ['Lead', 'Sub Lead', 'Member'],
-  subroleRank: { Lead: 0, 'Sub Lead': 1, Member: 2 },
+  // Pentester hierarchy, highest first. An intern is the trainee level below a
+  // member: they test alongside whoever supervises them, and the board lists them
+  // in their own table because they are not on the bench yet.
+  subrole: ['Lead', 'Sub Lead', 'Member', 'Intern'],
+  subroleRank: { Lead: 0, 'Sub Lead': 1, Member: 2, Intern: 3 },
 };
 
 /**
@@ -178,7 +180,10 @@ const now = () => new Date().toISOString();
 // [username, name, role, subrole, password, reportsTo (username | null), availability?]
 // availability '' means automatic (On Project / Idle derived from assignments).
 // Two pentest branches so the availability board shows the shape it was asked
-// for: Lead, Sub Lead, Member, Member, Sub Lead, Member, Member.
+// for: Lead, Sub Lead, Member, Member, Sub Lead, Member, Member — plus two interns,
+// one under a member and one under a lead, because those are the two people an
+// intern is actually attached to in practice (and the board keeps them in their own
+// table, so the demo has to show it non-empty).
 // The last two are Project Managers: they own engagements instead of testing
 // them, so they have no subrole/manager (a PM reports to nobody in the tree).
 const SEED_USERS = [
@@ -190,6 +195,8 @@ const SEED_USERS = [
   ['yoga', 'Yoga Pratama', 'Pentester', 'Sub Lead', 'pentester123', 'rafi', ''],
   ['fajar', 'Fajar Ramadhan', 'Pentester', 'Member', 'pentester123', 'yoga', 'Exam'],
   ['nadia', 'Nadia Puspita', 'Pentester', 'Member', 'pentester123', 'yoga', ''],
+  ['adit', 'Adit Saputra', 'Pentester', 'Intern', 'intern123', 'bagas', ''],
+  ['laras', 'Laras Ayu', 'Pentester', 'Intern', 'intern123', 'rafi', ''],
   ['rina', 'Rina Kusuma', 'Project Manager', 'Member', 'manager123', null, ''],
   ['hendra', 'Hendra Wijaya', 'Project Manager', 'Member', 'manager123', null, ''],
 ];
@@ -205,6 +212,8 @@ const SEED_CONTACTS = {
   yoga: ['+62 812 1000 0006', 'yoga.pratama@onepromag.id'],
   fajar: ['+62 812 1000 0007', 'fajar.ramadhan@onepromag.id'],
   nadia: ['+62 812 1000 0008', 'nadia.puspita@onepromag.id'],
+  adit: ['+62 812 1000 0009', 'adit.saputra@onepromag.id'],
+  laras: ['+62 812 1000 0010', 'laras.ayu@onepromag.id'],
   rina: ['+62 812 2000 0001', 'rina.kusuma@onepromag.id'],
   hendra: ['+62 812 2000 0002', 'hendra.wijaya@onepromag.id'],
 };

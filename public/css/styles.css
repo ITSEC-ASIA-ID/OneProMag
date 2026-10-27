@@ -2085,6 +2085,35 @@ svg { display: block; }
   color: var(--faint);
 }
 
+/* ---- v27: interns are people on the tree, one level below a member ----
+   They get their own rows rather than another column in the member row: an intern
+   has their own account, their own contact details and their own remove button, and
+   the indentation is what says "trainee" — a cyan level pill alone did not read as
+   a level. */
+.intern-rows {
+  display: flex;
+  flex-direction: column;
+  margin: 0 0 6px;
+}
+.intern-rows .member-row {
+  padding-left: 22px;
+  border-left: 1px solid var(--border);
+  margin-left: 27px;
+  border-radius: 0 var(--r-sm) var(--r-sm) 0;
+}
+.intern-rows .member-row:hover { border-left-color: var(--faint); }
+/* The rail is drawn by the row's own left border above, so the shared tree-rail
+   span would double it. */
+.intern-rows .member-row .tree-rail { display: none; }
+.member-row.is-intern strong { font-weight: 540; color: var(--muted); }
+/* "+ Intern" sits beside the row's own actions and only claims space when it can be
+   used, so a member row keeps its rhythm on a narrow screen. */
+.mr-add-intern { margin-left: 4px; }
+@media (max-width: 760px) {
+  .mr-add-intern { display: none; }
+  .intern-rows .member-row { margin-left: 12px; padding-left: 14px; }
+}
+
 @media (max-width: 620px) {
   .tree-head, .ts-head { flex-wrap: wrap; }
   .th-actions { margin-left: auto; }
@@ -2356,12 +2385,77 @@ svg { display: block; }
 .board-empty h3 { margin: 0 0 4px; font-size: 14px; color: var(--ink); }
 .board-empty p { margin: 0 auto 12px; max-width: 42ch; font-size: 12.5px; line-height: 1.5; }
 
+.board-tables {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
 .board-wrap {
   border-radius: var(--r-lg);
   border: 1px solid var(--border);
   background: var(--surface);
   box-shadow: var(--shadow-sm);
   overflow-x: auto;
+}
+
+/* ---- v27: the interns' table ----
+   The board is two tables once the team has interns. The second one needs to read
+   as a SIBLING of the first, not as another panel of the same table: a heading with
+   its own count, a gap above it, and a sentence saying what it is. */
+.board-sect-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 6px 2px 0;
+}
+.board-sect-head h3 {
+  margin: 0;
+  font-size: 12.5px;
+  font-weight: 650;
+  letter-spacing: 0.01em;
+  color: var(--ink);
+}
+/* The count wears the same pill the toolbar uses, so "7" and "1" are read the same
+   way in both places. */
+.board-sect-head .bt-count {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 1px 8px;
+  border-radius: var(--r-full);
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  font-size: 11px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.board-sect-head .bt-count strong {
+  font-size: 11.5px;
+  font-weight: 680;
+  color: var(--ink);
+}
+.board-sect-head p {
+  margin: 0;
+  font-size: 11.5px;
+  color: var(--faint);
+}
+/* An intern's supervisor, said in words under their level pill: the tree that used
+   to show it is in the other table. */
+/* The level hint sits between two controls, so it needs its own breathing room or
+   "Reports to" reads as part of the previous sentence. */
+#uf-level-hint {
+  display: block;
+  margin: 6px 0 2px;
+}
+.bp-under {
+  font-style: normal;
+  font-size: 10.5px;
+  color: var(--faint);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 140px;
 }
 .board-table { width: 100%; border-collapse: collapse; font-size: 13px; }
 .board-table thead th {
