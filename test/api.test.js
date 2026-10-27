@@ -251,6 +251,52 @@ test('a locked property cannot be deleted, and neither can one in use', async ()
 });
 
 /* ============================================================
+   What is "open": every retest that is not Done, in every status.
+   ============================================================ */
+
+test('a retest on Hold is listed as open work, not as history', async () => {
+  const user = await lead();
+  // The seed carries RT-005-01 on Hold on a Hold engagement.
+  const held = await db.get("SELECT id, project_id FROM retests WHERE status = 'Hold'");
+  assert.ok(held, 'the seed should contain a retest on Hold');
+
+  const { projects } = await call('GET /api/projects', user, { query: { activeOnly: '1' } });
+  const project = projects.find((p) => Number(p.id) === Number(held.project_id));
+  assert.ok(project, 'a Hold engagement belongs in the active list');
+  assert.ok(
+    (project.openRetests || []).some((r) => r.status === 'Hold'),
+    'the Hold retest must be one of the rows the active list expands'
+  );
+});
+
+test('a Hold retest alone keeps a Done engagement on the active list', async () => {
+  const user = await lead();
+  const { projects } = await call('GET /api/projects', user);
+  const done = projects.find((p) => p.status === 'Done' && (p.openRetests || []).length);
+  assert.ok(done, 'the seed should leave an open retest on a finished engagement');
+  const retest = done.openRetests[0];
+
+  await call('PATCH /api/retests/:id', user, { params: { id: retest.id }, body: { status: 'Hold' } });
+
+  const active = await call('GET /api/projects', user, { query: { activeOnly: '1' } });
+  const shown = active.projects.find((p) => Number(p.id) === Number(done.id));
+  assert.ok(shown, 'the engagement must stay reachable while a paused retest is open');
+  assert.equal(shown.status, 'Done', 'and must still read as Done');
+  assert.ok(shown.openRetests.some((r) => r.status === 'Hold'));
+
+  // Put it back so the rest of the suite sees the seed it was written against.
+  await call('PATCH /api/retests/:id', user, { params: { id: retest.id }, body: { status: 'Ongoing' } });
+});
+
+test('the retest queue counts every non-Done retest, not just the two oldest statuses', async () => {
+  const user = await lead();
+  const open = await db.get("SELECT COUNT(*) AS n FROM retests WHERE status <> 'Done'");
+  const stats = await call('GET /api/stats', user);
+  assert.equal(Number(stats.openRetests), Number(open.n));
+  assert.ok(Number(open.n) >= 3, 'the seed has two ongoing and one on hold');
+});
+
+/* ============================================================
    Schema — a fresh database must end up with every column the code reads.
    ============================================================ */
 

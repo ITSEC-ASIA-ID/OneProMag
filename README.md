@@ -492,7 +492,16 @@ rather than a magic number.
 #### Retests get their own rows in the active lists
 
 An open retest is work, so **Active projects** and **My active projects** list it as
-its own row, labelled `Retest - <project>`, next to the engagement:
+its own row, labelled `Retest - <project>`, next to the engagement.
+
+**Open means "not Done".** Every other status counts — `Incoming`, `Ready`,
+`Ongoing`, `Hold`, and any status an admin adds — because a request on `Hold` is
+paused work, not history. It used to be hardcoded to `Incoming`/`Ongoing`, which
+made a paused retest invisible: it was not a row in either active list, it did not
+count in the Retest queue card, and if its engagement was already `Done` the whole
+piece of work disappeared from the app. The rule now lives in one place on the
+server (`retestOpen()`), so the rows, the queue counter, the board chips and the
+"status in use" check cannot drift apart:
 
 ```
 Core Banking Web Portal          2 retests   Ongoing
@@ -1208,7 +1217,7 @@ Rows follow the reporting tree — a lead, then that lead's sub lead with its
 members, then the next sub lead, and so on.
 
 A **retest** belongs to a project, not to a person: whoever is assigned to the
-project does it. So an open retest (`Incoming` or `Ongoing`) is listed beside the
+project does it. So an open retest (any status but `Done`) is listed beside the
 engagements that own it, and it counts as work — a pentester whose only
 outstanding job is a retest on a finished engagement is *On Project*, not idle,
 which is what stops their idle clock from running against them. The project chip
@@ -1383,7 +1392,7 @@ A retest does not ask who requested it — it is a **client** request, not somet
 the signed-in user is asking for.
 
 Create, edit and delete them from the project drawer → **Retests** tab. Projects
-show a retest count badge, and any `Incoming`/`Ongoing` retest counts as open
+show a retest count badge, and any retest that is not `Done` counts as open
 (highlighted in the sidebar and stat cards).
 
 ---

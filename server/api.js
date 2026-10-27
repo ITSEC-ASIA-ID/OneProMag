@@ -119,7 +119,7 @@ const projectSelect = `
          m.email AS manager_email,
          m.phone AS manager_phone,
          (SELECT COUNT(*) FROM retests r WHERE r.project_id = p.id) AS retest_count,
-         (SELECT COUNT(*) FROM retests r WHERE r.project_id = p.id AND r.status IN ('Incoming','Ongoing')) AS open_retest_count
+         (SELECT COUNT(*) FROM retests r WHERE r.project_id = p.id AND ${retestOpen('r')}) AS open_retest_count
     FROM projects p
     LEFT JOIN clients c ON c.id = p.client_id
     LEFT JOIN applications a ON a.id = p.application_id
@@ -676,6 +676,20 @@ async function nextRetestCode(tx, projectId) {
   return `${prefix}${String(max + 1).padStart(2, '0')}`;
 }
 
+/**
+ * What counts as an OPEN retest — the predicate behind the Active lists, the retest
+ * queue card, the board chips and the "in use" check when deleting a status.
+ *
+ * "Not Done" rather than a list of the three statuses that happened to be in use
+ * when this was written: a retest on `Hold` is paused work, not history, and it was
+ * invisible everywhere because only `Incoming`/`Ongoing` matched. Anything an admin
+ * adds as a status (a custom `Blocked`, say) is open by the same rule, and `Done` is
+ * the one status the workflow locks, so this cannot be emptied from the UI.
+ */
+function retestOpen(alias = '') {
+  return `${alias ? `${alias}.` : ''}status <> 'Done'`;
+}
+
 function isUniqueViolation(err) {
   // Postgres: 23505. SQLite: "UNIQUE constraint failed".
   return err?.code === '23505' || /UNIQUE constraint failed/i.test(String(err?.message || ''));
@@ -887,7 +901,7 @@ async function openRetestsForProjects(ids) {
   const rows = await db.all(
     `SELECT id, project_id, code, title, status, requested_at, started_at
        FROM retests
-      WHERE status IN ('Incoming', 'Ongoing')
+      WHERE status <> 'Done'
         AND project_id IN (${ids.map(() => '?').join(',')})
       ORDER BY id`,
     ids
@@ -912,7 +926,7 @@ async function openRetestsByProject() {
   const rows = await db.all(
     `SELECT id, project_id, code, title, status
        FROM retests
-      WHERE status IN ('Incoming', 'Ongoing')`
+      WHERE status <> 'Done'`
   );
   const byProject = new Map();
   for (const row of rows) {
@@ -1282,7 +1296,7 @@ export const api = {
            -- queue counter, and in the list it has its own rows. Counting it here
            -- made the badge say 5 while the list showed 4 project rows.
            SUM(CASE WHEN p.status <> 'Done' THEN 1 ELSE 0 END) AS active,
-           SUM(CASE WHEN EXISTS (SELECT 1 FROM retests r WHERE r.project_id = p.id AND r.status IN ('Incoming','Ongoing'))
+           SUM(CASE WHEN EXISTS (SELECT 1 FROM retests r WHERE r.project_id = p.id AND ${retestOpen('r')})
                     THEN 1 ELSE 0 END) AS queue,
            SUM(CASE WHEN p.status = 'Ongoing' THEN 1 ELSE 0 END) AS ongoing,
            SUM(CASE WHEN p.category = 'Mobile' THEN 1 ELSE 0 END) AS mobile
@@ -1295,7 +1309,7 @@ export const api = {
       const openRow = await db.get(
         `SELECT COUNT(*) AS n FROM retests r
            JOIN projects p ON p.id = r.project_id
-          WHERE r.status IN ('Incoming','Ongoing') ${mine}`,
+          WHERE ${retestOpen('r')} ${mine}`,
         args
       );
       // SUM() over zero rows is NULL, not 0 — normalise every counter.
@@ -1330,7 +1344,7 @@ export const api = {
 
     const retests = Number((await db.get('SELECT COUNT(*) AS n FROM retests'))?.n ?? 0);
     const openRetests = Number(
-      (await db.get("SELECT COUNT(*) AS n FROM retests WHERE status IN ('Incoming','Ongoing')"))?.n ?? 0
+      (await db.get("SELECT COUNT(*) AS n FROM retests WHERE status <> 'Done'"))?.n ?? 0
     );
     const prod = Number(
       (await db.get("SELECT COUNT(*) AS n FROM projects WHERE env = 'Prod'"))?.n ?? 0
@@ -1373,7 +1387,7 @@ export const api = {
         WHERE EXISTS (SELECT 1 FROM project_pentesters pp WHERE pp.project_id = p.id AND pp.user_id = ?)
           AND (p.status <> 'Done'
                OR EXISTS (SELECT 1 FROM retests r
-                           WHERE r.project_id = p.id AND r.status IN ('Incoming','Ongoing')))`,
+                           WHERE r.project_id = p.id AND ${retestOpen('r')}))`,
       [ctx.user.id]
     );
     const mineAllRows = await db.all(
@@ -1388,7 +1402,7 @@ export const api = {
     const queue = (
       await db.get(
         `SELECT COUNT(*) AS n FROM projects p
-          WHERE EXISTS (SELECT 1 FROM retests r WHERE r.project_id = p.id AND r.status IN ('Incoming','Ongoing'))`
+          WHERE EXISTS (SELECT 1 FROM retests r WHERE r.project_id = p.id AND ${retestOpen('r')})`
       )
     )?.n ?? 0;
 
@@ -1467,7 +1481,7 @@ export const api = {
       where.push(
         `(p.status <> 'Done' OR EXISTS (SELECT 1 FROM retests r2
                                         WHERE r2.project_id = p.id
-                                          AND r2.status IN ('Incoming', 'Ongoing')))`
+                                          AND ${retestOpen('r2')}))`
       );
     }
     // Finished is the exact complement of Active: the pentest is Done AND there
@@ -1477,7 +1491,7 @@ export const api = {
       where.push(
         `(p.status = 'Done' AND NOT EXISTS (SELECT 1 FROM retests r2
                                             WHERE r2.project_id = p.id
-                                              AND r2.status IN ('Incoming', 'Ongoing')))`
+                                              AND ${retestOpen('r2')}))`
       );
     }
     // The inverse: only these statuses (used by the "Finished" workspace item).
@@ -1519,7 +1533,7 @@ export const api = {
     // Retest queue: projects with at least one open client retest request.
     if (queue === '1') {
       where.push(
-        "EXISTS (SELECT 1 FROM retests r WHERE r.project_id = p.id AND r.status IN ('Incoming','Ongoing'))"
+        `EXISTS (SELECT 1 FROM retests r WHERE r.project_id = p.id AND ${retestOpen('r')})`
       );
     }
     const sql = `${projectSelect} ${where.length ? 'WHERE ' + where.join(' AND ') : ''} ORDER BY

@@ -207,10 +207,26 @@ export function openModal({ title, subtitle = '', body, footer, wide = false, xw
       ${footer ? `<div class="modal-foot">${footer}</div>` : ''}
     </div>`;
 
+  // One controller per modal, aborted on close. Everything registered on
+  // `document` by the modal's own wiring takes `signal`, so it dies with the
+  // dialog instead of accumulating: `openProjectForm` used to install three
+  // document listeners per open (one per combobox) that were never removed,
+  // each closing over the modal body, so the detached subtree could never be
+  // collected. `bindCombobox` even stored a `_cleanup` that nobody called.
+  const ctrl = new AbortController();
+  // Restoring focus is not cosmetic: without it, closing a dialog drops the
+  // keyboard user at the top of the document with no idea where they were.
+  const opener =
+    document.activeElement instanceof HTMLElement && document.activeElement !== document.body
+      ? document.activeElement
+      : null;
+
   const close = () => {
+    ctrl.abort();
     backdrop.remove();
     modalStack = modalStack.filter((m) => m !== close);
     document.removeEventListener('keydown', onKey);
+    if (opener?.isConnected) opener.focus({ preventScroll: true });
     onClose?.();
   };
   const onKey = (e) => {
@@ -229,7 +245,7 @@ export function openModal({ title, subtitle = '', body, footer, wide = false, xw
   modalStack.push(close);
 
   const modal = backdrop.querySelector('.modal');
-  onMount?.(modal, close);
+  onMount?.(modal, close, ctrl.signal);
 
   requestAnimationFrame(() => {
     // A caller that knows where attention belongs can pass an `initialFocus`
@@ -524,7 +540,7 @@ function renderComboList(box, needle) {
 /**
  * Wires a combobox. `onChange(value, item)` fires when the user picks an option.
  */
-export function bindCombobox(root, id, onChange) {
+export function bindCombobox(root, id, onChange, signal) {
   const box = root.querySelector(`[data-combo="${id}"]`);
   if (!box) return;
   if (!box._items || !box._items.length) {
@@ -588,12 +604,13 @@ export function bindCombobox(root, id, onChange) {
     onChange?.(value, chosen);
   });
 
-  // Clicking anywhere else closes the panel.
+  // Clicking anywhere else closes the panel. Bound with the modal's signal, so
+  // the listener leaves with the dialog (it used to be stored as `_cleanup` and
+  // never called, keeping the whole modal subtree alive).
   const onDocDown = (e) => {
     if (!box.contains(e.target)) close();
   };
-  document.addEventListener('mousedown', onDocDown);
-  box._cleanup = () => document.removeEventListener('mousedown', onDocDown);
+  document.addEventListener('mousedown', onDocDown, { signal });
 }
 
 /* ============================================================
