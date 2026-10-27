@@ -66,13 +66,9 @@ CREATE TABLE IF NOT EXISTS applications (
 CREATE TABLE IF NOT EXISTS application_variants (
   id             SERIAL PRIMARY KEY,
   application_id INTEGER NOT NULL REFERENCES applications(id) ON DELETE CASCADE,
+  -- A sub app is just a name: the team already knows what "Brilink MPOS" is, and
+  -- asking for a package name and a version to describe it was inventing work.
   name           TEXT NOT NULL,
-  -- What makes this build different from its siblings: the platform it ships on,
-  -- the handle you actually open it by (package name, bundle id, base URL) and its
-  -- version. All optional — a variant may be nothing but a name at first.
-  platform       TEXT NOT NULL DEFAULT '',
-  identifier     TEXT NOT NULL DEFAULT '',
-  version        TEXT NOT NULL DEFAULT '',
   notes          TEXT NOT NULL DEFAULT '',
   created_at     TEXT NOT NULL,
   UNIQUE (application_id, name)

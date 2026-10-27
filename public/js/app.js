@@ -44,8 +44,6 @@ const root = document.getElementById('root');
 const ENUMS = {
   category: ['Web', 'Mobile', 'API', 'EDC'],
   platform: ['Android', 'iOS', 'API'],
-  // A variant app can be more than a mobile build, so it carries its own list.
-  variantPlatform: ['Android', 'iOS', 'Web', 'API', 'Desktop', 'Other'],
   env: ['Dev', 'Prod'],
   method: ['Black Box', 'Grey Box', 'White Box'],
   // Working statuses first, then the two terminal outcomes, then Hold.
@@ -706,11 +704,7 @@ function variantItems(applicationId) {
   const id = Number(applicationId);
   if (!id) return [];
   const app = state.applications.find((a) => Number(a.id) === id);
-  return (app?.variants || []).map((v) => ({
-    value: v.id,
-    label: v.name,
-    sub: variantMeta(v).replace(/ · /g, ' · '),
-  }));
+  return (app?.variants || []).map((v) => ({ value: v.id, label: v.name }));
 }
 
 function applicationOptions(clientId, selectedId, placeholder) {
@@ -850,7 +844,7 @@ function projectCardHTML(row) {
           <div class="meta client-line">${icon.building(12)}<span>${h(p.client || 'No client')}${
             p.applicationName ? ` &ndash; ${h(p.applicationName)}` : ''
           }</span>${
-            p.variantName ? `<span class="v-chip" title="Variant app">${h(p.variantName)}</span>` : ''
+            p.variantName ? `<span class="v-chip" title="Sub app">${h(p.variantName)}</span>` : ''
           }</div>
           ${
             p.supervisorName
@@ -1516,12 +1510,14 @@ function adminHTML() {
 }
 
 /**
- * One application inside a client card, plus its variant apps.
+ * One application inside a client card, plus its sub apps.
  *
- * Variants are the optional third level (Client → Application → Variant): "Mobile
- * Banking App" might ship as Android, iOS and a partner-branded build. An
- * application with no variants shows one quiet "+ Variant" line and nothing else,
- * because the level is optional and must not read like a missing field.
+ * A sub app (also "variant") is the optional third level, Client → Application →
+ * Sub app: a separate product delivered under the same application, named by the
+ * team. `Brilink` has `Brilink MPOS`, `Brilink Mobile` and `Brilink Web`; they are
+ * three things you test separately, not three builds of one thing. An application
+ * with no sub apps shows one quiet "+ Sub app" line and nothing else, because the
+ * level is optional and must not read like a missing field.
  */
 function applicationBlockHTML(a) {
   const variants = a.variants || [];
@@ -1532,43 +1528,23 @@ function applicationBlockHTML(a) {
         <span class="app-name">${h(a.name)}</span>
         <span class="app-count">${a.projectCount} project${a.projectCount === 1 ? '' : 's'}</span>
         <button class="app-act" data-app-edit="${a.id}" aria-label="Rename application">${icon.edit()}</button>
-        <button class="app-act" data-variant-add="${a.id}" aria-label="Add a variant of ${h(a.name)}">${icon.plus()}</button>
+        <button class="app-act" data-variant-add="${a.id}" aria-label="Add a sub app to ${h(a.name)}">${icon.plus()}</button>
         <button class="app-act danger" data-app-del="${a.id}" aria-label="Delete application">${icon.trash()}</button>
       </div>
       <div class="variant-list">
         ${variants.map((v) => variantRowHTML(v)).join('')}
-        <button class="variant-add" data-variant-add="${a.id}">${icon.plus()} Variant</button>
+        <button class="variant-add" data-variant-add="${a.id}">${icon.plus()} Sub app</button>
       </div>
     </div>`;
 }
 
-/**
- * "Android · com.bank.brimo · v4.2.0", skipping whatever is unset.
- *
- * A variant is usually NAMED after its platform ("Android", "iOS"), so the platform
- * is dropped while it merely repeats the name — "Android — Android v4.2.0" reads
- * like a bug, not like information.
- */
-function variantMeta(v) {
-  const same = String(v.platform || '').toLowerCase() === String(v.name || '').toLowerCase();
-  return [same ? '' : v.platform, v.identifier, v.version ? `v${v.version.replace(/^v/i, '')}` : '']
-    .filter(Boolean)
-    .join(' · ');
-}
-
 function variantRowHTML(v) {
-  const meta = variantMeta(v);
   return `
     <div class="variant-row">
-      <span class="variant-body">
-        <span class="variant-top">
-          <span class="variant-name">${h(v.name)}</span>
-          <span class="variant-count">${v.projectCount} project${v.projectCount === 1 ? '' : 's'}</span>
-        </span>
-        ${meta ? `<span class="variant-meta" title="${h(meta)}">${h(meta)}</span>` : ''}
-      </span>
-      <button class="app-act" data-variant-edit="${v.id}" aria-label="Edit variant ${h(v.name)}">${icon.edit()}</button>
-      <button class="app-act danger" data-variant-del="${v.id}" aria-label="Delete variant ${h(v.name)}">${icon.trash()}</button>
+      <span class="variant-name">${h(v.name)}</span>
+      <span class="variant-count">${v.projectCount} project${v.projectCount === 1 ? '' : 's'}</span>
+      <button class="app-act" data-variant-edit="${v.id}" aria-label="Edit sub app ${h(v.name)}">${icon.edit()}</button>
+      <button class="app-act danger" data-variant-del="${v.id}" aria-label="Delete sub app ${h(v.name)}">${icon.trash()}</button>
     </div>`;
 }
 
@@ -1663,40 +1639,17 @@ function openVariantForm(applicationId = null, variant = null) {
   const app = state.applications.find((a) => Number(a.id) === appId);
   if (!app) return toast('Application not found', 'err');
   openModal({
-    title: editing ? 'Edit variant app' : 'New variant app',
+    title: editing ? 'Edit sub app' : 'New sub app',
     subtitle: app.name,
     body: `
       <div class="field">
-        <label for="v-name">Variant name <span class="required">*</span></label>
-        <input class="input" id="v-name" placeholder="e.g. Android, iOS, Partner build" value="${h(variant?.name || '')}" />
+        <label for="v-name">Sub app name <span class="required">*</span></label>
+        <input class="input" id="v-name" placeholder="e.g. Brilink MPOS, Brilink Mobile, Brilink Web" value="${h(variant?.name || '')}" />
         <span class="hint">
-          A sub-application: a separate build of the same application — a platform, a
-          white-label copy, a second release. Projects point at a variant when the
-          engagement is about that build instead of the application as a whole.
+          A sub app is a separate product under the same application, named however
+          the team names it. Projects point at a sub app when the engagement is about
+          it instead of the application as a whole.
         </span>
-      </div>
-      <div class="form-row">
-        <div class="field">
-          <label for="v-platform">Platform</label>
-          <select class="select" id="v-platform">
-            <option value="">Not set</option>
-            ${ENUMS.variantPlatform
-              .map(
-                (p) =>
-                  `<option value="${h(p)}" ${variant?.platform === p ? 'selected' : ''}>${h(p)}</option>`
-              )
-              .join('')}
-          </select>
-        </div>
-        <div class="field">
-          <label for="v-version">Version</label>
-          <input class="input" id="v-version" placeholder="e.g. 4.2.1" value="${h(variant?.version || '')}" maxlength="40" />
-        </div>
-      </div>
-      <div class="field">
-        <label for="v-identifier">Identifier</label>
-        <input class="input mono" id="v-identifier" placeholder="com.bank.brimo or https://app.example.id" value="${h(variant?.identifier || '')}" maxlength="120" />
-        <span class="hint">What you actually open it by: a package name, a bundle id, or a base URL.</span>
       </div>
       <div class="field">
         <label for="v-notes">Notes</label>
@@ -1704,25 +1657,19 @@ function openVariantForm(applicationId = null, variant = null) {
       </div>`,
     footer: `<div class="spacer"></div>
       <button class="btn" data-cancel>Cancel</button>
-      <button class="btn btn-primary" data-save>${editing ? 'Save changes' : 'Add variant'}</button>`,
+      <button class="btn btn-primary" data-save>${editing ? 'Save changes' : 'Add sub app'}</button>`,
     onMount: (modal, close) => {
       modal.querySelector('[data-cancel]').addEventListener('click', close);
       modal.querySelector('[data-save]').addEventListener('click', async () => {
         const name = modal.querySelector('#v-name').value.trim();
-        if (!name) return toast('Variant name is required', 'err');
-        const payload = {
-          name,
-          platform: modal.querySelector('#v-platform').value,
-          identifier: modal.querySelector('#v-identifier').value.trim(),
-          version: modal.querySelector('#v-version').value.trim(),
-          notes: modal.querySelector('#v-notes').value,
-        };
+        if (!name) return toast('Sub app name is required', 'err');
+        const payload = { name, notes: modal.querySelector('#v-notes').value };
         const btn = modal.querySelector('[data-save]');
         btn.disabled = true;
         try {
           if (editing) await api.updateVariant(variant.id, payload);
           else await api.createVariant(appId, payload);
-          toast(editing ? 'Variant updated' : 'Variant added');
+          toast(editing ? 'Sub app updated' : 'Sub app added');
           close();
           await refreshCatalog();
           await refreshAll();
@@ -1738,14 +1685,14 @@ function openVariantForm(applicationId = null, variant = null) {
 async function deleteVariant(variant) {
   if (!variant) return;
   const ok = await confirmDialog({
-    title: 'Delete variant app?',
-    message: `"${variant.name}" will be removed, with any notes filed on it. Projects that point at it keep their application, but lose the variant.`,
-    confirmLabel: 'Delete variant',
+    title: 'Delete sub app?',
+    message: `"${variant.name}" will be removed, with any notes filed on it. Projects that point at it keep their application, but lose the sub app.`,
+    confirmLabel: 'Delete sub app',
   });
   if (!ok) return;
   try {
     await api.deleteVariant(variant.id);
-    toast('Variant deleted');
+    toast('Sub app deleted');
     await refreshCatalog();
     await refreshAll();
   } catch (err) {
@@ -3663,7 +3610,7 @@ function infoHTML() {
           <h2>${h(sel.variant ? sel.variant.name : sel.app ? sel.app.name : sel.client.name)}</h2>
           <p class="info-sub">${
             sel.variant
-              ? `${icon.building(12)} ${h(sel.client?.name || '')} · ${h(sel.app?.name || '')} · variant app`
+              ? `${icon.building(12)} ${h(sel.client?.name || '')} · ${h(sel.app?.name || '')} · sub app`
               : sel.app
                 ? `${icon.building(12)} ${h(sel.client?.name || '')} · application`
                 : 'Client-level notes — shared by every application below it'
@@ -3673,7 +3620,7 @@ function infoHTML() {
       </div>`
     : `<div class="info-head">
         <div><h2>Information center</h2>
-        <p class="info-sub">Pick a client, an application or a variant app on the left.</p></div>
+        <p class="info-sub">Pick a client, an application or a sub app on the left.</p></div>
       </div>`;
 
   return `<div class="info-layout">
@@ -5075,28 +5022,25 @@ async function openPerson(id, opts = {}) {
 function variantSelectOptions(applicationId, selectedId = '') {
   const items = variantItems(applicationId);
   const chosen = String(selectedId ?? '');
-  // "Whole application" is a real choice, not a placeholder: a variant is optional.
+  // "Whole application" is a real choice, not a placeholder: a sub app is optional.
   return (
     `<option value="">Whole application</option>` +
     items
       .map(
         (i) =>
-          `<option value="${i.value}" ${String(i.value) === chosen ? 'selected' : ''}>${h(
-            i.sub ? `${i.label} — ${i.sub}` : i.label
-          )}</option>`
+          `<option value="${i.value}" ${String(i.value) === chosen ? 'selected' : ''}>${h(i.label)}</option>`
       )
       .join('')
   );
 }
 
-/** The line under the variant picker: what that build actually is. */
+/** The line under the sub-app picker: the note that explains it, if there is one. */
 function variantDetailHTML(applicationId, variantId) {
   const variant = findVariant(variantId);
-  if (!variant) return 'Only when the engagement is about one build of this application.';
-  const meta = variantMeta(variant);
-  return meta
-    ? `${h(variant.name)}: ${h(meta)}${variant.notes ? ` — ${h(variant.notes)}` : ''}`
-    : `${h(variant.name)} — no identifier or version recorded yet.`;
+  if (!variant) return 'Only when the engagement is about one sub app of this application.';
+  return variant.notes
+    ? `${h(variant.name)} — ${h(variant.notes)}`
+    : 'Only when the engagement is about one sub app of this application.';
 }
 
 function openProjectForm(project = null) {
@@ -5135,12 +5079,12 @@ function openProjectForm(project = null) {
     </span>
 
     <!--
-      Variant apps are optional. The field only shows up when the chosen
-      application HAS variants, so a team that never splits an app into builds
-      never sees an extra question.
+      Sub apps are optional. The field only shows up when the chosen application
+      HAS sub apps, so a team that never splits an application into products never
+      sees an extra question.
     -->
     <div class="field" id="variant-field" ${variantItems(project?.applicationId).length ? '' : 'hidden'}>
-      <label for="p-variant">Variant app <span class="opt">optional</span></label>
+      <label for="p-variant">Sub app <span class="opt">optional</span></label>
       <select class="select" id="p-variant">
         ${variantSelectOptions(project?.applicationId, project?.variantId)}
       </select>
@@ -5263,7 +5207,7 @@ function openProjectForm(project = null) {
         variantSelect.innerHTML = variantSelectOptions(applicationId, keep);
         variantField.hidden = items.length === 0;
         if (variantHint && !keep) {
-          variantHint.textContent = 'Only when the engagement is about one build of this application.';
+          variantHint.textContent = 'Only when the engagement is about one sub app of this application.';
         }
       };
       setComboboxItems(modal, 'p-app', applicationItems(project?.clientId), project?.applicationId ?? '');
@@ -5876,13 +5820,9 @@ function tabBody(project, retests, tab) {
         <div class="info-item span-2"><div class="k">Application</div><div class="v">${h(project.applicationName || '—')}</div></div>
         ${
           project.variantName
-            ? `<div class="info-item span-2"><div class="k">Variant app</div><div class="v">${h(
+            ? `<div class="info-item span-2"><div class="k">Sub app</div><div class="v">${h(
                 project.variantName
-              )}${
-                variantMeta(findVariant(project.variantId) || {})
-                  ? `<div class="v-sub">${h(variantMeta(findVariant(project.variantId) || {}))}</div>`
-                  : ''
-              }</div></div>`
+              )}</div></div>`
             : ''
         }
         <div class="info-item span-2">

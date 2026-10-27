@@ -61,9 +61,6 @@ export const ENUMS = {
   category: ['Web', 'Mobile', 'API', 'EDC'],
   // Platform only applies to Mobile projects.
   platform: ['Android', 'iOS', 'API'],
-  // A variant can be more than a mobile build, so it gets its own list rather than
-  // borrowing the project one.
-  variantPlatform: ['Android', 'iOS', 'Web', 'API', 'Desktop', 'Other'],
   env: ['Dev', 'Prod'],
   method: ['Black Box', 'Grey Box', 'White Box'],
   // Display order used by the status dropdown, the segmented control and the
@@ -232,14 +229,11 @@ const SEED_CONTACTS = {
  * several builds.
  */
 const SEED_VARIANTS = {
-  'Bank Nusantara||Brimo': [
-    { name: 'Android', platform: 'Android', identifier: 'id.co.banknusantara.brimo', version: '4.2.0' },
-    { name: 'iOS', platform: 'iOS', identifier: 'id.co.banknusantara.brimo', version: '4.1.3' },
-  ],
-  'Dompet Kita||Dompet Kita App': [
-    { name: 'Android', platform: 'Android', identifier: 'id.dompetkita.app', version: '2.8.1' },
-    { name: 'Partner build', platform: 'Android', identifier: 'id.dompetkita.partner', version: '2.8.1' },
-  ],
+  // A sub app is a separate product under the same application: Brilink is one app
+  // with three things worth testing apart from each other.
+  'Bank Nusantara||Brilink': ['Brilink MPOS', 'Brilink Mobile', 'Brilink Web'],
+  'Bank Nusantara||Brimo': ['Brimo Mobile', 'Brimo Web'],
+  'Dompet Kita||Dompet Kita App': ['Dompet Kita Personal', 'Dompet Kita Partner'],
 };
 
 const SEED_CLIENTS = [
@@ -381,7 +375,7 @@ function seedProjects(daysAgo) {
       client: 'Bank Nusantara',
       supervisor: 'hendra',
       application: 'Brimo',
-      variant: 'Android',
+      variant: 'Brimo Mobile',
       category: 'Mobile',
       platform: 'Android',
       env: 'Prod',
@@ -406,7 +400,7 @@ function seedProjects(daysAgo) {
       client: 'Bank Nusantara',
       supervisor: 'hendra',
       application: 'Brimo',
-      variant: 'iOS',
+      variant: 'Brimo Mobile',
       category: 'Mobile',
       platform: 'iOS',
       env: 'Dev',
@@ -717,13 +711,13 @@ async function seed() {
         );
         const appId = Number(appRow.id);
         appIdByKey.set(`${name}||${appName}`, appId);
-        for (const v of SEED_VARIANTS[`${name}||${appName}`] || []) {
+        for (const variantName of SEED_VARIANTS[`${name}||${appName}`] || []) {
           const variantRow = await tx.get(
-            `INSERT INTO application_variants (application_id, name, platform, identifier, version, notes, created_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING id`,
-            [appId, v.name, v.platform || '', v.identifier || '', v.version || '', '', now()]
+            `INSERT INTO application_variants (application_id, name, notes, created_at)
+             VALUES (?, ?, ?, ?) RETURNING id`,
+            [appId, variantName, '', now()]
           );
-          variantIdByKey.set(`${name}||${appName}||${v.name}`, Number(variantRow.id));
+          variantIdByKey.set(`${name}||${appName}||${variantName}`, Number(variantRow.id));
         }
       }
       for (const username of supervisors) {
@@ -949,7 +943,7 @@ async function seedPropertiesIfEmpty() {
  *
  * 12 — retest rows in the active lists, paging, properties, documents per env.
  */
-export const SCHEMA_VERSION = 16;
+export const SCHEMA_VERSION = 17;
 
 let appliedSchemaVersion = 0;
 
@@ -1199,6 +1193,18 @@ async function migrateSupervisorNames() {
  */
 const failedMigrations = [];
 
+/** The undo of addColumnIfMissing: used when a column shipped and was then dropped. */
+async function dropColumnIfExists(table, column) {
+  if (!(await columnExists(table, column))) return;
+  try {
+    await db.exec(`ALTER TABLE ${table} DROP COLUMN ${column}`);
+  } catch (err) {
+    // SQLite before 3.35 cannot drop a column. Leaving it is harmless: every
+    // statement in the code names its columns explicitly.
+    console.warn(`[db] could not drop ${table}.${column}:`, err.message);
+  }
+}
+
 async function addColumnIfMissing(table, column, definition) {
   try {
     if (db.engine === 'postgres') {
@@ -1304,10 +1310,11 @@ async function migrateSqlite() {
     'INTEGER REFERENCES applications(id) ON DELETE SET NULL'
   );
   await addColumnIfMissing('projects', 'platform', "TEXT NOT NULL DEFAULT ''");
-  // v29: a variant app carries its own platform / identifier / version.
-  await addColumnIfMissing('application_variants', 'platform', "TEXT NOT NULL DEFAULT ''");
-  await addColumnIfMissing('application_variants', 'identifier', "TEXT NOT NULL DEFAULT ''");
-  await addColumnIfMissing('application_variants', 'version', "TEXT NOT NULL DEFAULT ''");
+  // v30: a sub app is a name. One release briefly gave it platform / identifier /
+  // version; a database that ran it is put back to the shape the code reads.
+  await dropColumnIfExists('application_variants', 'platform');
+  await dropColumnIfExists('application_variants', 'identifier');
+  await dropColumnIfExists('application_variants', 'version');
   // v29: an engagement may test one variant of its application (optional).
   await addColumnIfMissing(
     'projects',
@@ -1360,10 +1367,11 @@ async function migratePostgres() {
     'INTEGER REFERENCES applications(id) ON DELETE SET NULL'
   );
   await addColumnIfMissing('projects', 'platform', "TEXT NOT NULL DEFAULT ''");
-  // v29: a variant app carries its own platform / identifier / version.
-  await addColumnIfMissing('application_variants', 'platform', "TEXT NOT NULL DEFAULT ''");
-  await addColumnIfMissing('application_variants', 'identifier', "TEXT NOT NULL DEFAULT ''");
-  await addColumnIfMissing('application_variants', 'version', "TEXT NOT NULL DEFAULT ''");
+  // v30: a sub app is a name. One release briefly gave it platform / identifier /
+  // version; a database that ran it is put back to the shape the code reads.
+  await dropColumnIfExists('application_variants', 'platform');
+  await dropColumnIfExists('application_variants', 'identifier');
+  await dropColumnIfExists('application_variants', 'version');
   // v29: an engagement may test one variant of its application (optional).
   await addColumnIfMissing(
     'projects',

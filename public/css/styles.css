@@ -235,9 +235,6 @@ svg { display: block; }
 }
 .field .hint { font-size: 11.5px; color: var(--faint); }
 .required { color: var(--rose); }
-/* A value you copy rather than read: package names, bundle ids, URLs. */
-.input.mono { font-family: var(--mono); font-size: 12.5px; letter-spacing: -0.01em; }
-
 /* Marks a field as skippable, the counterpart of .required. */
 .opt { font-weight: 500; font-size: 11px; color: var(--faint); letter-spacing: 0.02em; }
 
@@ -1712,21 +1709,12 @@ svg { display: block; }
 }
 .variant-row:hover { background: var(--surface-2); }
 .variant-row .app-act:last-child { margin-right: -2px; }
-/* Name over detail: two short lines beat one cramped one. In a client card the
-   row is ~250px wide, and side by side the name and the identifier each got
-   truncated to "An…" / "…". */
-.variant-body { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
-/* Name and count share the first line so the detail line gets the full width —
-   otherwise "id.co.banknusantara.brimo · v4.2.0" was cut to "… · v4…". */
-.variant-top { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
-.variant-top .variant-name { flex: 1 1 auto; min-width: 0; }
-.variant-top .variant-count { margin-left: auto; }
-.variant-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 560; }
-.variant-meta {
+.variant-name {
+  flex: 1 1 auto; min-width: 0;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-  font-size: 10.5px; color: var(--faint); letter-spacing: 0.01em;
+  font-weight: 560;
 }
-.variant-count { font-size: 11px; color: var(--faint); flex: 0 0 auto; }
+.variant-count { font-size: 11px; color: var(--faint); flex: 0 0 auto; margin-left: auto; }
 .variant-row .app-act { opacity: 0; width: 20px; height: 20px; }
 .variant-row:hover .app-act, .variant-row:focus-within .app-act { opacity: 1; }
 @media (hover: none), (pointer: coarse) {

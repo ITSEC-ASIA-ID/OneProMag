@@ -148,10 +148,10 @@ the box.
 cases an intern can have — a member and a lead — and they populate the board's
 interns table, which is empty until an intern exists.
 
-Two applications ship with **variants** so the third level is visible out of the box:
-`Brimo` (Android, iOS) and `Dompet Kita App` (Android, Partner build). The projects
-*Mobile Banking App v4.2* and *Brimo iOS Build* point at the two Brimo variants; every
-other project tests the application as a whole.
+Three applications ship with **sub apps** so the third level is visible out of the
+box: `Brilink` (MPOS, Mobile, Web), `Brimo` (Mobile, Web) and `Dompet Kita App`
+(Personal, Partner). The projects *Mobile Banking App v4.2* and *Brimo iOS Build*
+point at `Brimo Mobile`; every other project tests the application as a whole.
 
 `rina` and `hendra` are **Project Managers** (`PM`) — a separate role, not part of
 the pentest tree; it is the role that usually owns engagements. Bank Nusantara and Dompet Kita name both of them as default SVs;
@@ -592,30 +592,28 @@ the reporting tree — is **Admin panel → Manage users** (*Accounts and roles*
 
 ### Information center
 
-Free-form notes for every **client**, every **application** and every **variant
-app**, so the next tester on an engagement does not have to rediscover the
-environment.
+Free-form notes for every **client**, every **application** and every **sub app**,
+so the next tester on an engagement does not have to rediscover the environment.
 
 Reached from the sidebar. Two panes: the target tree on the left with per-target
 note counts, the note library on the right.
 
 The left tree is **one collapsible group per client**, with its applications
-nested underneath and the variants of those applications nested once more. A client
+nested underneath and the sub apps of those applications nested once more. A client
 with a dozen applications used to push everything else out of reach, and a flat list
 made it hard to see which applications belonged together. Each group has a chevron;
 the group holding the current selection is always open, so clicking an application —
-or a variant — can never leave the active row hidden inside a collapsed parent.
+or a sub app — can never leave the active row hidden inside a collapsed parent.
 
-A **variant is a target of its own**: the Android and iOS builds of one application
-find different things, so `Brimo / Android` has its own notes, its own table sheet
-and its own Dev/Prod pair. Nothing is shared upwards: a note filed on the variant
+A **sub app is a target of its own**: `Brilink MPOS` and `Brilink Web` are different
+products and find different things, so each one has its own notes, its own table
+sheet and its own Dev/Prod pair. Nothing is shared upwards: a note filed on a sub app
 does not appear on the application, and a note on the application does not appear on
-its variants. The variant level only shows up for applications that actually have
-variants, and deleting a variant deletes the notes and sheets filed on it (a row
-whose target is gone can never be read again — the picker no longer lists it and
-`GET /api/info` 404s). Deleting an application or a client does the same for every
-level below it, and `pruneOrphanNotes()` sweeps any that a manual database edit left
-behind.
+its sub apps. The level only shows up for applications that actually have sub apps,
+and deleting one deletes the notes and sheets filed on it (a row whose target is gone
+can never be read again — the picker no longer lists it and `GET /api/info` 404s).
+Deleting an application or a client does the same for every level below it, and
+`pruneOrphanNotes()` sweeps any that a manual database edit left behind.
 
 ### The table sheet behaves like the Devices sheet
 
@@ -669,7 +667,7 @@ to drag it.
 
 ### Dev and Prod sheets on applications
 
-Every **application** — and every **variant** of one — carries **two independent
+Every **application** — and every **sub app** of one — carries **two independent
 sets** of those documents, one per environment, selected with a **Dev / Prod** switch
 above the blocks. **Dev is the default** — production testing is the exception, and
 landing on Prod by accident would be a foot-gun, so the switch always opens on Dev
@@ -1130,7 +1128,7 @@ a nine-column sheet cannot be read on a phone by scrolling sideways.
 | Start date | date — **not asked on create**; stamped with today the first time the project moves to `Ongoing`; editable afterwards |
 | End date | date — **not asked on create**; stamped with today when it moves to `Done`; cleared again if it is re-opened |
 | Project supervisor | **one SV** — searchable dropdown of `Project Manager` **and** `Pentester` users (a small team has no separate PM account, so a lead can own the engagement). **Auto-selected** from the chosen client's default SVs; still editable, and may be left **empty** |
-| Variant app | optional — the chosen application's variants, only shown when it has any. Leave it on **Whole application** for a normal engagement |
+| Sub app | optional — the chosen application's sub apps, only shown when it has any. Leave it on **Whole application** for a normal engagement |
 | Who pentest | **multiple** pentesters, picker **with a name search box** |
 | Notes    | free text (scope, creds location, out-of-scope)           |
 
@@ -1422,45 +1420,42 @@ On the project list the SV appears in its own **SV** column, immediately left of
 supervisor's avatar — the name is on the tooltip, because a clickable face identifies a
 person faster than a repeated full name, and it keeps the row narrow.
 
-#### Variant apps (Client → Application → Variant)
+#### Sub apps (Client → Application → Sub app)
 The catalogue has an **optional third level**. A client owns applications, and an
-application may own **variants** — separate builds of the same product: the Android
-and iOS builds of one app, a partner-branded copy, a second release:
+application may own **sub apps** — the separate products delivered under it, named
+however the team names them:
 
 ```
 Bank Nusantara
-  └─ Brimo
-       ├─ Android   <- variant
-       └─ iOS       <- variant
-  └─ Qitta          (no variants)
+  └─ Brilink
+       ├─ Brilink MPOS     <- sub app
+       ├─ Brilink Mobile
+       └─ Brilink Web
+  └─ Qitta                (no sub apps)
 ```
 
-- **A variant has detail of its own.** Beyond the name, it records a **platform**
-  (`Android` · `iOS` · `Web` · `API` · `Desktop` · `Other`), an **identifier** — the
-  thing you actually open it by, a package name (`id.co.banknusantara.brimo`), a
-  bundle id or a base URL — and a **version**. All of it is optional: only the name is
-  required, because a team names a variant long before anyone knows its bundle id.
-  The client card prints them under the name (`id.co.banknusantara.brimo · v4.2.0`),
-  the project's variant picker appends them to the option
-  (`iOS — id.co.banknusantara.brimo · v4.1.3`), and the drawer prints them under
-  `Variant app`.
-- **Optional at every level.** An application with no variants is normal; the client
-  card shows one quiet `+ Variant` line and nothing else. A project points at a
-  variant only when the engagement is about that build.
+A sub app is **just a name** (plus free notes). It is not a platform build: the
+Android and iOS builds of one product are the same sub app, because they are the
+same thing to test. What makes it a separate entry is that a tester files findings,
+notes and projects against it separately from its siblings.
+
+- **Optional at every level.** An application with no sub apps is normal; the client
+  card shows one quiet `+ Sub app` line and nothing else. A project points at a sub
+  app only when the engagement is about that product rather than the application as
+  a whole.
 - **Managed where applications are.** `Admin panel → Clients & apps`, under each
-  application: `+ Variant` adds one, the pencil edits it, the trash deletes it
-  (with its notes and sheets).
-  Creating and renaming is open to everyone signed in, like every other create;
-  **deleting a variant is a delete** (admin, lead or sub lead), because the projects
-  that point at it fall back to the whole application.
-- **One application's variants only.** The project form's *Variant app* field lists
-  the variants of the application currently selected, and it only appears when that
-  application has any. Changing the application **clears** the variant — a variant
-  means nothing outside its parent, and keeping a stale one would be a lie.
+  application: `+ Sub app` adds one, the pencil edits it, the trash deletes it (with
+  its notes and sheets). Creating and renaming is open to everyone signed in, like
+  every other create; **deleting a sub app is a delete** (admin, lead or sub lead),
+  because the projects that point at it fall back to the whole application.
+- **One application's sub apps only.** The project form's *Sub app* field lists the
+  sub apps of the application currently selected, and it only appears when that
+  application has any. Changing the application **clears** the sub app — one means
+  nothing outside its parent, and keeping a stale one would be a lie.
 - **Where it shows.** On the project table as a chip after `Client – App`, on the
-  card next to the client line, and in the drawer as `Client / App / Variant` plus a
-  `Variant app` row. Projects without a variant print nothing extra.
-- **Notes live on it too.** The Information center treats a variant as a target in
+  card next to the client line, and in the drawer as `Client / App / Sub app` plus a
+  `Sub app` row. Projects without one print nothing extra.
+- **Notes live on it too.** The Information center treats a sub app as a target in
   its own right — its own note cards and its own Dev/Prod sheets, nested in the tree
   under its application. See [Information center](#information-center).
 
@@ -1567,16 +1562,15 @@ the row (the delete is separately refused while any project still points at it).
 SVs. Every one of these columns is added by `addColumnIfMissing()` in both
 migration paths (the `v1.6` block), so an existing database upgrades in place.
 
-`application_variants(application_id, name, platform, identifier, version, notes,
-created_at)` is the optional
+`application_variants(application_id, name, notes, created_at)` is the optional
 third catalogue level, `UNIQUE (application_id, name)` and
-`ON DELETE CASCADE` from its application — a variant has no meaning without the app
+`ON DELETE CASCADE` from its application — a sub app has no meaning without the app
 it belongs to. `projects.variant_id` is
-`INTEGER REFERENCES application_variants(id) ON DELETE SET NULL`: deleting a variant
+`INTEGER REFERENCES application_variants(id) ON DELETE SET NULL`: deleting a sub app
 returns its projects to the whole application instead of taking them with it. The
-API rejects a variant that belongs to a different application, so the pairing
+API rejects a sub app that belongs to a different application, so the pairing
 cannot drift (`resolveVariantId`), and a project whose application changes drops its
-variant rather than keeping one that no longer applies.
+sub app rather than keeping one that no longer applies.
 
 ### Renamed in v1.13: the supervisor columns
 The **role stayed `Project Manager`**. What was renamed is the field that says who
