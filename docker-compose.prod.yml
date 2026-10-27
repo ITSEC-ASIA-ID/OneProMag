@@ -165,13 +165,19 @@ services:
     security_opt: ['no-new-privileges:true']
     logging: *logging
 
-  # Nightly logical backups, opt-in:
+  # Nightly logical backups.
+  #
+  # Not behind a profile any more, on purpose. `up -d --build` is the command the
+  # README gives, and a backup service that only exists when you remember a flag
+  # is a backup that does not exist: the first symptom is a corrupt volume and no
+  # dump to restore. It costs one idle container, restarts with the stack, and
+  # logs a line per run.
+  #
   #   mkdir -p backups
-  #   docker compose -f docker-compose.prod.yml --profile backup up -d
+  #   docker compose -f docker-compose.prod.yml up -d
   # Restores with the command in the README (Database → Backups).
   backup:
     image: postgres:17-alpine
-    profiles: ['backup']
     restart: unless-stopped
     init: true
     depends_on:
@@ -195,19 +201,32 @@ services:
     entrypoint: ['/bin/sh', '-c']
     command:
       - |
-        set -eu
+        # `pipefail` is the whole point of this line: without it the `if` below
+        # tests GZIP's exit status, so a failed pg_dump (database locked, still
+        # starting, mid-upgrade) produced a valid 20-byte .sql.gz, renamed it
+        # into place, printed success — and then the prune deleted the last real
+        # dump. Verified against postgres:17-alpine: without pipefail the shell
+        # says SUCCESS over a 20-byte file.
+        set -euo pipefail
+        # A dump smaller than this is not a dump. `pg_dump` with no schema still
+        # emits a few kB of SET/comment lines, so 10 kB is far below any real
+        # database and far above an empty one.
+        MIN_DUMP_BYTES=10000
         # `$$` is a literal `$` in compose: these are shell variables read from
         # the container's own environment, not values substituted at parse time.
         echo "backup: writing to /backups every $${BACKUP_INTERVAL_SECONDS}s, keeping $${KEEP_DAYS} days"
         while :; do
           stamp=$$(date +%Y-%m-%d-%H%M)
           out="/backups/onepromag-$$stamp.sql.gz"
-          if pg_dump --no-owner --no-privileges | gzip -9 > "$$out.part"; then
+          if pg_dump --no-owner --no-privileges | gzip -9 > "$$out.part" \
+             && [ "$$(gzip -dc "$$out.part" | wc -c)" -ge "$$MIN_DUMP_BYTES" ]; then
             mv "$$out.part" "$$out"
             echo "backup: $$out ($$(du -h "$$out" | cut -f1))"
           else
-            rm -f "$$out.part"
-            echo "backup: FAILED at $$stamp" >&2
+            # Left behind as evidence, renamed so a prune can never keep it as if
+            # it were a backup.
+            mv -f "$$out.part" "/backups/failed-$$stamp.sql.gz" 2>/dev/null || true
+            echo "backup: FAILED at $$stamp — previous dumps kept" >&2
           fi
           find /backups -name 'onepromag-*.sql.gz' -mtime +"$$KEEP_DAYS" -delete
           sleep "$${BACKUP_INTERVAL_SECONDS}"
