@@ -68,6 +68,21 @@ function normalizeNav(id) {
 }
 
 /**
+ * The pages only an admin, lead or sub lead may open.
+ *
+ * One list, because three places need to agree and they did not: `handleNav`
+ * guarded three ids while `boot()`'s downgrade listed two, so a user whose
+ * remembered nav was `properties` and who had since been demoted to Member booted
+ * straight into the Properties admin page — a page whose sidebar row is not even
+ * rendered for them.
+ */
+const ADMIN_NAV = new Set(['clients', 'users', 'properties']);
+
+function navAllowed(id) {
+  return !ADMIN_NAV.has(id) || canManageCatalog();
+}
+
+/**
  * Workspace navigation. `prod` is intentionally gone; `active` is the
  * "everything except Done" view, `queue` is the client-retest queue.
  */
@@ -466,8 +481,8 @@ function handleNav(nav) {
 
   if (nav === 'team' && state.nav !== 'team') state.boardLoaded = false;
 
-  if (nav === 'clients' || nav === 'users' || nav === 'properties') {
-    if (!canManageCatalog()) {
+  if (ADMIN_NAV.has(nav)) {
+    if (!navAllowed(nav)) {
       toast('Only admin, lead or sub lead can open the admin panel', 'err');
       return;
     }
@@ -1323,8 +1338,12 @@ function bindQuickStatus(host) {
     });
   });
 
-  if (!host._qsDocBound) {
-    host._qsDocBound = true;
+  // One document-level pair for the whole page load, not one per `#results`: the
+  // guard used to live on `host`, and `host` is re-created on every navigation, so
+  // each visit to a project list added another pair that outlived the rows it was
+  // closing menus for.
+  if (!window.__qsDocBound) {
+    window.__qsDocBound = true;
     document.addEventListener('mousedown', (e) => {
       // The open menu lives in <body> (portal), so a click on one of its items
       // is NOT inside [data-quick-status] — it must be excluded explicitly or
@@ -1713,6 +1732,28 @@ function bindSidebar() {
   document.getElementById('user-chip')?.addEventListener('click', openAccountMenu);
 }
 
+/**
+ * Guards a loader against answering out of order.
+ *
+ * Every list on this page is reloaded by more than one trigger — typing in the
+ * search box (debounced), clicking a nav item, saving a status, a property change
+ * that renames a chip. Two of those can overlap trivially, and the slower one used
+ * to win: an older response overwrote a newer one and repainted stale rows. The
+ * sequence number is per key, so the project list and the device list cannot
+ * invalidate each other.
+ */
+const loadSeq = new Map();
+
+function nextLoadToken(key) {
+  const token = (loadSeq.get(key) || 0) + 1;
+  loadSeq.set(key, token);
+  return token;
+}
+
+function isCurrentLoad(key, token) {
+  return loadSeq.get(key) === token;
+}
+
 /** Translates the current nav + filters into API query parameters. */
 function currentQuery() {
   const query = { ...state.filters };
@@ -1737,6 +1778,7 @@ async function loadProjects() {
     renderResults();
   }
   document.getElementById('results')?.classList.add('is-refreshing');
+  const token = nextLoadToken('projects');
   try {
     const query = currentQuery();
     const sig = JSON.stringify(query);
@@ -1745,13 +1787,19 @@ async function loadProjects() {
       state.page = 1;
     }
     const res = await api.projects(query);
+    // A newer request has already been fired: its answer is the truth, so this
+    // one is dropped instead of overwriting it.
+    if (!isCurrentLoad('projects', token)) return;
     state.projects = res.projects;
   } catch (err) {
+    if (!isCurrentLoad('projects', token)) return;
     toast(err.message, 'err');
   } finally {
-    state.loading = false;
-    document.getElementById('results')?.classList.remove('is-refreshing');
-    renderResults();
+    if (isCurrentLoad('projects', token)) {
+      state.loading = false;
+      document.getElementById('results')?.classList.remove('is-refreshing');
+      renderResults();
+    }
   }
 }
 
@@ -1946,8 +1994,12 @@ function devicesTableHTML(rows) {
                   aria-label="Remove this unsaved row" title="Remove this unsaved row">${icon.x(13)}</button>`
               : `<button class="btn btn-icon" data-device-edit="${d.id}"
                   aria-label="Edit ${h(d.name || 'device')}" title="Edit">${icon.edit(13)}</button>
-                <button class="btn btn-icon btn-icon-danger" data-device-del="${d.id}"
-                  aria-label="Delete this row" title="Delete this row">${icon.trash(13)}</button>`}
+                ${
+                  canManageCatalog()
+                    ? `<button class="btn btn-icon btn-icon-danger" data-device-del="${d.id}"
+                        aria-label="Delete this row" title="Delete this row">${icon.trash(13)}</button>`
+                    : ''
+                }`}
           </span></td>` : ''}
         </tr>`
         )
@@ -2207,7 +2259,7 @@ function devicesCardsHTML(rows) {
           </div>
           <div class="dc-acts">
             ${editing ? `<button class="btn btn-icon" data-device-edit="${d.id}" aria-label="Edit ${h(d.name)}">${icon.edit(13)}</button>
-            <button class="btn btn-icon btn-icon-danger" data-device-del="${d.id}" aria-label="Delete ${h(d.name)}">${icon.trash(13)}</button>` : ''}
+            ${canManageCatalog() ? `<button class="btn btn-icon btn-icon-danger" data-device-del="${d.id}" aria-label="Delete ${h(d.name)}">${icon.trash(13)}</button>` : ''}` : ''}
           </div>
         </header>
         <dl class="dc-fields">
@@ -2324,8 +2376,10 @@ function bulkDirtyCount() {
 async function loadDevices() {
   state.devicesLoading = !state.devices.length;
   if (state.devicesLoading) mountContent();
+  const token = nextLoadToken('devices');
   try {
     const res = await api.devices({ kind: state.deviceKind, q: state.deviceQuery.trim() });
+    if (!isCurrentLoad('devices', token)) return;
     state.devices = res.devices;
     state.deviceCounts = res.counts || {};
     state.deviceColumns = res.columns || {};
@@ -2333,6 +2387,7 @@ async function loadDevices() {
     state.deviceLabels = res.labels;
     state.deviceKinds = res.kinds;
   } catch (err) {
+    if (!isCurrentLoad('devices', token)) return;
     toast(err.message, 'err');
     state.devices = [];
   }
@@ -4900,7 +4955,7 @@ function openProjectForm(project = null) {
     footer: `<div class="spacer"></div>
       <button class="btn" data-cancel>Cancel</button>
       <button class="btn btn-primary" data-save>${editing ? 'Save changes' : 'Create project'}</button>`,
-    onMount: (modal, close) => {
+    onMount: (modal, close, signal) => {
       const platformRow = modal.querySelector('#platform-row');
       ['env', 'status', 'method', 'platform'].forEach((n) => bindSegmented(modal, n));
       bindSegmented(modal, 'category', (value) => {
@@ -4913,7 +4968,7 @@ function openProjectForm(project = null) {
       const appBox = modal.querySelector('[data-combo="p-app"]');
       const pmHint = modal.querySelector('#p-manager-hint');
       setComboboxItems(modal, 'p-app', applicationItems(project?.clientId), project?.applicationId ?? '');
-      bindCombobox(modal, 'p-manager');
+      bindCombobox(modal, 'p-manager', undefined, signal);
       bindCombobox(modal, 'p-client', (value) => {
         if (appBox) appBox.dataset.placeholder = 'Select an application…';
         setComboboxItems(modal, 'p-app', applicationItems(value), '');
@@ -4921,8 +4976,8 @@ function openProjectForm(project = null) {
         // project must never silently reassign ownership just because the
         // client was touched.
         if (!editing) autoPickManager(modal, value, pmHint);
-      });
-      bindCombobox(modal, 'p-app');
+      }, signal);
+      bindCombobox(modal, 'p-app', undefined, signal);
 
       bindPicker(modal);
       modal.querySelector('[data-cancel]').addEventListener('click', close);
@@ -5445,7 +5500,13 @@ function drawerHTML(project, retests, tab) {
         <h2>${h(project.name)}</h2>
         <div class="actions">
           <button class="btn btn-icon" data-edit aria-label="Edit project" title="Edit project">${icon.edit()}</button>
-          <button class="btn btn-icon btn-icon-danger" data-delete-project aria-label="Delete project" title="Delete project">${icon.trash()}</button>
+          ${
+            // The server refuses with 403 anyway; not offering the button means a
+            // Member never sees a control that only exists to say no.
+            canManageCatalog()
+              ? `<button class="btn btn-icon btn-icon-danger" data-delete-project aria-label="Delete project" title="Delete project">${icon.trash()}</button>`
+              : ''
+          }
           <button class="btn btn-icon" data-close-drawer aria-label="Close">${icon.x()}</button>
         </div>
       </div>
@@ -5618,7 +5679,7 @@ function retestHTML(r) {
         ${r.endedAt ? `<span class="who">${icon.check(12)} ${fmtDate(r.endedAt)}</span>` : ''}
         <span class="spacer"></span>
         <button class="btn btn-icon" style="width:26px;height:26px" data-retest-edit="${r.id}" aria-label="Edit retest">${icon.edit()}</button>
-        <button class="btn btn-icon" style="width:26px;height:26px;color:var(--rose)" data-retest-del="${r.id}" aria-label="Delete retest">${icon.trash()}</button>
+        ${canManageCatalog() ? `<button class="btn btn-icon" style="width:26px;height:26px;color:var(--rose)" data-retest-del="${r.id}" aria-label="Delete retest">${icon.trash()}</button>` : ''}
       </div>
       ${r.notes ? `<div style="margin-top:9px;font-size:11.8px;color:var(--faint);border-top:1px dashed var(--border);padding-top:8px">${h(r.notes)}</div>` : ''}
     </div>`;
@@ -5901,10 +5962,13 @@ function directoryTableHTML(rows, q) {
 }
 
 async function loadDirectory() {
+  const token = nextLoadToken('directory');
   try {
     const res = await api.directory();
+    if (!isCurrentLoad('directory', token)) return;
     state.directory = res.users || [];
   } catch (err) {
+    if (!isCurrentLoad('directory', token)) return;
     state.directory = [];
     toast(err.message, 'err');
   }
@@ -6129,11 +6193,14 @@ function teamHTML() {
 }
 
 async function loadBoard() {
+  const token = nextLoadToken('board');
   try {
     const res = await api.availability();
+    if (!isCurrentLoad('board', token)) return;
     state.board = res.board;
     state.boardTotals = res.totals;
   } catch (err) {
+    if (!isCurrentLoad('board', token)) return;
     toast(err.message, 'err');
   }
 }
@@ -8258,9 +8325,7 @@ async function boot() {
 
     // A remembered admin page must not survive a switch to an unprivileged
     // account, or the shell would render a page whose nav row is not even shown.
-    if (['clients', 'users'].includes(state.nav) && !canManageCatalog()) {
-      state.nav = 'active';
-    }
+    if (!navAllowed(state.nav)) state.nav = 'active';
     if (!NAV[state.nav]) state.nav = 'active';
 
     root.innerHTML = shellHTML();
