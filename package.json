@@ -2,7 +2,7 @@
   "name": "onepromag",
   "version": "1.1.0",
   "private": true,
-  "description": "OneProMag — simple, modern pentest project management",
+  "description": "OneProMag \u2014 simple, modern pentest project management",
   "type": "module",
   "engines": {
     "node": ">=22.5.0"
@@ -14,6 +14,7 @@
     "start": "node --no-warnings server/index.js",
     "dev": "node --no-warnings --watch server/index.js",
     "start:pg": "DB=postgres node --no-warnings server/index.js",
+    "test": "node --test test/*.test.js",
     "reset-db": "node -e \"import('node:fs').then(f=>f.rmSync('data/app.db',{force:true}))\"",
     "cli": "node server/cli.js"
   }

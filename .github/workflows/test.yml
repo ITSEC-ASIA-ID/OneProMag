@@ -1,0 +1,25 @@
+# The app has no build step and one dependency, so the whole gate is: check the
+# syntax, run the API suite. The SQLite path is the default engine and needs no
+# service; the Postgres path is exercised by the Docker stack on a real deploy.
+name: test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - run: npm ci
+      - run: npm test
+      - name: Syntax check the server and the client
+        run: |
+          for f in server/*.js server/drivers/*.js public/js/*.js; do
+            node --check "$f"
+          done

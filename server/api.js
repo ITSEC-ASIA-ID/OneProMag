@@ -601,7 +601,11 @@ async function setPentesters(tx, projectId, userIds) {
   await tx.run('DELETE FROM project_pentesters WHERE project_id = ?', [projectId]);
   const unique = [...new Set((userIds || []).map(Number).filter(Boolean))];
   for (const uid of unique) {
-    const exists = await tx.get('SELECT id FROM users WHERE id = ?', [uid]);
+    // Only a pentester can sit on the test bench. Without the role filter a
+    // project manager or an admin could be written into project_pentesters by
+    // PATCH /api/projects/:id, which then showed up in the assignment picker and
+    // counted against nobody on the board (it only lists pentesters).
+    const exists = await tx.get("SELECT id FROM users WHERE id = ? AND role = 'Pentester'", [uid]);
     if (exists) {
       await tx.run('INSERT INTO project_pentesters (project_id, user_id) VALUES (?, ?)', [
         projectId,
@@ -680,6 +684,26 @@ function isUniqueViolation(err) {
 function requireCatalogManager(ctx) {
   if (!canManageCatalog(ctx.user)) {
     throw new HttpError(403, 'Only admin, lead or sub lead can open the admin panel');
+  }
+}
+
+/**
+ * Deleting is the one thing a plain pentester cannot do.
+ *
+ * Creating and editing stay open to everyone signed in — a tester files the
+ * retest request, moves the engagement to Ready, writes the device inventory,
+ * and that is the job. Deleting is not part of that job and it is not
+ * reversible: `DELETE FROM projects` cascades to the retests and the team
+ * assignment, and the notes behind it, with no soft delete and no undo. So the
+ * confirmation dialog is not the only thing standing between a misclick and a
+ * lost engagement.
+ *
+ * `label` names the record in the message ("a project"), because "Not allowed"
+ * tells the person nothing about what they tried to remove.
+ */
+function requireDeleter(ctx, label) {
+  if (!canManageCatalog(ctx.user)) {
+    throw new HttpError(403, `Only admin, lead or sub lead can delete ${label}`);
   }
 }
 
@@ -1642,7 +1666,11 @@ export const api = {
   },
 
   'DELETE /api/projects/:id': async (ctx) => {
+    requireDeleter(ctx, 'a project');
     const row = await assertProject(ctx.params.id);
+    // Notes and sheets cannot be orphaned here: `documents` and `info_entries` are
+    // only ever written for the scopes 'client' and 'application' (both handlers
+    // validate that), so a project owns no rows in either table.
     await db.run('DELETE FROM projects WHERE id = ?', [row.id]);
     return { ok: true };
   },
@@ -1747,6 +1775,7 @@ export const api = {
   },
 
   'DELETE /api/retests/:id': async (ctx) => {
+    requireDeleter(ctx, 'a retest request');
     const row = await db.get('SELECT * FROM retests WHERE id = ?', [ctx.params.id]);
     if (!row) throw new HttpError(404, 'Retest not found');
     await db.run('DELETE FROM retests WHERE id = ?', [row.id]);
@@ -2232,7 +2261,7 @@ export const api = {
     await assertProject(projectId);
     const userId = Number(ctx.body.userId);
     if (!userId) throw new HttpError(400, 'A pentester is required');
-    const user = await db.get('SELECT id FROM users WHERE id = ?', [userId]);
+    const user = await db.get("SELECT id FROM users WHERE id = ? AND role = 'Pentester'", [userId]);
     if (!user) throw new HttpError(404, 'Pentester not found');
     const already = await db.get(
       'SELECT 1 AS ok FROM project_pentesters WHERE project_id = ? AND user_id = ?',
@@ -2517,6 +2546,12 @@ export const api = {
       // Anything the client no longer lists is deleted. User-added cells for that
       // column are dropped from every row so a later column reusing the key cannot
       // inherit stale values.
+      //
+      // That purge is a delete, so it takes the delete rule: a pentester may add,
+      // rename, hide and reorder columns (they own the sheet), but taking a column
+      // — and every value in it — away is a lead's decision. Checked before the
+      // first destructive statement, so a refused request changes nothing.
+      if (existing.some((c) => !keep.has(c.key))) requireDeleter(ctx, 'a device column');
       for (const c of existing) {
         if (keep.has(c.key)) continue;
         await tx.run('DELETE FROM device_columns WHERE id = ?', [c.id]);
@@ -2644,6 +2679,7 @@ export const api = {
   },
 
   'DELETE /api/devices/:id': async (ctx) => {
+    requireDeleter(ctx, 'a device');
     const row = await db.get('SELECT id FROM devices WHERE id = ?', [ctx.params.id]);
     if (!row) throw new HttpError(404, 'Device not found');
     await db.run('DELETE FROM devices WHERE id = ?', [row.id]);
