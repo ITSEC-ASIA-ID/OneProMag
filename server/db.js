@@ -721,8 +721,10 @@ async function seed() {
           createdAt,
           daysAgo(2),
           // Demo dates so the availability board has a real "idle since".
-          p.status === 'Incoming' ? null : (p.started_at || daysAgo(24).slice(0, 10)),
-          p.status === 'Done' ? (p.ended_at || daysAgo(10).slice(0, 10)) : null,
+          // Empty string, not null: the API stores `String(body.endedAt || '')`, so
+          // '' is the canonical "no date" and the column can stay NOT NULL.
+          p.status === 'Incoming' ? '' : (p.started_at || daysAgo(24).slice(0, 10)),
+          p.status === 'Done' ? (p.ended_at || daysAgo(10).slice(0, 10)) : '',
         ]
       );
       const projectId = Number(inserted.id);
@@ -862,17 +864,70 @@ const DEFAULT_PROPERTIES = [
   { kind: 'status', key: 'Hold', label: 'Hold', tone: 'slate', position: 4, locked: true },
 ];
 
+/**
+ * Writes the nine built-in categories and statuses.
+ *
+ * Per row, not all-or-nothing on `COUNT(*) > 0`. The old guard meant a process
+ * killed halfway through the nine inserts left four rows, and every later boot
+ * saw "there is already a property" and inserted nothing more. If the missing row
+ * happened to be `Done`, no project could ever be marked finished again
+ * (`pickProperty('status', 'Done', …)` silently falls back to the current status)
+ * and the locked rows cannot be deleted through the UI, so an admin could not
+ * repair it. `ON CONFLICT DO NOTHING` on the live `UNIQUE (kind, key)` makes each
+ * row independently idempotent and makes the count guard unnecessary.
+ */
 async function seedPropertiesIfEmpty() {
-  const existing = await db.get('SELECT COUNT(*) AS n FROM properties');
-  if (existing && Number(existing.n) > 0) return { seeded: false };
   const stamp = now();
-  for (const p of DEFAULT_PROPERTIES) {
-    await db.run(
-      'INSERT INTO properties (kind, key, label, tone, position, locked, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
-      [p.kind, p.key, p.label, p.tone, p.position, p.locked ? 1 : 0, stamp]
+  let inserted = 0;
+  await db.transaction(async (tx) => {
+    for (const p of DEFAULT_PROPERTIES) {
+      const info = await tx.run(
+        `INSERT INTO properties (kind, key, label, tone, position, locked, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?)
+         ON CONFLICT (kind, key) DO NOTHING`,
+        [p.kind, p.key, p.label, p.tone, p.position, p.locked ? 1 : 0, stamp]
+      );
+      inserted += info.rowCount || 0;
+    }
+  });
+  return { seeded: inserted > 0, properties: inserted };
+}
+
+/**
+ * The shape of the schema this release expects.
+ *
+ * Bumped by hand whenever the schema files or the boot migrations change. It is
+ * recorded in `schema_migrations` so an operator can ask a volume what it has been
+ * through (`SELECT max(version) FROM schema_migrations`), which is the question the
+ * create-if-not-exists approach could not answer at all.
+ *
+ * 12 — retest rows in the active lists, paging, properties, documents per env.
+ */
+export const SCHEMA_VERSION = 12;
+
+let appliedSchemaVersion = 0;
+
+export function schemaVersion() {
+  return appliedSchemaVersion;
+}
+
+/**
+ * Stamps this boot's schema version and, more importantly, refuses to start on a
+ * half-migrated database. Called after the migrations, before the seed.
+ */
+async function recordSchemaVersion() {
+  if (failedMigrations.length) {
+    throw new Error(
+      `schema migration incomplete (${failedMigrations.length} step(s) failed): ${failedMigrations.join(
+        ' | '
+      )} — refusing to start on a half-migrated database; fix the cause and restart`
     );
   }
-  return { seeded: true, properties: DEFAULT_PROPERTIES.length };
+  await db.run(
+    'INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?) ON CONFLICT (version) DO NOTHING',
+    [SCHEMA_VERSION, now()]
+  );
+  appliedSchemaVersion = SCHEMA_VERSION;
 }
 
 /**
@@ -907,6 +962,7 @@ export async function initDatabase() {
     await createIndexes();
   }
   await pruneOrphanNotes();
+  await recordSchemaVersion();
   // Properties before the demo seed: the seeded projects carry category/status keys
   // that must already mean something.
   const properties = await seedPropertiesIfEmpty();
@@ -953,8 +1009,21 @@ async function migrateDocumentsKey() {
   // of it — so env must be 0 in the old table and non-zero in the new one.
   const envCol = info.find((c) => c.name === 'env');
   if (envCol && Number(envCol.pk) > 0) return;
+  // One transaction, and a recovery step for a previous interrupted run.
+  //
+  // This is the only migration that rewrites data, and it used to run without
+  // BEGIN/COMMIT. A crash (or a full volume) between the rename and the drop left
+  // `documents_old` holding every sheet and no `documents` table — and the next
+  // boot died on `table documents_old already exists`, which with
+  // `restart: unless-stopped` is a permanently bricked install. SQLite DDL is
+  // transactional, so this either happens completely or not at all.
   await db.exec('PRAGMA foreign_keys = OFF');
   try {
+    await db.exec('BEGIN IMMEDIATE');
+    // Left behind by an older, interrupted run: its contents are already the
+    // authority only if `documents` is missing, which the table_info check above
+    // would have caught. Safe to drop.
+    await db.exec('DROP TABLE IF EXISTS documents_old');
     await db.exec('ALTER TABLE documents RENAME TO documents_old');
     await db.exec(`CREATE TABLE documents (
       scope      TEXT NOT NULL,
@@ -971,10 +1040,27 @@ async function migrateDocumentsKey() {
     await db.exec(`INSERT INTO documents (scope, scope_id, env, text_body, table_json, updated_by, updated_at)
       SELECT scope, scope_id, 'Dev', text_body, table_json, updated_by, updated_at FROM documents_old`);
     await db.exec('DROP TABLE documents_old');
+    await db.exec('COMMIT');
+  } catch (err) {
+    try {
+      await db.exec('ROLLBACK');
+    } catch {
+      /* the statement may have aborted the transaction already */
+    }
+    throw err;
   } finally {
     await db.exec('PRAGMA foreign_keys = ON');
   }
 }
+
+/**
+ * Columns a failed ALTER would have added. Collected instead of logged-and-forgot:
+ * half a schema is worse than none, because the app then starts, answers
+ * /healthz with `{ok:true}` (that probe only runs SELECT 1) and returns 500 on
+ * every page that names the missing column. Boot fails loudly instead, and
+ * `restart: unless-stopped` retries the container.
+ */
+const failedMigrations = [];
 
 async function addColumnIfMissing(table, column, definition) {
   try {
@@ -988,6 +1074,7 @@ async function addColumnIfMissing(table, column, definition) {
     }
   } catch (err) {
     console.error(`[db] migration ${table}.${column} failed:`, err.message);
+    failedMigrations.push(`${table}.${column}: ${err.message}`);
   }
 }
 
@@ -1066,8 +1153,8 @@ async function migrateSqlite() {
   await addColumnIfMissing('users', 'parent_id', 'INTEGER REFERENCES users(id) ON DELETE SET NULL');
   // v1.4: start/end dates. Both are nullable and are set automatically when a
   // project moves to Ongoing (start) or Done (end); they stay editable after that.
-  await addColumnIfMissing('projects', 'started_at', 'TEXT');
-  await addColumnIfMissing('projects', 'ended_at', 'TEXT');
+  await addColumnIfMissing('projects', 'started_at', 'TEXT NOT NULL DEFAULT \'\'');
+  await addColumnIfMissing('projects', 'ended_at', 'TEXT NOT NULL DEFAULT \'\'');
   await addColumnIfMissing('retests', 'started_at', 'TEXT');
   await addColumnIfMissing('retests', 'ended_at', 'TEXT');
   // v1.5: availability board (status + note on the user row, empty = automatic).
@@ -1116,8 +1203,8 @@ async function migratePostgres() {
   await addColumnIfMissing('users', 'parent_id', 'INTEGER REFERENCES users(id) ON DELETE SET NULL');
   // v1.4: start/end dates. Both are nullable and are set automatically when a
   // project moves to Ongoing (start) or Done (end); they stay editable after that.
-  await addColumnIfMissing('projects', 'started_at', 'TEXT');
-  await addColumnIfMissing('projects', 'ended_at', 'TEXT');
+  await addColumnIfMissing('projects', 'started_at', 'TEXT NOT NULL DEFAULT \'\'');
+  await addColumnIfMissing('projects', 'ended_at', 'TEXT NOT NULL DEFAULT \'\'');
   await addColumnIfMissing('retests', 'started_at', 'TEXT');
   await addColumnIfMissing('retests', 'ended_at', 'TEXT');
   // v1.5: availability board (status + note on the user row, empty = automatic).

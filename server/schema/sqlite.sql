@@ -181,6 +181,11 @@ CREATE TABLE IF NOT EXISTS projects (
   method         TEXT NOT NULL DEFAULT 'Grey Box',
   status         TEXT NOT NULL DEFAULT 'Incoming',
   notes          TEXT NOT NULL DEFAULT '',
+  -- The engagement window, as free-text dates (YYYY-MM-DD). Added by the boot
+  -- migration for databases created before they existed — but they belong here
+  -- too, or a fresh install would depend on that migration having run.
+  started_at     TEXT NOT NULL DEFAULT '',
+  ended_at       TEXT NOT NULL DEFAULT '',
   created_by     INTEGER REFERENCES users(id),
   created_at     TEXT NOT NULL,
   updated_at     TEXT NOT NULL
@@ -232,4 +237,12 @@ CREATE TABLE IF NOT EXISTS properties (
   locked     INTEGER NOT NULL DEFAULT 0,
   created_at TEXT NOT NULL,
   UNIQUE (kind, key)
+);
+
+-- Which schema version this database has been through. Written by the app at the
+-- end of a successful boot; it is what makes "what release is this volume on?"
+-- answerable with one SELECT instead of guessing from the catalog.
+CREATE TABLE IF NOT EXISTS schema_migrations (
+  version    INTEGER PRIMARY KEY,
+  applied_at TEXT NOT NULL
 );
