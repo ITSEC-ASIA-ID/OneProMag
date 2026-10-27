@@ -72,10 +72,40 @@ Engine selection order:
 Other scripts:
 
 ```bash
+npm test              # the API suite (node:test, no dependencies)
 PORT=4173 npm start   # different port
 npm run dev           # auto-restart on file change
 npm run reset-db      # wipe the SQLite file, re-seed on next start
 ```
+
+### Tests
+
+`npm test` runs `test/api.test.js` with `node --test` — no framework, no HTTP
+client, no fixtures file. It sets `DATA_DIR` to a temp directory, `DB=sqlite` and
+`SEED_DEMO=1`, boots the database, and calls the route handlers directly
+(`api['DELETE /api/projects/:id']({ user, params })`), which is possible because
+`api` is a plain map and the demo seed is the fixture.
+
+Eleven cases, chosen because each one is a bug this app has actually had or could
+have shipped:
+
+| case | what it protects |
+| --- | --- |
+| a Member cannot delete a project, and the project survives | the delete rule |
+| a Lead can delete a project | the rule is not "nobody can" |
+| a Member can still create and edit a project | the rule is not over-applied |
+| a Member cannot delete a retest, but can move it | the same, on retests |
+| a Member cannot delete a device, but can edit one | the device inventory |
+| dropping a device column needs a lead, renaming does not | the column purge |
+| creating a retest on a Done project leaves it Done | `8ad1ceb` |
+| a Member may only change their own availability | the availability gate |
+| only a pentester can be attached as a pentester | assignment validation |
+| a locked property cannot be deleted | the workflow rows |
+| a fresh database has the columns the code selects | the fresh-install path |
+
+`.github/workflows/test.yml` runs it on every push and pull request. There is no
+browser test: the UI is verified in the container, and a screenshot is worth more
+than a DOM assertion for a page whose point is how it looks.
 
 ### Demo accounts
 
@@ -277,13 +307,18 @@ it returns — no restart needed. Docker's healthcheck uses it, Caddy's upstream
 check can use it, and so can any monitor. It needs no session and reveals nothing
 but a boolean plus an uptime counter.
 
-### Backups (opt-in profile)
+### Backups (on by default)
 
 ```bash
 mkdir -p backups
-docker compose -f docker-compose.prod.yml --profile backup up -d    # start
-docker compose -f docker-compose.prod.yml --profile backup stop      # stop
+docker compose -f docker-compose.prod.yml up -d        # app + db + backup
+docker compose -f docker-compose.prod.yml stop backup  # if you really want to
 ```
+
+The `backup` service is **not** behind a profile. A backup that only exists when
+someone remembers a flag is a backup that does not exist, and the first symptom
+would be a corrupt volume with nothing to restore from. It costs one idle
+container.
 
 Every `BACKUP_INTERVAL_SECONDS` (default 86400) the container writes
 `backups/onepromag-YYYY-MM-DD-HHMM.sql.gz` and deletes dumps older than
@@ -299,6 +334,16 @@ gunzip -c backups/onepromag-2026-10-26-1355.sql.gz \
 `mkdir -p backups` first and set `HOST_UID=$(id -u)` / `HOST_GID=$(id -g)` in
 `.env`, otherwise the files land root-owned. `./backups` is git-ignored; copy it
 off the machine if losing the host is in scope.
+
+Two things make a failed dump loud instead of silent, and both matter:
+
+- the script runs `set -euo pipefail`. Without it the shell tests **gzip's** exit
+  status, so a failed `pg_dump` (database locked, still starting, mid-upgrade)
+  produced `backups/onepromag-….sql.gz` containing 20 bytes, printed success, and
+  then the prune deleted the last real dump — verified against `postgres:17-alpine`;
+- a dump smaller than 10 kB is treated as a failure and renamed to
+  `backups/failed-YYYY-MM-DD-HHMM.sql.gz`, which the prune never keeps as if it
+  were a backup. `docker compose logs backup` shows the line per run.
 
 ### Two independent installs
 
@@ -393,6 +438,16 @@ Every pentester carries a **sub-role**, ordered `Lead → Sub Lead → Member`.
 - The account menu visualises the hierarchy with your level highlighted.
 - **Admin, Lead and Sub Lead** can manage the client/application catalogue and
   see the Admin panel. Members cannot.
+- **Everyone signed in can view, create and edit.** A Member files the retest
+  request, moves the engagement along, writes the device inventory and the notes —
+  that is the job, and gating it would mean waiting for a lead to type.
+- **Only Admin, Lead and Sub Lead can delete** — a project, a retest request, a
+  device, or a column of the device sheet (which takes every value in that column
+  with it). Deleting cascades to the retests and the team assignment, there is no
+  soft delete and no undo, so the confirmation dialog is not the only gate. The
+  server answers `403` with `Only admin, lead or sub lead can delete …`; the UI
+  hides the delete buttons for Members as well, but the rule lives on the server
+  because the API is reachable directly.
 
 Besides `Pentester` and `Admin` there is a third role, **`Project Manager`**
 (`role: 'Project Manager'` in `ENUMS.role`):
@@ -1404,6 +1459,29 @@ so it is a no-op afterwards, and on Postgres it is a `DROP CONSTRAINT` /
 same ISO-8601 `TEXT` timestamps (no `timestamptz`), so the JSON API is identical
 on both. Applying is idempotent (`CREATE ... IF NOT EXISTS`) and runs on every boot.
 
+Two rules keep an in-place upgrade from being a one-way door:
+
+- **A failed migration stops the boot.** `addColumnIfMissing()` used to log one line
+  and carry on, which left the app running against half a schema: `/healthz` only
+  runs `SELECT 1`, so the container reported *healthy* while every page that named
+  the missing column returned 500. It now collects the failures and
+  `initDatabase()` throws, so the container restarts instead of serving broken
+  pages.
+- **The rebuild of `documents` runs in one transaction**, with a
+  `DROP TABLE IF EXISTS documents_old` recovery step. It was rename → create → copy
+  → drop with no `BEGIN`, and a crash in the middle left the old table behind and no
+  new one — after which every boot died on `table documents_old already exists`. On
+  a named volume that is a permanently bricked install, not a bad test run.
+
+`SCHEMA_VERSION` (in `db.js`) is the shape this release expects, and it is recorded
+in `schema_migrations` at the end of every successful boot, so an operator can ask a
+volume what it has been through instead of guessing from the catalog:
+
+```bash
+docker compose -f docker-compose.prod.yml exec db \
+  psql -U onepromag -d onepromag -c 'SELECT * FROM schema_migrations'
+```
+
 ### Retest code generation
 `RT-<project>-<seq>` is computed from the **highest existing sequence** for that
 project, not `COUNT(*)` (counting repeats a code as soon as one is deleted).
@@ -1467,9 +1545,11 @@ OneProMag/
 ├── deploy/
 │   ├── Caddyfile            TLS, compression, security headers, access log
 │   └── .env.example         template for the production .env
+├── .github/workflows/test.yml   npm test on every push
 ├── .dockerignore
 ├── .gitignore
 ├── package.json
+├── test/api.test.js         node:test suite — permissions, transitions, schema
 ├── server/
 │   ├── index.js         HTTP server, routing, static files, boot sequence
 │   ├── cli.js           `users` / `passwd` — operations without the web server
