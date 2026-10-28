@@ -2802,13 +2802,11 @@ svg { display: block; }
   .pager .spacer { display: none; }
 }
 .pcard-retest { border-style: dashed; }
+/* A retest row is told apart by its own words — `Retest - <project>` and a
+   `Retest` badge — not by a tint. Colouring it made one row of the list look
+   selected, and a list where one row always looks selected is a list you stop
+   trusting. */
 .prow-retest .cell-name { font-weight: 520; }
-/* A retest row is a queue item inside a list of engagements, and the two used
-   to look almost identical at a glance. The cyan edge is the same one the
-   Retest queue card uses, so the meaning is learned once. */
-.ptable tbody tr.prow-retest { background: color-mix(in srgb, var(--cyan) 4%, var(--surface)); }
-.ptable tbody tr.prow-retest:hover { background: color-mix(in srgb, var(--cyan) 8%, var(--surface)); }
-.ptable tbody tr.prow-retest td:first-child { box-shadow: inset 2px 0 var(--cyan); }
 .board-chip-retest {
   border-style: dashed;
   border-color: color-mix(in srgb, var(--amber) 45%, var(--border));

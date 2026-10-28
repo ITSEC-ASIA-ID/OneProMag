@@ -530,9 +530,9 @@ The four project lists share one layout, so learning one teaches all four.
   retest count) sit on their centres, status on the right edge. Five
   left-aligned boxes of different widths read as a ragged right margin, which is
   what made a page of rows look untidy.
-- **A retest row looks like a queue item**: a cyan left edge and a light tint, the
-  same colour the *Retest queue* card uses. An engagement and its retest sat
-  next to each other looking nearly identical.
+- **A retest row is not highlighted.** It says `Retest - <project>` and carries a
+  `Retest` badge, which is enough; tinting it made the row look selected, and a list
+  where one row always looks selected is a list you stop trusting.
 - **The breadcrumb wraps, it does not truncate.** On a card, `Bank Nusantara –
   Brimo – Brimo Mobile` gets two lines instead of `Bank Nusantara – Brim…`: the
   part that gets cut is exactly the sub app, which is the part you cannot guess.
