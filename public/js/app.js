@@ -837,6 +837,9 @@ function filtersHTML() {
       <div class="search">
         ${icon.search()}
         <input class="input" id="filter-q" placeholder="Filter by name, client, app or notes…" value="${h(f.q)}" autocomplete="off" />
+        <button class="search-clear" id="filter-clear" aria-label="Clear the filter" ${f.q ? '' : 'hidden'}>
+          ${icon.x(13)}
+        </button>
       </div>
       <div class="filter-advanced">
         <select class="select" id="filter-clientId">
@@ -1015,11 +1018,11 @@ function projectTableHTML(rows) {
         <thead>
           <tr>
             <th>Project</th>
-            <th>Category</th>
-            <th class="hide-md" title="Supervisor">SV</th>
-            <th class="hide-md">Pentesters</th>
-            <th>Retests</th>
-            <th>Status</th>
+            <th class="cell-cat">Category</th>
+            <th class="hide-md cell-pm" title="Supervisor">SV</th>
+            <th class="hide-md cell-team">Pentesters</th>
+            <th class="cell-retests">Retests</th>
+            <th class="cell-status">Status</th>
           </tr>
         </thead>
         <tbody>
@@ -1044,13 +1047,13 @@ function projectTableHTML(rows) {
                       }</div>`
                     : ''
               }</td>
-              <td>${catBadge(row.project.category, row.project.platform)}</td>
+              <td class="cell-cat">${catBadge(row.project.category, row.project.platform)}</td>
               <td class="hide-md cell-pm">${supervisorCell(
                 { id: row.project.supervisorId, name: row.project.supervisorName },
                 'sm'
               )}</td>
               <td class="hide-md cell-team">${teamCell(row.project.pentesters, row.project.id)}</td>
-              <td>${
+              <td class="cell-retests">${
                 row.kind === 'retest'
                   ? `<span class="badge" data-tone="cyan">Retest</span>`
                   : row.project.retestCount
@@ -1203,8 +1206,7 @@ function resultsHTML() {
       ${navLabel ? `<span class="badge" data-tone="amber">${navLabel}</span>` : ''}
       ${statusFilter ? `<span class="badge" data-tone="blue">status: ${h(statusFilter)}</span>` : ''}
       <span class="spacer" style="margin-left:auto"></span>
-      ${hasActiveFilters() ? `<button class="btn btn-sm btn-quiet" id="clear-filters">${icon.x(13)} Clear</button>` : ''}
-      <span style="font-size:12px;color:var(--faint)">${state.view === 'grid' ? 'Card view' : 'Table view'}</span>
+      ${hasActiveFilters() ? `<button class="btn btn-sm btn-quiet" id="clear-filters">${icon.x(13)} Clear filters</button>` : ''}
     </div>
     ${
       state.loading && !state.projects.length
@@ -1519,6 +1521,8 @@ function clearFilters() {
   state.filters = { q: '', status: '', category: '', env: '', method: '', clientId: '', applicationId: '' };
   const q = document.getElementById('filter-q');
   if (q) q.value = '';
+  const clearBtn = document.getElementById('filter-clear');
+  if (clearBtn) clearBtn.hidden = true;
   const clientSel = document.getElementById('filter-clientId');
   if (clientSel) clientSel.value = '';
   const appSel = document.getElementById('filter-applicationId');
@@ -1538,13 +1542,38 @@ function clearFilters() {
 
 function bindFilters() {
   const q = document.getElementById('filter-q');
+  const clear = document.getElementById('filter-clear');
+  // The × appears only while there is something to clear: a permanent control
+  // that does nothing on nine visits out of ten is noise.
+  const syncClear = () => {
+    if (clear) clear.hidden = !q.value;
+  };
+  syncClear();
   let timer;
   q.addEventListener('input', () => {
+    syncClear();
     clearTimeout(timer);
     timer = setTimeout(() => {
       state.filters.q = q.value.trim();
       loadProjects();
     }, 160);
+  });
+  // Escape empties the box from anywhere inside it — the same key that closes a
+  // dialog should undo the thing you just typed.
+  q.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape' || !q.value) return;
+    e.stopPropagation();
+    q.value = '';
+    syncClear();
+    state.filters.q = '';
+    loadProjects();
+  });
+  clear?.addEventListener('click', () => {
+    q.value = '';
+    syncClear();
+    state.filters.q = '';
+    q.focus();
+    loadProjects();
   });
 
   // Client drives the application dropdown, so it is handled separately.

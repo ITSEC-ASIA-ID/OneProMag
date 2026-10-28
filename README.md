@@ -508,7 +508,9 @@ card, so "is the lead at their desk" costs one click instead of an email.
 
 ### Project list
 - **Grid card view is the default**; table view is one click away, both remembered
-- Live search across name, client, application and notes (160 ms debounce, keeps focus)
+- Live search across name, client, application and notes (160 ms debounce, keeps
+  focus). The box carries a **×** while it has text, and <kbd>Esc</kbd> empties it,
+  because clearing a filter should not need a select-all.
 - Filters: client, application, category, **status**.
   Status filtering replaced the old "By status" sidebar group — one control instead
   of six nav rows. Environment and method are no longer filterable (they remain
@@ -517,6 +519,27 @@ card, so "is the lead at their desk" costs one click instead of an email.
 - Sidebar scopes, in order: Active projects / All projects / **My active projects** /
   **My all projects**, plus a separate **Admin panel** group for privileged users
   (and **Team status**, **Users** and **Devices** above the scopes)
+
+#### Reading a list
+The four project lists share one layout, so learning one teaches all four.
+
+- **The row is the button.** It highlights on hover and tints the project name;
+  there is no chevron, because an arrow at the end of a row advertises a control
+  that does not exist.
+- **Columns are aligned to what they hold**: the compact columns (SV, pentesters,
+  retest count) sit on their centres, status on the right edge. Five
+  left-aligned boxes of different widths read as a ragged right margin, which is
+  what made a page of rows look untidy.
+- **A retest row looks like a queue item**: a cyan left edge and a light tint, the
+  same colour the *Retest queue* card uses. An engagement and its retest sat
+  next to each other looking nearly identical.
+- **The breadcrumb wraps, it does not truncate.** On a card, `Bank Nusantara –
+  Brimo – Brimo Mobile` gets two lines instead of `Bank Nusantara – Brim…`: the
+  part that gets cut is exactly the sub app, which is the part you cannot guess.
+- **On a phone the table keeps two columns** — project and status — instead of
+  scrolling seven. Category, supervisor, pentesters and the retest count are in
+  the drawer, one tap away; a row you must scroll sideways to read is an inventory
+  seen through a letterbox.
 
 #### Paging
 
