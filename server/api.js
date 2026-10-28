@@ -7,7 +7,15 @@ import {
   DEVICE_COLUMNS,
   DEVICE_KINDS,
 } from './db.js';
-import { HttpError, nowISO, listUsers, createUser, getPublicUser } from './auth.js';
+import {
+  HttpError,
+  nowISO,
+  listUsers,
+  createUser,
+  getPublicUser,
+  onlineUsers,
+  PRESENCE_WINDOW_MS,
+} from './auth.js';
 
 const pick = (value, allowed, fallback) => (allowed.includes(value) ? value : fallback);
 
@@ -1190,6 +1198,27 @@ export const api = {
   // Feeds the "who pentest" picker, so it only ever returns Pentesters.
   // Supervisors have their own endpoint: mixing them in would let a SV be
   // assigned as a tester and would break the hierarchy badges.
+  /**
+   * Who is online. Readable like the directory is: knowing whether a lead is at
+   * their desk is the difference between a two-minute answer and an afternoon of
+   * waiting.
+   */
+  'GET /api/presence': async (ctx) => {
+    const rows = await onlineUsers();
+    return {
+      online: rows.map((r) => ({
+        id: r.id,
+        name: r.name,
+        role: r.role,
+        subrole: r.subrole || 'Member',
+        lastSeenAt: r.last_seen_at,
+        self: Number(r.id) === Number(ctx.user.id),
+      })),
+      count: rows.length,
+      windowSeconds: Math.round(PRESENCE_WINDOW_MS / 1000),
+    };
+  },
+
   'GET /api/users': async () => ({
     users: (await listUsers()).map(shapePentester).filter((u) => u.role === 'Pentester'),
   }),

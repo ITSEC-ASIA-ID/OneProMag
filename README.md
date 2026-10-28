@@ -482,6 +482,30 @@ Besides `Pentester` and `Admin` there is a third role, **`Project Manager`**
   `tel:` / `mailto:` links, and the admin pages show them on each card.
 - SVs are curated under **Admin panel → Manage users**.
 
+### Who is online
+The topbar carries **a quiet presence badge** where the global search used to be: the
+faces of whoever else was active in the last couple of minutes, plus the count. One
+click opens the list — name, level and role each — and clicking a person opens their
+card, so "is the lead at their desk" costs one click instead of an email.
+
+- **Nothing is stored to say "online" that is not already true.** Every
+  authenticated request stamps `users.last_seen_at`; an account is online while that
+  stamp is inside a **two-minute window**. No socket, no heartbeat endpoint, no
+  second table.
+- **The badge is the ping.** Its own poll every 45 seconds is an authenticated
+  request like any other, so simply having the app open keeps you listed. The poll
+  also stops when the tab is hidden and fires again the moment it comes back — a tab
+  that was asleep is stale exactly when someone looks at it.
+- **Writes are throttled to one per account per 20 seconds** (`touchPresence`), in
+  memory, because a page load is a dozen requests and the badge does not need to know
+  about the other eleven. Twenty seconds is a fifth of the window, so the answer
+  never lags visibly.
+- **Alone, the badge says so**: a person glyph and `1` on a grey pill, tooltip *Just
+  you online right now*. Green only ever means "another person is here", which is why
+  there is no dot: a dot that is always on says nothing.
+- On a phone the faces go and the number stays — the pill is a tap target, not a
+  table.
+
 ### Project list
 - **Grid card view is the default**; table view is one click away, both remembered
 - Live search across name, client, application and notes (160 ms debounce, keeps focus)
@@ -887,7 +911,9 @@ Everyone can read and write notes; the author is recorded and shown in the foote
   The Project column absorbs the spare width (see *Quick assign* above for how)
   and its `Client – Application` sub-line wraps, so long names stay on one line
   instead of truncating
-- Keyboard shortcut <kbd>⌘K</kbd> / <kbd>Ctrl K</kbd> to jump to search
+- One search box, in the filter bar, next to the filters it combines with. A
+  second "Search projects…" in the topbar did the same thing from further away and
+  promised <kbd>⌘K</kbd> for it; both are gone.
 
 ### Devices
 
@@ -1562,6 +1588,11 @@ every request, which is why the board cannot go stale.
 unique, not validated beyond the obvious, because the source of truth for a
 person's contact details is HR, not this app.
 
+`users.last_seen_at` is `TEXT NOT NULL DEFAULT ''` and holds the last authenticated
+request, written at most every 20 seconds. It is a presence hint, not an audit log:
+nothing else reads it, nothing else writes it, and an empty value simply means "not
+seen since this column existed" (`v1.18`).
+
 `projects.supervisor_id` is `INTEGER REFERENCES users(id) ON DELETE SET NULL`:
 exactly one SV per project (possibly none), and deleting a SV cannot orphan-project
 the row (the delete is separately refused while any project still points at it).
@@ -1770,6 +1801,7 @@ other session for that user so a stolen cookie dies with the old password.
 | PATCH  | `/api/devices/:id`          | update; changing `kind` drops the old kind's fields |
 | PATCH  | `/api/devices/bulk`         | `{updates:[{id,...cells}]}` — save many rows at once; all-or-nothing, max 500, rejects duplicate ids |
 | DELETE | `/api/devices/:id`          | delete a device                  |
+| GET    | `/api/presence`             | who was active in the last two minutes (`online[]` with `self`, `count`); the call itself records that you are here |
 | GET    | `/api/users`                | list pentesters (sorted by hierarchy), SVs excluded |
 | GET    | `/api/directory`            | the staff directory: every account, name · role · level · e-mail · phone, alphabetical |
 | GET    | `/api/people/:id`           | one person + `supervisorOf`, `pentesterOn`, `reports` |

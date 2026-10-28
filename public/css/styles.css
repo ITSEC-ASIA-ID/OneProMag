@@ -339,6 +339,79 @@ svg { display: block; }
 .avatar-stack .avatar:hover { z-index: 2; transform: translateY(-1px); }
 .avatar-stack .avatar:first-child { margin-left: 0; }
 
+/* ---------------------------------------------------------------
+   Who is online
+   A pill of faces and a number, where the global search used to be:
+   that corner of the bar answers "the team, right now", while the
+   project search lives in the filter bar, next to the filters it
+   combines with.
+   --------------------------------------------------------------- */
+.presence { position: relative; }
+.presence-btn {
+  display: inline-flex; align-items: center; gap: 7px;
+  height: 34px; padding: 0 10px 0 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-full);
+  background: var(--surface);
+  color: var(--muted);
+  cursor: pointer;
+  transition: border-color 0.12s, color 0.12s;
+}
+.presence-btn:hover { border-color: var(--border-strong); color: var(--ink); }
+.presence-btn[aria-expanded='true'] { border-color: var(--primary); color: var(--ink); }
+.presence-stack { display: inline-flex; }
+.presence-stack:empty { display: none; }
+.presence-solo { display: inline-flex; color: var(--faint); }
+.presence-stack .avatar { margin-left: -7px; box-shadow: 0 0 0 2px var(--surface); }
+.presence-stack .avatar:first-child { margin-left: 0; }
+.presence-n {
+  font-size: 11.5px; font-weight: 680;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+/* Green means "there is another person here", not "the app is open": when you
+   are alone the badge stays grey and quiet. */
+.presence-btn.is-alone .presence-n { color: var(--faint); font-weight: 600; }
+
+.presence-pop {
+  position: absolute;
+  right: 0; top: calc(100% + 8px);
+  width: 262px;
+  padding: 5px;
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-md);
+  box-shadow: var(--shadow-lg);
+  z-index: 220;
+  animation: popIn 0.12s ease-out;
+}
+.presence-pop[hidden] { display: none; }
+.pp-head {
+  padding: 6px 8px 5px;
+  font-size: 10.5px; font-weight: 650; text-transform: uppercase;
+  letter-spacing: 0.07em; color: var(--faint);
+}
+.pp-row {
+  display: flex; align-items: center; gap: 9px;
+  width: 100%; padding: 6px;
+  border: 0; border-radius: 8px;
+  background: none; color: inherit;
+  text-align: left; cursor: pointer;
+}
+.pp-row:hover { background: var(--surface-3); }
+.pp-meta { display: flex; flex-direction: column; min-width: 0; gap: 1px; }
+.pp-meta strong {
+  font-size: 12.5px; font-weight: 620; color: var(--ink);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.pp-meta span { font-size: 11px; color: var(--faint); }
+.pp-you {
+  font-size: 10px; font-weight: 650; color: var(--primary);
+  background: var(--primary-soft); border-radius: 4px;
+  padding: 1px 4px; margin-left: 2px;
+}
+.pp-empty { padding: 4px 8px 9px; font-size: 11.5px; color: var(--faint); }
+
 /* ============================================================
    login
    ============================================================ */
@@ -610,22 +683,6 @@ svg { display: block; }
 }
 .search svg { position: absolute; left: 11px; top: 50%; transform: translateY(-50%); color: var(--faint); }
 .search .input { padding-left: 34px; height: 36px; background: var(--surface); }
-.search kbd {
-  position: absolute;
-  right: 8px;
-  top: 50%;
-  transform: translateY(-50%);
-  font-family: var(--font);
-  font-size: 10.5px;
-  font-weight: 600;
-  color: var(--faint);
-  border: 1px solid var(--border-strong);
-  border-bottom-width: 2px;
-  border-radius: 5px;
-  padding: 1px 5px;
-  background: var(--surface-2);
-}
-
 .content {
   flex: 1;
   padding: 24px 28px 60px;
@@ -1768,7 +1825,7 @@ svg { display: block; }
   .hide-md { display: none !important; }
   .content { padding: 18px 16px 48px; }
   .search { width: 100%; }
-  .topbar .search { display: none; }
+  .presence-stack { display: none; }
 }
 
 @media (max-width: 620px) {
@@ -2294,7 +2351,6 @@ svg { display: block; }
 }
 
 /* The board hides the project search: it is not a project list. */
-.topbar.board-mode .search { display: none; }
 
 /* ============================================================
    Team status board
@@ -2881,7 +2937,7 @@ svg { display: block; }
 
 @media (max-width: 1000px) {
   /* The top search is the first thing to go: the filter bar has its own. */
-  .topbar .search { display: none; }
+  .presence-stack { display: none; }
   .board-summary { grid-template-columns: repeat(2, 1fr); gap: 9px; }
   .board-toolbar { gap: 8px; }
   .bt-search { flex: 1 1 100%; }

@@ -119,6 +119,9 @@ const NAV = {
 
 const state = {
   user: null,
+  // Who the server says was around in the last couple of minutes. Refreshed by
+  // the topbar badge, which also counts as the "I am here" ping.
+  online: [],
   // Both come from /api/auth/me; false until the server says otherwise.
   demo: false,
   allowRegister: false,
@@ -428,10 +431,13 @@ function shellHTML() {
             <p id="page-sub">Loading…</p>
           </div>
           <div class="topbar-actions">
-            <div class="search">
-              ${icon.search()}
-              <input class="input" id="search-input" placeholder="Search projects…" autocomplete="off" />
-              <kbd>⌘K</kbd>
+            <div class="presence" id="presence">
+              <button class="presence-btn" id="presence-btn" aria-haspopup="true" aria-expanded="false"
+                      aria-controls="presence-pop" title="Who is online">
+                <span class="presence-stack" id="presence-stack"></span>
+                <span class="presence-n" id="presence-n">–</span>
+              </button>
+              <div class="presence-pop" id="presence-pop" hidden></div>
             </div>
             <button class="btn btn-icon" id="theme-btn" aria-label="Toggle theme">
               ${currentTheme() === 'dark' ? icon.sun() : icon.moon()}
@@ -458,32 +464,136 @@ function bindShell() {
   });
 
   document.getElementById('new-project').addEventListener('click', () => openProjectForm());
-
-  const search = document.getElementById('search-input');
-  let t;
-  search.addEventListener('input', () => {
-    clearTimeout(t);
-    t = setTimeout(() => {
-      state.filters.q = search.value.trim();
-      const filterQ = document.getElementById('filter-q');
-      if (filterQ && filterQ.value !== state.filters.q) filterQ.value = state.filters.q;
-      if (['clients', 'users', 'directory', 'info', 'devices'].includes(state.nav)) return;
-      loadProjects();
-    }, 160);
-  });
-
-  document.addEventListener('keydown', (e) => {
-    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
-      e.preventDefault();
-      search.focus();
-      search.select();
-    }
-  });
+  bindPresence();
 
   document.querySelectorAll('[data-nav]').forEach((btn) => {
     btn.addEventListener('click', () => handleNav(btn.dataset.nav));
   });
   document.getElementById('user-chip').addEventListener('click', openAccountMenu);
+}
+
+/* ============================================================
+   Who is online
+   ------------------------------------------------------------
+   A badge, not a feature: who else is around right now, so a
+   question goes to somebody who is at their desk instead of an
+   inbox. One poll every 45 seconds — and that poll IS the
+   "I am here" ping, so there is no second heartbeat to keep alive.
+   ============================================================ */
+const PRESENCE_POLL_MS = 45_000;
+let presenceTimer = null;
+
+async function loadPresence() {
+  let data;
+  try {
+    data = await api.presence();
+  } catch {
+    // A courtesy badge is never worth interrupting the page for. Keep the last
+    // answer and let the next poll correct it.
+    return;
+  }
+  state.online = Array.isArray(data.online) ? data.online : [];
+  paintPresence();
+}
+
+/**
+ * Up to three faces, then the plain number. The faces answer "is anyone there",
+ * which the number alone cannot — the same reason a project row shows avatars
+ * instead of "+3".
+ */
+function presenceStackHTML(people) {
+  const others = people.filter((p) => !p.self);
+  // Alone, "1" on its own reads like a notification: the glyph says who the
+  // number is counting.
+  if (!others.length) return `<span class="presence-solo">${icon.user()}</span>`;
+  return others
+    .slice(0, 3)
+    .map((p) => avatar(p.name, 'sm'))
+    .join('');
+}
+
+function presencePopHTML() {
+  const people = state.online || [];
+  const head = `<div class="pp-head">Online now · ${people.length}</div>`;
+  if (!people.length) {
+    return `${head}<div class="pp-empty">Nobody has been active in the last couple of minutes.</div>`;
+  }
+  return (
+    head +
+    people
+      .map(
+        (p) => `<button class="pp-row" data-presence-person="${p.id}">
+          ${avatar(p.name, 'sm')}
+          <span class="pp-meta">
+            <strong>${h(p.name)}${p.self ? ' <span class="pp-you">you</span>' : ''}</strong>
+            <span>${h(p.subrole || 'Member')} · ${h(p.role)}</span>
+          </span>
+        </button>`
+      )
+      .join('')
+  );
+}
+
+function paintPresence() {
+  const btn = document.getElementById('presence-btn');
+  if (!btn) return;
+  const people = state.online || [];
+  const others = people.filter((p) => !p.self);
+  const stack = document.getElementById('presence-stack');
+  const count = document.getElementById('presence-n');
+  if (stack) stack.innerHTML = presenceStackHTML(people);
+  if (count) count.textContent = String(people.length);
+  btn.classList.toggle('is-alone', others.length === 0);
+  btn.title = people.length
+    ? others.length
+      ? `${people.length} online now`
+      : 'Just you online right now'
+    : 'Nobody online right now';
+  const pop = document.getElementById('presence-pop');
+  if (pop && !pop.hidden) pop.innerHTML = presencePopHTML();
+}
+
+function bindPresence() {
+  const btn = document.getElementById('presence-btn');
+  const pop = document.getElementById('presence-pop');
+  if (!btn || !pop) return;
+
+  const close = () => {
+    pop.hidden = true;
+    btn.setAttribute('aria-expanded', 'false');
+  };
+  const open = () => {
+    pop.innerHTML = presencePopHTML();
+    pop.hidden = false;
+    btn.setAttribute('aria-expanded', 'true');
+  };
+
+  btn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    if (pop.hidden) open();
+    else close();
+  });
+  pop.addEventListener('click', (e) => {
+    const row = e.target.closest('[data-presence-person]');
+    if (!row) return;
+    close();
+    openPerson(Number(row.dataset.presencePerson));
+  });
+  document.addEventListener('click', (e) => {
+    if (!pop.hidden && !e.target.closest('#presence')) close();
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && !pop.hidden) close();
+  });
+
+  loadPresence();
+  clearInterval(presenceTimer);
+  presenceTimer = setInterval(loadPresence, PRESENCE_POLL_MS);
+  // A tab that was in the background for an hour is stale the moment it comes
+  // back, and the person looking at it is the one who wants to know who is on.
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') loadPresence();
+  });
 }
 
 function handleNav(nav) {
@@ -510,12 +620,7 @@ function finishNav() {
   localStorage.setItem('opm-nav', state.nav);
   document.querySelectorAll('[data-nav]').forEach((b) => b.classList.toggle('active', b.dataset.nav === state.nav));
 
-  // The team board is not a project list: hide the project-only chrome.
   const onBoard = state.nav === 'team';
-  const topbar = document.querySelector('.topbar');
-  if (topbar) topbar.classList.toggle('board-mode', onBoard);
-  const search = document.getElementById('search-input');
-  if (search) search.disabled = onBoard;
 
   mountContent();
   // Admin pages render their own content; there is no project list to load.
@@ -605,6 +710,8 @@ function openAccountMenu() {
       );
       modal.querySelector('[data-logout]').addEventListener('click', async () => {
         close();
+        clearInterval(presenceTimer);
+        presenceTimer = null;
         await api.logout();
         state.user = null;
         renderAuth('login');
@@ -1442,8 +1549,6 @@ function clearFilters() {
   state.filters = { q: '', status: '', category: '', env: '', method: '', clientId: '', applicationId: '' };
   const q = document.getElementById('filter-q');
   if (q) q.value = '';
-  const sTop = document.getElementById('search-input');
-  if (sTop) sTop.value = '';
   const clientSel = document.getElementById('filter-clientId');
   if (clientSel) clientSel.value = '';
   const appSel = document.getElementById('filter-applicationId');
@@ -1468,8 +1573,6 @@ function bindFilters() {
     clearTimeout(timer);
     timer = setTimeout(() => {
       state.filters.q = q.value.trim();
-      const top = document.getElementById('search-input');
-      if (top && top.value !== state.filters.q) top.value = state.filters.q;
       loadProjects();
     }, 160);
   });

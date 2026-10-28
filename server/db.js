@@ -943,7 +943,7 @@ async function seedPropertiesIfEmpty() {
  *
  * 12 — retest rows in the active lists, paging, properties, documents per env.
  */
-export const SCHEMA_VERSION = 17;
+export const SCHEMA_VERSION = 18;
 
 let appliedSchemaVersion = 0;
 
@@ -1315,6 +1315,8 @@ async function migrateSqlite() {
   await dropColumnIfExists('application_variants', 'platform');
   await dropColumnIfExists('application_variants', 'identifier');
   await dropColumnIfExists('application_variants', 'version');
+  // v31: who is online, from the last authenticated request.
+  await addColumnIfMissing('users', 'last_seen_at', "TEXT NOT NULL DEFAULT ''");
   // v29: an engagement may test one variant of its application (optional).
   await addColumnIfMissing(
     'projects',
@@ -1372,6 +1374,8 @@ async function migratePostgres() {
   await dropColumnIfExists('application_variants', 'platform');
   await dropColumnIfExists('application_variants', 'identifier');
   await dropColumnIfExists('application_variants', 'version');
+  // v31: who is online, from the last authenticated request.
+  await addColumnIfMissing('users', 'last_seen_at', "TEXT NOT NULL DEFAULT ''");
   // v29: an engagement may test one variant of its application (optional).
   await addColumnIfMissing(
     'projects',

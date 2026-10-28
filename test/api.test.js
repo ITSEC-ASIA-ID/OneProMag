@@ -753,6 +753,37 @@ test('deleting an application also clears its variants’ notes', async () => {
    Schema — a fresh database must end up with every column the code reads.
    ============================================================ */
 
+test('presence lists who was around, and never anyone who was not', async () => {
+  // Only accounts the server has actually seen in the last couple of minutes
+  // are "online"; a stale timestamp from a week ago must not count, because the
+  // badge is a promise about who is at their desk right now.
+  const rafi = await asUser('rafi');
+  const bagas = await asUser('bagas');
+  await db.run("UPDATE users SET last_seen_at = ''");
+  await db.run('UPDATE users SET last_seen_at = ? WHERE id = ?', [
+    new Date().toISOString(),
+    bagas.id,
+  ]);
+
+  const { online } = await api['GET /api/presence']({ user: rafi });
+  assert.deepEqual(
+    online.map((p) => p.id).sort(),
+    [bagas.id],
+    'only the account with a fresh timestamp is online'
+  );
+  assert.equal(online[0].self, false, 'someone else is never "you"');
+
+  // The caller sees themselves marked as self, so the badge can print "you"
+  // instead of listing the reader twice.
+  await db.run('UPDATE users SET last_seen_at = ? WHERE id = ?', [
+    new Date().toISOString(),
+    rafi.id,
+  ]);
+  const again = await api['GET /api/presence']({ user: rafi });
+  assert.equal(again.count, 2);
+  assert.equal(again.online.find((p) => p.id === rafi.id).self, true);
+});
+
 test('a fresh database has the columns the code selects', async () => {
   const columns = (await db.all('PRAGMA table_info(projects)')).map((c) => c.name);
   for (const needed of [

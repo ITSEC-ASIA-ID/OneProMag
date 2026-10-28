@@ -22,6 +22,9 @@ CREATE TABLE IF NOT EXISTS users (
   phone         TEXT NOT NULL DEFAULT '',
   email         TEXT NOT NULL DEFAULT '',
   password_hash TEXT NOT NULL,
+  -- Last authenticated request, written at most every ~20s (see touchPresence).
+  -- "Who is online" is a courtesy badge, not an audit log.
+  last_seen_at  TEXT NOT NULL DEFAULT '',
   created_at    TEXT NOT NULL
 );
 

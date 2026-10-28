@@ -153,6 +153,46 @@ export function clearCookie(req) {
   return `${SESSION_COOKIE}=; ${cookieFlags(req)}; Max-Age=0`;
 }
 
+/**
+ * How recently someone must have hit the API to count as online.
+ *
+ * Two minutes covers the polling interval with room for a tab that was in the
+ * background: a laptop that slept for an hour is offline, one whose owner is
+ * reading a long note is not.
+ */
+export const PRESENCE_WINDOW_MS = 120_000;
+
+/**
+ * Writing "I was here" on every request would turn one page load into a dozen
+ * UPDATEs on the same row for a badge nobody reads at that resolution. Twenty
+ * seconds is well under the window, so the answer never lags by more than a
+ * fifth of it.
+ */
+const PRESENCE_TOUCH_MS = 20_000;
+const lastTouchAt = new Map();
+
+/** Record that this account is around, at most once every PRESENCE_TOUCH_MS. */
+export async function touchPresence(userId) {
+  const id = Number(userId);
+  if (!Number.isFinite(id)) return;
+  const nowMs = Date.now();
+  if (nowMs - (lastTouchAt.get(id) || 0) < PRESENCE_TOUCH_MS) return;
+  lastTouchAt.set(id, nowMs);
+  await db.run('UPDATE users SET last_seen_at = ? WHERE id = ?', [new Date(nowMs).toISOString(), id]);
+}
+
+/** Accounts seen within the window, most recent first. */
+export async function onlineUsers(windowMs = PRESENCE_WINDOW_MS) {
+  const cutoff = new Date(Date.now() - windowMs).toISOString();
+  return db.all(
+    `SELECT id, name, role, subrole, last_seen_at
+       FROM users
+      WHERE last_seen_at >= ?
+      ORDER BY last_seen_at DESC, name`,
+    [cutoff]
+  );
+}
+
 export async function currentUser(req) {
   const token = parseCookies(req)[SESSION_COOKIE];
   if (!token) return null;
@@ -168,6 +208,10 @@ export async function currentUser(req) {
     await destroySession(token);
     return null;
   }
+  // Reaching this point means the session is real and unexpired, which is
+  // exactly the definition of "around" — so presence is recorded here, once,
+  // instead of in every endpoint.
+  await touchPresence(row.id);
   return {
     id: row.id,
     username: row.username,

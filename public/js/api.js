@@ -31,6 +31,7 @@ async function request(method, url, body) {
 
 export const api = {
   me: () => request('GET', '/api/auth/me'),
+  presence: () => request('GET', '/api/presence'),
   updateProfile: (payload) => request('PATCH', '/api/auth/profile', payload),
   login: (username, password) => request('POST', '/api/auth/login', { username, password }),
   register: (payload) => request('POST', '/api/auth/register', payload),
