@@ -1069,7 +1069,6 @@ svg { display: block; }
      go below, which is what kept the name narrow on a laptop. */
   overflow-wrap: anywhere;
 }
-.ptable .cell-actions { text-align: right; width: 1%; white-space: nowrap; }
 
 /* empty state */
 .empty {

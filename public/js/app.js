@@ -928,16 +928,6 @@ function listRows(list) {
   return rows.sort((a, b) => rank(a.status) - rank(b.status) || a.at - b.at);
 }
 
-/** A retest request, found by id across every loaded project. */
-function findRetest(id) {
-  const wanted = Number(id);
-  for (const p of state.projects || []) {
-    const hit = (p.openRetests || []).find((r) => Number(r.id) === wanted);
-    if (hit) return hit;
-  }
-  return null;
-}
-
 /**
  * Deleting a retest request is a delete, so the server asks for admin / lead /
  * sub lead. One flow for both places that offer it (the list row and the drawer),
@@ -1007,11 +997,7 @@ function projectCardHTML(row) {
         <span class="spacer"></span>
         ${
           isRetest
-            ? `<span class="foot-item has-open">${icon.refresh()} ${h(row.retest.code || 'Retest')}</span>${
-                canManageCatalog()
-                  ? `<button class="btn btn-icon" style="width:26px;height:26px;color:var(--rose)" data-retest-del="${row.retest.id}" aria-label="Delete retest ${h(row.retest.code || '')}">${icon.trash()}</button>`
-                  : ''
-              }`
+            ? `<span class="foot-item has-open">${icon.refresh()} ${h(row.retest.code || 'Retest')}</span>`
             : p.retestCount
               ? `<span class="foot-item ${p.openRetestCount ? 'has-open' : ''}">
                    ${icon.refresh()} ${p.retestCount} retest${p.retestCount > 1 ? 's' : ''}
@@ -1034,7 +1020,6 @@ function projectTableHTML(rows) {
             <th class="hide-md">Pentesters</th>
             <th>Retests</th>
             <th>Status</th>
-            <th></th>
           </tr>
         </thead>
         <tbody>
@@ -1079,14 +1064,6 @@ function projectTableHTML(rows) {
                 row.kind === 'retest' ? row.retest.id : row.project.id,
                 { kind: row.kind }
               )}</td>
-              <td class="cell-actions">${
-                // No chevron on every row: the whole row is clickable and always
-                // was, so the arrow advertised a button that did not exist. Only
-                // the retest trash stays here.
-                row.kind === 'retest' && canManageCatalog()
-                  ? `<button class="btn btn-icon" style="width:28px;height:28px;color:var(--rose)" data-retest-del="${row.retest.id}" aria-label="Delete retest ${h(row.retest.code || '')}">${icon.trash()}</button>`
-                  : ''
-              }</td>
             </tr>`
             )
             .join('')}
@@ -1330,10 +1307,8 @@ function renderResults() {
   host.innerHTML = resultsHTML();
   host.querySelectorAll('[data-project]').forEach((el) => {
     el.addEventListener('click', (e) => {
-      // A click on the status menu must not also open the project, and neither
-      // must a click on a retest's trash: deleting from the list should not
-      // first open the drawer you were avoiding.
-      if (e.target.closest('[data-quick-status]') || e.target.closest('[data-retest-del]')) return;
+      // A click on the status menu must not also open the project.
+      if (e.target.closest('[data-quick-status]')) return;
       // Neither must a click on a person's avatar: that opens their card.
       const person = e.target.closest('[data-person]');
       if (person) {
@@ -1351,7 +1326,7 @@ function renderResults() {
     // button; that means keyboard activation has to be wired by hand.
     el.addEventListener('keydown', (e) => {
       if (e.key === 'Enter' || e.key === ' ') {
-        if (e.target.closest('[data-quick-status]') || e.target.closest('[data-retest-del]')) return;
+        if (e.target.closest('[data-quick-status]')) return;
         const person = e.target.closest('[data-person]');
         if (person) {
           e.preventDefault();
@@ -1365,14 +1340,6 @@ function renderResults() {
     });
   });
   bindQuickStatus(host);
-  // Deleting a retest straight from its row. Only the people the server lets
-  // delete ever see the button, so this never becomes a 403 walk.
-  host.querySelectorAll('[data-retest-del]').forEach((btn) => {
-    btn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      deleteRetestFlow(findRetest(btn.dataset.retestDel));
-    });
-  });
   // Quick "assign pentesters" button in the list's Pentesters column. It opens a
   // modal that holds ONLY the picker — the full project form would be a lot of
   // noise when all you want is to add a name. stopPropagation keeps the row

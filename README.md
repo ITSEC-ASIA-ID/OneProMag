@@ -1540,14 +1540,13 @@ A project can carry **unlimited retests**, each with:
 A retest does not ask who requested it — it is a **client** request, not something
 the signed-in user is asking for.
 
-Create and edit them from the project drawer → **Retests** tab. **Deleting** is
-offered in two places, because a retest usually dies from the list you are reading
-rather than from the drawer you opened to act on it: the trash sits on the
-`Retest - <name>` row in **Active projects** (table row and card) *and* inside the
-drawer's Retests tab. Both call the same confirm dialog and the same endpoint, and
-both are hidden for Members — deleting a retest is a delete. Projects show a retest
-count badge, and any retest that is not `Done` counts as open (highlighted in the
-sidebar and stat cards).
+Create, edit and delete them from the project drawer → **Retests** tab, where each
+request carries its own pencil and trash. Nothing destructive sits in a list: a
+project row is a single click target, so a trash on it is one mis-aim away from a
+dialog nobody asked for. The list's Retests column only reports (a count, or a
+`Retest` badge on the retest's own row), and projects show a retest count badge —
+any retest that is not `Done` counts as open (highlighted in the sidebar and stat
+cards).
 
 ---
 
