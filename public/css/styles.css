@@ -1060,11 +1060,14 @@ svg { display: block; }
    five left-aligned boxes of different widths read as a ragged right margin,
    which is what made a full page of rows look untidy. */
 .ptable .cell-pm,
-.ptable .cell-team,
 .ptable .cell-retests { text-align: center; }
 .ptable thead th.cell-pm,
-.ptable thead th.cell-team,
 .ptable thead th.cell-retests { text-align: center; }
+/* Pentesters stay flush left: an avatar stack is read name by name, left to
+   right, and the `+` that adds one sits at its natural end — centring the group
+   moved that button around with every project's headcount. */
+.ptable .cell-team,
+.ptable thead th.cell-team { text-align: left; }
 .ptable .cell-status { text-align: right; }
 .ptable thead th.cell-status { text-align: right; }
 .ptable tbody tr { cursor: pointer; transition: background 0.12s, box-shadow 0.12s; }

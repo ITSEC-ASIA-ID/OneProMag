@@ -526,10 +526,11 @@ The four project lists share one layout, so learning one teaches all four.
 - **The row is the button.** It highlights on hover and tints the project name;
   there is no chevron, because an arrow at the end of a row advertises a control
   that does not exist.
-- **Columns are aligned to what they hold**: the compact columns (SV, pentesters,
-  retest count) sit on their centres, status on the right edge. Five
-  left-aligned boxes of different widths read as a ragged right margin, which is
-  what made a page of rows look untidy.
+- **Columns are aligned to what they hold**: the single-value columns (SV, retest
+  count) sit on their centres, status on the right edge, and **pentesters stay
+  flush left** — an avatar stack is read name by name from the left, and the `+`
+  that adds one belongs at its natural end rather than moving with each project's
+  headcount.
 - **A retest row is not highlighted.** It says `Retest - <project>` and carries a
   `Retest` badge, which is enough; tinting it made the row look selected, and a list
   where one row always looks selected is a list you stop trusting.
