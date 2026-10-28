@@ -1080,10 +1080,13 @@ function projectTableHTML(rows) {
                 { kind: row.kind }
               )}</td>
               <td class="cell-actions">${
+                // No chevron on every row: the whole row is clickable and always
+                // was, so the arrow advertised a button that did not exist. Only
+                // the retest trash stays here.
                 row.kind === 'retest' && canManageCatalog()
                   ? `<button class="btn btn-icon" style="width:28px;height:28px;color:var(--rose)" data-retest-del="${row.retest.id}" aria-label="Delete retest ${h(row.retest.code || '')}">${icon.trash()}</button>`
                   : ''
-              }<span class="btn btn-icon" style="width:28px;height:28px">${icon.chevronRight()}</span></td>
+              }</td>
             </tr>`
             )
             .join('')}
