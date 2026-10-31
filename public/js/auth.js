@@ -60,7 +60,7 @@ export function renderAuth(mode = 'login') {
             </div>
           </div>
           <div class="auth-error" id="auth-error">${icon.alert()}<span></span></div>
-          <button class="btn btn-primary" type="submit" id="auth-submit" style="height:42px;margin-top:2px">
+          <button class="btn btn-primary auth-submit" type="submit" id="auth-submit">
             ${isRegister ? 'Create account' : 'Sign in'}
           </button>
         </form>
@@ -175,18 +175,18 @@ export function openAccountMenu() {
       </div>
       ${
         canManageCatalog()
-          ? `<p class="hint" style="margin-top:14px">${icon.check()} You can manage clients and applications in the Admin panel.</p>`
+          ? `<p class="hint mt-14">${icon.check()} You can manage clients and applications in the Admin panel.</p>`
           : ''
       }
-      <div class="field" style="margin-top:14px">
+      <div class="field mt-14">
         <div class="field-label">Contact</div>
         ${contactLine(state.user.phone, state.user.email) || '<p class="hint">No contact details yet.</p>'}
       </div>
-      <div class="field" style="margin-top:14px">
+      <div class="field mt-14">
         <div class="field-label">Appearance</div>
-        <div style="display:flex;gap:8px">
-          <button class="btn" data-theme-set="light" style="flex:1">${icon.sun()} Light</button>
-          <button class="btn" data-theme-set="dark" style="flex:1">${icon.moon()} Dark</button>
+        <div class="flex-row">
+          <button class="btn flex-1" data-theme-set="light">${icon.sun()} Light</button>
+          <button class="btn flex-1" data-theme-set="dark">${icon.moon()} Dark</button>
         </div>
       </div>`,
     footer: `<button class="btn" data-profile>${icon.user(13)} Edit contact</button>
@@ -240,7 +240,7 @@ export function openProfileForm() {
     title: 'Contact details',
     subtitle: 'How teammates reach you. Only you can change these.',
     body: `
-      <div class="field" style="margin-top:0">
+      <div class="field mt-0">
         <label for="pf-phone">Phone number</label>
         <input class="input" id="pf-phone" type="tel" autocomplete="tel"
                placeholder="+62 812 3456 7890" value="${h(u.phone || '')}" />
@@ -254,7 +254,7 @@ export function openProfileForm() {
       </div>
       <div class="field">
         <div class="field-label">Fixed by an admin</div>
-        <div class="hint hint-auto" style="display:block">
+        <div class="hint hint-auto hint-block">
           ${h(u.name)} · @${h(u.username)} · ${h(u.role)} · ${h(u.subrole || 'Member')}
         </div>
       </div>`,
@@ -293,7 +293,7 @@ export function openProfileForm() {
 
 export function openPasswordForm() {
   const body = `
-    <div class="field" style="margin-top:0">
+    <div class="field mt-0">
       <label for="pw-current">Current password</label>
       <div class="pw-wrap">
         <input class="input" id="pw-current" type="password" autocomplete="current-password"
@@ -326,7 +326,7 @@ export function openPasswordForm() {
       <span class="hint hint-err" id="pw-confirm-hint" hidden>Both new passwords must match.</span>
     </div>
 
-    <p class="hint" style="margin-top:2px">${icon.lock(13)} Changing your password signs out every other device.</p>`;
+    <p class="hint mt-2">${icon.lock(13)} Changing your password signs out every other device.</p>`;
 
   openModal({
     title: 'Change password',

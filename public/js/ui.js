@@ -30,7 +30,7 @@ export const avatar = (name, cls = '', userId = null) =>
 
 export const avatarStack = (people, max = Infinity) => {
   if (!people || !people.length) {
-    return `<span class="foot-item" style="color:var(--faint)">${icon.user()} Unassigned</span>`;
+    return `<span class="foot-item faint">${icon.user()} Unassigned</span>`;
   }
   // Everyone is shown. A "+N" chip told you a number but not WHO, so a project
   // with five testers looked identical to one with two — you still had to open
@@ -104,8 +104,8 @@ export function quickStatus(status, projectId, opts = {}) {
 }
 
 export const envBadge = (env) =>
-  `<span class="badge badge-outline" data-tone="${ENV[env]?.tone || 'slate'}" style="${
-    env === 'Prod' ? 'color:var(--rose);border-color:var(--rose-soft)' : ''
+  `<span class="badge badge-outline${env === 'Prod' ? ' is-prod' : ''}" data-tone="${
+    ENV[env]?.tone || 'slate'
   }">${escapeHtml(env)}</span>`;
 
 export const catBadge = (category, platform = '') => {
@@ -177,7 +177,7 @@ export function toast(message, variant = 'ok') {
   if (!toastHost) return;
   const el = document.createElement('div');
   el.className = `toast ${variant === 'err' ? 'err' : ''}`;
-  el.innerHTML = `<span style="display:inline-flex">${
+  el.innerHTML = `<span class="inline-flex">${
     variant === 'err' ? icon.alert() : icon.check()
   }</span><span>${escapeHtml(message)}</span>`;
   toastHost.appendChild(el);
@@ -197,7 +197,7 @@ export function openModal({ title, subtitle = '', body, footer, wide = false, xw
   backdrop.innerHTML = `
     <div class="modal ${wide ? 'wide' : ''}${xwide ? ' xwide' : ''}" role="dialog" aria-modal="true" aria-label="${escapeHtml(title)}">
       <div class="modal-head">
-        <div style="flex:1;min-width:0">
+        <div class="flex-1 min-0">
           <h2>${escapeHtml(title)}</h2>
           ${subtitle ? `<p>${escapeHtml(subtitle)}</p>` : ''}
         </div>
@@ -267,7 +267,7 @@ export function confirmDialog({ title, message, confirmLabel = 'Delete', danger 
     let settled = false;
     const { close } = openModal({
       title,
-      body: `<p style="font-size:13px;color:var(--muted);line-height:1.6">${escapeHtml(message)}</p>`,
+      body: `<p class="confirm-text">${escapeHtml(message)}</p>`,
       footer: `
         <div class="spacer"></div>
         <button class="btn" data-cancel>Cancel</button>

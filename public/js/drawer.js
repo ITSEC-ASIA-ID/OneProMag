@@ -4,7 +4,7 @@ import { loadStats } from './shell.js';
 import { ENUMS, canManageCatalog, state, statusTones } from './state.js';
 import { bindPicker, pentesterPickerHTML, pickerValues } from './users.js';
 import { api } from './api.js';
-import { CATEGORY, icon } from './icons.js';
+import { icon } from './icons.js';
 import { propLabel, propOptions, propTone } from './props.js';
 import {
   avatar, bindSegmented, catBadge, catIcon,
@@ -73,7 +73,6 @@ export async function renderDrawer(id, tab = 'overview', keepOpen = true) {
 
 
 export function drawerHTML(project, retests, tab) {
-  const cat = CATEGORY[project.category] || { color: 'var(--slate)', soft: 'var(--slate-soft)' };
   const openRetests = retests.filter((r) => r.status === 'Incoming' || r.status === 'Ongoing').length;
 
   const tabs = [
@@ -85,7 +84,7 @@ export function drawerHTML(project, retests, tab) {
   return `
     <div class="drawer-head">
       <div class="row">
-        <div class="cat-icon" style="--cat-color:${cat.color};--cat-soft:${cat.soft};width:38px;height:38px;border-radius:11px;background:${cat.soft};color:${cat.color};display:grid;place-items:center">
+        <div class="cat-icon" data-cat="${h(project.category)}">
           ${catIcon(project.category, 18)}
         </div>
         <h2>${h(project.name)}</h2>
@@ -128,12 +127,12 @@ export function drawerHTML(project, retests, tab) {
     ${
       tab === 'retests'
         ? `<div class="drawer-foot">
-             <span style="font-size:12px;color:var(--muted)">${retests.length} client request${retests.length === 1 ? '' : 's'}</span>
+             <span class="note-count">${retests.length} client request${retests.length === 1 ? '' : 's'}</span>
              <div class="spacer"></div>
              <button class="btn btn-primary" data-add-retest>${icon.plus()} New retest</button>
            </div>`
         : `<div class="drawer-foot">
-             <span style="font-size:12px;color:var(--faint)">Updated ${fmtRelative(project.updatedAt)}</span>
+             <span class="note-updated">Updated ${fmtRelative(project.updatedAt)}</span>
              <div class="spacer"></div>
              <button class="btn" data-edit>${icon.edit()} Edit</button>
            </div>`
@@ -194,7 +193,7 @@ export function tabBody(project, retests, tab) {
         <div class="info-item"><div class="k">Last updated</div><div class="v">${fmtDate(project.updatedAt)}</div></div>
       </div>
 
-      <div style="margin-top:20px">
+      <div class="mt-20">
         <div class="section-head">
           <h3>Pentesters</h3>
           <span class="badge badge-outline">${team.length} assigned</span>
@@ -210,17 +209,17 @@ export function tabBody(project, retests, tab) {
                     (g) => `<div class="team-group">
                       <div class="tg-label">${subroleBadge(g.subrole)}<span>${g.people.length}</span></div>
                       <div class="tg-people">
-                        ${g.people.map((p) => `<span class="pick on" style="pointer-events:none">${avatar(p.name)}<span>${h(p.name)}</span></span>`).join('')}
+                        ${g.people.map((p) => `<span class="pick on pick-readonly">${avatar(p.name)}<span>${h(p.name)}</span></span>`).join('')}
                       </div>
                     </div>`
                   )
                   .join('')}
               </div>`
-            : `<p style="font-size:12.5px;color:var(--faint)">No pentester assigned yet.</p>`
+            : `<p class="note-line">No pentester assigned yet.</p>`
         }
       </div>
 
-      <div style="margin-top:20px">
+      <div class="mt-20">
         <div class="section-head"><h3>Retest summary</h3><span class="spacer"></span>
           <button class="btn btn-sm" data-tab-jump="retests">View all ${icon.chevronRight()}</button>
         </div>
@@ -230,7 +229,7 @@ export function tabBody(project, retests, tab) {
         </div>
         ${
           retests.length
-            ? `<div class="retest-list" style="margin-top:12px">${retests.slice(0, 2).map(retestHTML).join('')}</div>`
+            ? `<div class="retest-list mt-12">${retests.slice(0, 2).map(retestHTML).join('')}</div>`
             : ''
         }
       </div>
@@ -239,7 +238,7 @@ export function tabBody(project, retests, tab) {
 
   if (tab === 'retests') {
     if (!retests.length) {
-      return `<div class="empty" style="border:none;background:transparent">
+      return `<div class="empty empty-bare">
         <div class="icon">${icon.queue()}</div>
         <h3>No retest requests yet</h3>
         <p>When a client asks you to re-verify the project, log the request here. It is queued until you finish it, and there is no limit on how many a project can have.</p>
@@ -251,10 +250,10 @@ export function tabBody(project, retests, tab) {
 
   return project.notes
     ? `<div class="notes-block">${h(project.notes)}</div>
-       <div style="margin-top:14px">
+       <div class="mt-14">
          <button class="btn btn-sm" data-edit-notes>${icon.edit()} Edit notes</button>
        </div>`
-    : `<div class="empty" style="border:none;background:transparent">
+    : `<div class="empty empty-bare">
         <div class="icon">${icon.note()}</div>
         <h3>No notes</h3>
         <p>Add scope details, credentials location, or out-of-scope items.</p>
@@ -266,7 +265,7 @@ export function tabBody(project, retests, tab) {
 export function retestHTML(r) {
   const tone = propTone('status', r.status);
   return `
-    <div class="retest" style="--st-color:var(--${tone === 'slate' ? 'slate' : tone})" data-retest="${r.id}">
+    <div class="retest" data-tone="${tone}" data-retest="${r.id}">
       <div class="retest-top">
         <div class="title">
           <h4>${h(r.title)}</h4>
@@ -279,10 +278,10 @@ export function retestHTML(r) {
         ${r.startedAt ? `<span class="who">${icon.play()} ${fmtDate(r.startedAt)}</span>` : ''}
         ${r.endedAt ? `<span class="who">${icon.check(12)} ${fmtDate(r.endedAt)}</span>` : ''}
         <span class="spacer"></span>
-        <button class="btn btn-icon" style="width:26px;height:26px" data-retest-edit="${r.id}" aria-label="Edit retest">${icon.edit()}</button>
-        ${canManageCatalog() ? `<button class="btn btn-icon" style="width:26px;height:26px;color:var(--rose)" data-retest-del="${r.id}" aria-label="Delete retest">${icon.trash()}</button>` : ''}
+        <button class="btn btn-icon" data-retest-edit="${r.id}" aria-label="Edit retest">${icon.edit()}</button>
+        ${canManageCatalog() ? `<button class="btn btn-icon btn-icon-danger" data-retest-del="${r.id}" aria-label="Delete retest">${icon.trash()}</button>` : ''}
       </div>
-      ${r.notes ? `<div style="margin-top:9px;font-size:11.8px;color:var(--faint);border-top:1px dashed var(--border);padding-top:8px">${h(r.notes)}</div>` : ''}
+      ${r.notes ? `<div class="retest-note">${h(r.notes)}</div>` : ''}
     </div>`;
 }
 
@@ -483,7 +482,7 @@ export function openRetestForm(projectId, retest = null, onDone) {
 
 export function openTeamForm(project) {
   const body = `
-    <div class="field" style="margin-top:0">
+    <div class="field mt-0">
       <div class="field-label">Who pentest</div>
       ${pentesterPickerHTML((project.pentesters || []).map((p) => p.id))}
       <span class="hint">Hierarchy: Lead → Sub Lead → Member. Select one or more pentesters.</span>
@@ -524,7 +523,7 @@ export function openTeamForm(project) {
 
 export function openNotesForm(project) {
   const body = `
-    <div class="field" style="margin-top:0">
+    <div class="field mt-0">
       <label for="n-notes">Notes</label>
       <textarea class="textarea" id="n-notes" rows="7"
         placeholder="Scope, credentials location, out-of-scope items…">${h(project.notes || '')}</textarea>

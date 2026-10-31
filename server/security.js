@@ -12,13 +12,16 @@
  *
  * `script-src 'self'` is strict on purpose: there is no `eval`, no `new Function`
  * and no inline <script> anywhere in the app, so nothing needs an exemption.
- * `style-src` is NOT strict yet — 34 inline `style=` attributes would all stop
- * applying — and removing that exemption is what the split work exists to enable.
+ * `style-src 'self'` is strict too: the markup carries no `style=` attribute at
+ * all. Every value that was inline is either a class in styles.css or a
+ * `data-*` attribute the stylesheet keys off, so the browser parses one CSS file
+ * and refuses any style that did not come from it. Only the Google Fonts hosts
+ * stay exempt, because the font CSS is fetched from there.
  */
 export const CSP = [
   "default-src 'self'",
   "script-src 'self'",
-  "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+  "style-src 'self' https://fonts.googleapis.com",
   "font-src 'self' https://fonts.gstatic.com data:",
   "img-src 'self' data:",
   "connect-src 'self'",

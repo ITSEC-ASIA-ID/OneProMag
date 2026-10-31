@@ -6144,3 +6144,91 @@ svg { display: block; }
   .imp-preview .imp-name { max-width: 150px; }
   .imp-preview .imp-contact { max-width: 150px; }
 }
+
+/* ---------------------------------------------------------------
+   Layout helpers
+   These used to be inline `style="…"` attributes on the markup, which is
+   what forced `style-src 'unsafe-inline'` into the Content Security Policy.
+   A policy that has to trust every inline style is a policy that cannot stop
+   the class of injection it exists for, so the handful of values that were
+   genuinely static moved here and the few that vary per row became data
+   attributes — the same pattern `.badge[data-tone]` already used.
+   --------------------------------------------------------------- */
+.mt-0 { margin-top: 0; }
+.mt-2 { margin-top: 2px; }
+.mt-12 { margin-top: 12px; }
+.mt-14 { margin-top: 14px; }
+.mt-20 { margin-top: 20px; }
+.ml-auto { margin-left: auto; }
+/* `flex: 1` alone is what the theme buttons need; min-width: 0 is a separate
+   fact, and applying it everywhere lets a button shrink below its own label. */
+.flex-1 { flex: 1 1 0%; }
+.flex-1.min-0 { min-width: 0; }
+.flex-row { display: flex; gap: 8px; }
+.inline-flex { display: inline-flex; }
+.faint { color: var(--faint); }
+/* The auth submit sits taller than a normal button: it is the only action on
+   the card and the form's last field would otherwise crowd it. */
+.auth-submit { height: 42px; margin-top: 2px; }
+/* A quiet one-line explanation under a field, sized smaller than body copy. */
+.note-line { font-size: 12.5px; color: var(--faint); }
+.note-count { font-size: 12px; color: var(--muted); }
+.note-updated { font-size: 12px; color: var(--faint); }
+/* The hint block beside a locked ("fixed by an admin") field. */
+.hint-block { display: block; }
+/* Confirm dialogs explain the consequence in body copy, not in a hint. */
+.confirm-text { font-size: 13px; color: var(--muted); line-height: 1.6; }
+/* The retest note is separated from its timestamps by a dashed rule, since it is
+   free text the client wrote and not another field of the record. */
+.retest-note {
+  margin-top: 9px;
+  font-size: 11.8px;
+  color: var(--faint);
+  border-top: 1px dashed var(--border);
+  padding-top: 8px;
+}
+/* Retest action buttons are smaller than the drawer's, because two of them share
+   a row with three timestamps. */
+.retest .btn-icon { width: 26px; height: 26px; }
+/* A pick that is shown for reading only: the assigned team, not a control. */
+.pick-readonly { pointer-events: none; }
+/* Borderless empty state, used inside a panel that already has a frame. */
+.empty-bare { border: none; background: transparent; }
+/* Badge variants that carried their colour inline. */
+.badge-outline.is-prod { color: var(--rose); border-color: var(--rose-soft); }
+/* Icon tile for a project category. The colours come from CATEGORY via data-cat,
+   because they are palette values rather than something a class can name. The
+   bare `[data-cat]` rule comes first and carries the fallback: a category an admin
+   added has no palette entry, so it borrows the neutral slate rather than
+   pretending to be Web. */
+.cat-icon[data-cat],
+.pcard[data-cat] {
+  --cat-color: var(--slate);
+  --cat-soft: var(--slate-soft);
+}
+.cat-icon[data-cat] { color: var(--cat-color); background: var(--cat-soft); }
+.cat-icon[data-cat='Web'],    .pcard[data-cat='Web']    { --cat-color: var(--blue);       --cat-soft: var(--blue-soft); }
+.cat-icon[data-cat='Mobile'], .pcard[data-cat='Mobile'] { --cat-color: var(--primary-fg); --cat-soft: var(--primary-soft); }
+.cat-icon[data-cat='API'],    .pcard[data-cat='API']    { --cat-color: var(--cyan);       --cat-soft: var(--cyan-soft); }
+.cat-icon[data-cat='EDC'],    .pcard[data-cat='EDC']    { --cat-color: var(--amber);      --cat-soft: var(--amber-soft); }
+.drawer-head .cat-icon {
+  width: 38px;
+  height: 38px;
+  border-radius: 11px;
+  display: grid;
+  place-items: center;
+}
+/* The four summary cards on the project lists, tinted by data-accent. */
+.stat { --accent: var(--primary); }
+.stat[data-accent='primary'] { --accent: var(--primary); }
+.stat[data-accent='violet']  { --accent: var(--violet); }
+.stat[data-accent='amber']   { --accent: var(--amber); }
+.stat[data-accent='cyan']    { --accent: var(--cyan); }
+/* The retest card's left rail, coloured by the retest's own status tone. */
+.retest[data-tone='blue']   { --st-color: var(--blue); }
+.retest[data-tone='amber']  { --st-color: var(--amber); }
+.retest[data-tone='violet'] { --st-color: var(--violet); }
+.retest[data-tone='green']  { --st-color: var(--green); }
+.retest[data-tone='rose']   { --st-color: var(--rose); }
+.retest[data-tone='cyan']   { --st-color: var(--cyan); }
+.retest[data-tone='slate']  { --st-color: var(--slate); }

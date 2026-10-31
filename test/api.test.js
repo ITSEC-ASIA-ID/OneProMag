@@ -919,8 +919,9 @@ test('repeated wrong passwords get slower, and the right one still works', async
  *
  * Asserted against the module rather than over HTTP because importing
  * server/index.js starts listening. The single thing worth pinning is that
- * `script-src` stays strict — a future convenience `'unsafe-inline'` there would
- * silently turn every injected string into executable code.
+ * `script-src` and `style-src` stay strict — a future convenience
+ * `'unsafe-inline'` there would silently turn every injected string into
+ * executable code, or let one injected `style=` attribute restyle the page.
  */
 test('every response forbids framing and inline script', async () => {
   const { CSP, SECURITY_HEADERS } = await import('../server/security.js');
@@ -931,6 +932,13 @@ test('every response forbids framing and inline script', async () => {
   assert.match(CSP, /script-src 'self'(;|$)/);
   assert.ok(!/script-src[^;]*unsafe-inline/.test(CSP), 'script-src must not allow inline');
   assert.ok(!/script-src[^;]*unsafe-eval/.test(CSP), 'script-src must not allow eval');
+  // Inline styles are gone from the markup, so the stylesheet is the only source
+  // of style the browser will accept.
+  assert.match(CSP, /style-src 'self'/);
+  assert.ok(
+    !/style-src[^;]*unsafe-inline/.test(CSP),
+    'style-src must not allow inline: no markup carries a style= attribute'
+  );
   // The typeface comes from Google Fonts, so those two hosts must stay reachable.
   assert.match(CSP, /fonts\.googleapis\.com/);
   assert.match(CSP, /fonts\.gstatic\.com/);

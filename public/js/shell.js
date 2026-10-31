@@ -367,10 +367,10 @@ export function statsHTML() {
   const openRetests = sc.openRetests ?? s.openRetests;
 
   const cards = [
-    { label: 'Total projects', value: sc.total, sub: `${sc.ongoing ?? 0} ongoing`, accent: 'var(--primary)', icon: 'layers' },
-    { label: 'Ready', value: sc.ready, sub: 'report in progress', accent: 'var(--violet)', icon: 'flag' },
-    { label: 'Active', value: sc.active, sub: 'not finished yet', accent: 'var(--amber)', icon: 'play' },
-    { label: 'Retest queue', value: sc.queue, sub: `${openRetests} open request${openRetests === 1 ? '' : 's'}`, accent: 'var(--cyan)', icon: 'queue' },
+    { label: 'Total projects', value: sc.total, sub: `${sc.ongoing ?? 0} ongoing`, accent: 'primary', icon: 'layers' },
+    { label: 'Ready', value: sc.ready, sub: 'report in progress', accent: 'violet', icon: 'flag' },
+    { label: 'Active', value: sc.active, sub: 'not finished yet', accent: 'amber', icon: 'play' },
+    { label: 'Retest queue', value: sc.queue, sub: `${openRetests} open request${openRetests === 1 ? '' : 's'}`, accent: 'cyan', icon: 'queue' },
   ];
   // A quiet scope marker on the card strip. Without it the same four cards
   // silently report different numbers when you move between scopes, and the
@@ -382,7 +382,7 @@ export function statsHTML() {
   return `<div class="stat-head">${scopeCue}</div>
   <div class="stat-grid">${cards
     .map(
-      (c) => `<div class="stat" style="--accent:${c.accent}">
+      (c) => `<div class="stat" data-accent="${c.accent}">
         <div class="lbl">${icon[c.icon]()}${h(c.label)}</div>
         <div class="val">${c.value}</div>
         <div class="sub">${h(c.sub)}</div>

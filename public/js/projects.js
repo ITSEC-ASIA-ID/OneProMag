@@ -18,7 +18,7 @@ import {
   pickerValues, usersHTML,
 } from './users.js';
 import { api } from './api.js';
-import { CATEGORY, icon } from './icons.js';
+import { icon } from './icons.js';
 import { propOptions } from './props.js';
 import {
   avatar, bindCombobox, bindSegmented, catBadge,
@@ -72,7 +72,7 @@ export function filtersHTML() {
       <button class="btn btn-sm filter-toggle" type="button" id="filter-toggle">
         ${icon.filter()}<span>Filters</span>
       </button>
-      <div class="toggle-group" style="margin-left:auto">
+      <div class="toggle-group ml-auto">
         <button data-view="grid" class="${state.view === 'grid' ? 'active' : ''}" aria-label="Grid view">${icon.grid()}</button>
         <button data-view="table" class="${state.view === 'table' ? 'active' : ''}" aria-label="Table view">${icon.list()}</button>
       </div>
@@ -160,12 +160,11 @@ export async function deleteRetestFlow(retest, { onDone } = {}) {
 export function projectCardHTML(row) {
   const p = row.project;
   const isRetest = row.kind === 'retest';
-  // A category the admin added has no palette entry of its own; the card still needs
-  // a tint, so it borrows the neutral slate rather than pretending to be Web.
-  const cat = CATEGORY[p.category] || { color: 'var(--slate)', soft: 'var(--slate-soft)' };
+  // A category the admin added has no palette entry of its own; the `.pcard[data-cat]`
+  // rules fall back to the neutral slate rather than pretending to be Web.
   return `
     <div class="pcard${isRetest ? ' pcard-retest' : ''}" data-project="${p.id}" role="button" tabindex="0"
-            style="--cat-color:${cat.color};--cat-soft:${cat.soft}">
+            data-cat="${h(p.category)}">
       <div class="pcard-top">
         <div class="cat-icon">${
           isRetest ? icon.refresh(17) : catIcon(p.category, 17)
@@ -342,7 +341,7 @@ export function resultsHTML() {
       ${retestRows ? `<span class="badge" data-tone="cyan">+${retestRows} retest${retestRows === 1 ? '' : 's'}</span>` : ''}
       ${navLabel ? `<span class="badge" data-tone="amber">${navLabel}</span>` : ''}
       ${statusFilter ? `<span class="badge" data-tone="blue">status: ${h(statusFilter)}</span>` : ''}
-      <span class="spacer" style="margin-left:auto"></span>
+      <span class="spacer ml-auto"></span>
       ${hasActiveFilters() ? `<button class="btn btn-sm btn-quiet" id="clear-filters">${icon.x(13)} Clear filters</button>` : ''}
     </div>
     ${
@@ -811,7 +810,7 @@ export function openProjectForm(project = null) {
       client names as its usual owners, but the value stays editable: a client
       can have several default SVs and this single slot must still be a choice.
     -->
-    <div class="field" style="margin-top:14px">
+    <div class="field mt-14">
       <label for="p-supervisor">Supervisor</label>
       ${combobox({
         id: 'p-supervisor',
@@ -823,7 +822,7 @@ export function openProjectForm(project = null) {
       <span class="hint" id="p-supervisor-hint">Owns this engagement. Admins, leads and sub leads can change it.</span>
     </div>
 
-    <div class="field" style="margin-top:14px">
+    <div class="field mt-14">
       <div class="field-label">Category</div>
       ${segmented('category', propOptions('category'), project?.category || 'Web')}
     </div>
