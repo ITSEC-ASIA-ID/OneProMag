@@ -56,6 +56,19 @@ export async function destroySession(token) {
 }
 
 /**
+ * Deletes sessions that have already expired.
+ *
+ * An expired row was only ever refused at read time — currentUser() compares the
+ * date and answers null — so the row itself stayed forever. A container that runs
+ * for months accumulates one dead row per login, and the table grows without any
+ * reader that wants it. Called once at boot and again on a timer.
+ */
+export async function expireSessions() {
+  const result = await db.run('DELETE FROM sessions WHERE expires_at < ?', [nowISO()]);
+  return result.rowCount || 0;
+}
+
+/**
  * Drop every session belonging to a user EXCEPT the current one.
  *
  * Used after a password change. Changing a password must evict anyone else who

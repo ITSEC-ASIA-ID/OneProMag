@@ -19,6 +19,7 @@ import {
   changePassword,
   updateOwnContact,
   destroyOtherSessions,
+  expireSessions,
   ALLOW_REGISTER,
 } from './auth.js';
 
@@ -293,6 +294,15 @@ server.on('error', (err) => {
 // Boot sequence: prepare the database BEFORE accepting traffic, so the first
 // request never races schema creation or seeding.
 const info = await initDatabase();
+
+// Sessions that died while the process was down, then the same sweep on a timer
+// so a container that stays up for weeks does not accumulate them. unref() means
+// the timer never keeps the process alive on its own.
+await expireSessions().catch((err) => console.error('[auth] session sweep failed:', err.message));
+const sessionSweep = setInterval(() => {
+  expireSessions().catch((err) => console.error('[auth] session sweep failed:', err.message));
+}, 60 * 60 * 1000);
+sessionSweep.unref?.();
 
 server.listen(PORT, HOST, async () => {
   console.log(`\n  OneProMag running → http://localhost:${PORT}\n`);

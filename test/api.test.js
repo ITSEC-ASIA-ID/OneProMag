@@ -834,3 +834,40 @@ test('a write outside a transaction waits for it instead of racing it', async ()
     'busy_timeout must be set, or a second process on the same file fails instantly'
   );
 });
+
+/**
+ * An expired session is deleted, not merely refused.
+ *
+ * Refusing it at read time is correct but leaves the row behind forever, one per
+ * login. The sweep is what makes the expires_at index worth having at all, since
+ * nothing else in the codebase queries that column.
+ */
+test('the sweep deletes dead sessions and leaves live ones alone', async () => {
+  const auth = await import('../server/auth.js');
+  const live = await auth.createSession(1);
+  const past = new Date(Date.now() - 60_000).toISOString();
+  await db.run('INSERT INTO sessions (token, user_id, created_at, expires_at) VALUES (?, ?, ?, ?)', [
+    'stale-token',
+    1,
+    past,
+    past,
+  ]);
+
+  const removed = await auth.expireSessions();
+  assert.ok(removed >= 1);
+  assert.equal(await db.get('SELECT token FROM sessions WHERE token = ?', ['stale-token']), null);
+  assert.ok(await db.get('SELECT token FROM sessions WHERE token = ?', [live.token]));
+});
+
+test('the queries that run on every page have an index to run on', async () => {
+  const names = (await db.all("SELECT name FROM sqlite_master WHERE type = 'index'")).map(
+    (r) => r.name
+  );
+  for (const needed of [
+    'idx_project_pentesters_user',
+    'idx_retests_project_status',
+    'idx_sessions_expires',
+  ]) {
+    assert.ok(names.includes(needed), `${needed} missing — that query scans the table`);
+  }
+});

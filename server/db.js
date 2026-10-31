@@ -1278,6 +1278,17 @@ async function createIndexes() {
     // One lookup per page render: "every note for THIS client or application".
     'CREATE INDEX IF NOT EXISTS idx_info_scope ON info_entries(scope, scope_id)',
     'CREATE INDEX IF NOT EXISTS idx_info_env ON info_entries(scope, scope_id, env)',
+    // The primary key of project_pentesters is (project_id, user_id), which cannot
+    // answer "which projects is this person on" — the My projects filter — because
+    // user_id is the second column of the key, not its prefix.
+    'CREATE INDEX IF NOT EXISTS idx_project_pentesters_user ON project_pentesters(user_id)',
+    // Every open-retest test is `project_id = ? AND status <> 'Done'`. The existing
+    // project_id index narrows to the project and then filters; leading with status
+    // as well lets the engine read only the open rows.
+    'CREATE INDEX IF NOT EXISTS idx_retests_project_status ON retests(project_id, status)',
+    // Nothing filters on expires_at today, so this index earns its place only
+    // because expireSessions() sweeps by it — on boot and hourly.
+    'CREATE INDEX IF NOT EXISTS idx_sessions_expires ON sessions(expires_at)',
     // Retest codes are RT-<project>-<seq>; uniqueness stops a concurrent insert
     // from minting a duplicate. Legacy rows may already collide, hence the guard.
     'CREATE UNIQUE INDEX IF NOT EXISTS idx_retests_code ON retests(project_id, code)',
