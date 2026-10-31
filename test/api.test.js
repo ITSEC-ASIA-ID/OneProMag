@@ -871,3 +871,45 @@ test('the queries that run on every page have an index to run on', async () => {
     assert.ok(names.includes(needed), `${needed} missing — that query scans the table`);
   }
 });
+
+/**
+ * Repeated failures get slower instead of being refused.
+ *
+ * The spec's open question was whether a hard lockout is acceptable. It is not:
+ * keyed on the identifier, it hands any stranger a way to deny the real user
+ * their account, and keyed on an IP it would be one shared counter because no
+ * forwarded address is trusted behind the proxy. A delay is the property that
+ * actually holds — it costs a person a second or two and a script the same per
+ * guess.
+ */
+test('repeated wrong passwords get slower, and the right one still works', async () => {
+  const auth = await import('../server/auth.js');
+  auth.resetLoginFailures();
+  const who = 'throttle-subject';
+
+  for (let i = 0; i < 5; i += 1) auth.noteLoginFailure(who);
+  assert.equal(auth.loginRetryDelay(who), 0, 'five failures must not delay anyone');
+
+  const delays = [6, 7, 8, 9, 20].map(() => {
+    auth.noteLoginFailure(who);
+    return auth.loginRetryDelay(who);
+  });
+  for (let i = 1; i < delays.length; i += 1) {
+    assert.ok(delays[i] >= delays[i - 1], `delay fell from ${delays[i - 1]} to ${delays[i]}`);
+  }
+  assert.equal(delays.at(-1), 2000, 'the delay must stop growing at the cap');
+
+  // Another identifier is untouched: one person's typos are not everyone's pause.
+  assert.equal(auth.loginRetryDelay('someone-else'), 0);
+
+  // A success forgets only its own history.
+  auth.clearLoginFailures(who);
+  assert.equal(auth.loginRetryDelay(who), 0);
+  assert.equal(auth.loginRetryDelay('someone-else'), 0);
+
+  // And the credential itself still works while the counter is high.
+  for (let i = 0; i < 8; i += 1) auth.noteLoginFailure('admin');
+  assert.ok(auth.loginRetryDelay('admin') > 0);
+  assert.ok(await auth.login('admin', 'admin123'), 'a correct password must still log in');
+  auth.resetLoginFailures();
+});

@@ -20,6 +20,9 @@ import {
   updateOwnContact,
   destroyOtherSessions,
   expireSessions,
+  loginRetryDelay,
+  noteLoginFailure,
+  clearLoginFailures,
   ALLOW_REGISTER,
 } from './auth.js';
 
@@ -175,8 +178,19 @@ const server = http.createServer(async (req, res) => {
       const body = await readBody(req);
       // The identifier may be a username or an email; login() decides which and
       // throws when a shared email makes the choice ambiguous.
+      const waitMs = loginRetryDelay(body.username);
+      if (waitMs > 0) await new Promise((resolve) => setTimeout(resolve, waitMs));
       const user = await login(body.username, body.password);
-      if (!user) return sendJSON(res, 401, { error: 'Invalid username or password' });
+      if (!user) {
+        const nextDelay = noteLoginFailure(body.username);
+        return sendJSON(
+          res,
+          401,
+          { error: 'Invalid username or password' },
+          nextDelay > 0 ? { 'Retry-After': String(Math.ceil(nextDelay / 1000)) } : {}
+        );
+      }
+      clearLoginFailures(body.username);
       const { token, expires } = await createSession(user.id);
       return sendJSON(res, 200, { user }, { 'Set-Cookie': sessionCookie(token, expires, req) });
     }

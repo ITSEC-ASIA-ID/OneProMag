@@ -292,6 +292,66 @@ export async function login(identifier, password) {
   };
 }
 
+/* ------------------------------------------------------------------ *
+ * Login throttling
+ *
+ * Guessing against `admin` is the obvious attack here: the username is never a
+ * secret, and the prod boot log re-prints the bootstrap password on every start.
+ *
+ * The counter slows repeated failures down instead of refusing them. A hard
+ * lockout keyed on the identifier would let any stranger deny the real user
+ * their account for the whole window by guessing wrong on purpose, and a
+ * lockout keyed on the client IP would in production key all traffic to one
+ * entry, because the app sits behind Caddy and trusts no forwarded address yet.
+ * A growing pause costs a person a couple of seconds and costs a script the same
+ * couple of seconds per guess, which is what a rate is.
+ * ------------------------------------------------------------------ */
+const LOGIN_WINDOW_MS = 15 * 60_000;
+const LOGIN_FREE_ATTEMPTS = 5;
+const LOGIN_STEP_MS = 400;
+const LOGIN_MAX_DELAY_MS = 2000;
+const loginFailures = new Map(); // identifier -> { count, firstAt }
+
+function loginKey(identifier) {
+  return String(identifier || '').trim().toLowerCase();
+}
+
+/** Milliseconds this identifier must wait before its next attempt. */
+export function loginRetryDelay(identifier) {
+  const key = loginKey(identifier);
+  const entry = loginFailures.get(key);
+  if (!entry) return 0;
+  if (Date.now() - entry.firstAt > LOGIN_WINDOW_MS) {
+    loginFailures.delete(key);
+    return 0;
+  }
+  const over = entry.count - LOGIN_FREE_ATTEMPTS;
+  if (over <= 0) return 0;
+  return Math.min(LOGIN_STEP_MS * 2 ** (over - 1), LOGIN_MAX_DELAY_MS);
+}
+
+/** Record a failed attempt. Returns the delay the NEXT attempt will carry. */
+export function noteLoginFailure(identifier) {
+  const key = loginKey(identifier);
+  const entry = loginFailures.get(key);
+  if (!entry || Date.now() - entry.firstAt > LOGIN_WINDOW_MS) {
+    loginFailures.set(key, { count: 1, firstAt: Date.now() });
+  } else {
+    entry.count += 1;
+  }
+  return loginRetryDelay(identifier);
+}
+
+/** A successful login forgets this identifier's history, and nothing else's. */
+export function clearLoginFailures(identifier) {
+  loginFailures.delete(loginKey(identifier));
+}
+
+/** Test seam: the map outlives a temp database between runs in one process. */
+export function resetLoginFailures() {
+  loginFailures.clear();
+}
+
 export async function createUser({ username, name, password, role, subrole, parentId, phone, email }) {
   const cleanUsername = String(username || '').trim().toLowerCase();
   if (!/^[a-z0-9._-]{3,32}$/.test(cleanUsername)) {
