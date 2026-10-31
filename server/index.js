@@ -5,6 +5,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { api } from './api.js';
 import { initDatabase, db, bootstrapCredentials, DEMO_MODE } from './db.js';
+import { SECURITY_HEADERS } from './security.js';
 import {
   HttpError,
   currentUser,
@@ -147,6 +148,8 @@ const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
   const pathname = url.pathname;
   const method = req.method || 'GET';
+
+  for (const [name, value] of Object.entries(SECURITY_HEADERS)) res.setHeader(name, value);
 
   try {
     // ---- health ----------------------------------------------------------

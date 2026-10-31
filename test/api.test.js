@@ -913,3 +913,25 @@ test('repeated wrong passwords get slower, and the right one still works', async
   assert.ok(await auth.login('admin', 'admin123'), 'a correct password must still log in');
   auth.resetLoginFailures();
 });
+
+/**
+ * The headers that stop the app being framed, sniffed or leaked through a Referer.
+ *
+ * Asserted against the module rather than over HTTP because importing
+ * server/index.js starts listening. The single thing worth pinning is that
+ * `script-src` stays strict — a future convenience `'unsafe-inline'` there would
+ * silently turn every injected string into executable code.
+ */
+test('every response forbids framing and inline script', async () => {
+  const { CSP, SECURITY_HEADERS } = await import('../server/security.js');
+  assert.equal(SECURITY_HEADERS['X-Frame-Options'], 'DENY');
+  assert.equal(SECURITY_HEADERS['X-Content-Type-Options'], 'nosniff');
+  assert.equal(SECURITY_HEADERS['Referrer-Policy'], 'same-origin');
+  assert.match(CSP, /frame-ancestors 'none'/);
+  assert.match(CSP, /script-src 'self'(;|$)/);
+  assert.ok(!/script-src[^;]*unsafe-inline/.test(CSP), 'script-src must not allow inline');
+  assert.ok(!/script-src[^;]*unsafe-eval/.test(CSP), 'script-src must not allow eval');
+  // The typeface comes from Google Fonts, so those two hosts must stay reachable.
+  assert.match(CSP, /fonts\.googleapis\.com/);
+  assert.match(CSP, /fonts\.gstatic\.com/);
+});
