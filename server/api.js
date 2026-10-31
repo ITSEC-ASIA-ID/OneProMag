@@ -172,6 +172,44 @@ function resolveDates(body, row, nextStatus, prevStatus) {
   return { startedAt, endedAt };
 }
 
+/**
+ * The one rule for "did somebody actually edit this?".
+ *
+ * `next` must be keyed by the database column names of exactly the columns the
+ * UPDATE writes. The stamp that comes back is a fresh one when something really
+ * differs, and the row's existing one when the save was a no-op.
+ *
+ * A no-op is not hypothetical: every client posts the whole form, so "open the
+ * record, change nothing, press Save" is indistinguishable at the request level.
+ * Stamping it anyway moved the row to the top of its status block — the project
+ * list orders by `updated_at` — and made the drawer footer claim an edit that
+ * never happened. Pinning a note is the same class of non-edit.
+ *
+ * Comparing the written field list rather than the whole row is deliberate: the
+ * row contains `updated_at` itself, so a whole-row comparison always differs.
+ */
+function editStamp(row, next) {
+  for (const [column, value] of Object.entries(next)) {
+    if (String(row[column] ?? '') !== String(value ?? '')) return nowISO();
+  }
+  return row.updated_at;
+}
+
+/**
+ * True when the posted test bench differs from the stored one. Compared here
+ * rather than through `editStamp` because the team lives in its own table, not
+ * in a column that statement writes.
+ */
+async function pentestersDiffer(tx, projectId, userIds) {
+  const stored = (
+    await tx.all('SELECT user_id FROM project_pentesters WHERE project_id = ?', [projectId])
+  )
+    .map((r) => Number(r.user_id))
+    .sort((a, b) => a - b);
+  const wanted = [...new Set((userIds || []).map(Number).filter(Boolean))].sort((a, b) => a - b);
+  return stored.length !== wanted.length || stored.some((id, i) => id !== wanted[i]);
+}
+
 function shapeProject(row, pentesters = []) {
   if (!row) return null;
   return {
@@ -1849,27 +1887,33 @@ export const api = {
       const supervisorId =
         body.supervisorId !== undefined ? await resolveSupervisorId(tx, body.supervisorId) : row.supervisor_id ?? null;
 
+      const next = {
+        name,
+        client: ref.clientName,
+        client_id: ref.clientId,
+        application_id: ref.applicationId,
+        variant_id: ref.variantId,
+        supervisor_id: supervisorId,
+        category,
+        platform,
+        env: body.env !== undefined ? pick(body.env, ENUMS.env, row.env) : row.env,
+        method: body.method !== undefined ? pick(body.method, ENUMS.method, row.method) : row.method,
+        status: nextStatus,
+        notes: body.notes !== undefined ? String(body.notes) : row.notes,
+        started_at: dates.startedAt,
+        ended_at: dates.endedAt,
+      };
+      // The bench is written by a separate statement, so `next` cannot see it.
+      // Left out, adding somebody to the team would leave the project claiming it
+      // was last touched days ago — the dedicated assign routes do stamp.
+      const teamChanged = Array.isArray(body.pentesterIds)
+        ? await pentestersDiffer(tx, row.id, body.pentesterIds)
+        : false;
+
       await tx.run(
-        `UPDATE projects SET name = ?, client = ?, client_id = ?, application_id = ?, variant_id = ?, supervisor_id = ?, category = ?, platform = ?, env = ?, method = ?, status = ?, notes = ?, started_at = ?, ended_at = ?, updated_at = ?
+        `UPDATE projects SET ${Object.keys(next).map((c) => `${c} = ?`).join(', ')}, updated_at = ?
           WHERE id = ?`,
-        [
-          name,
-          ref.clientName,
-          ref.clientId,
-          ref.applicationId,
-          ref.variantId,
-          supervisorId,
-          category,
-          platform,
-          body.env !== undefined ? pick(body.env, ENUMS.env, row.env) : row.env,
-          body.method !== undefined ? pick(body.method, ENUMS.method, row.method) : row.method,
-          nextStatus,
-          body.notes !== undefined ? String(body.notes) : row.notes,
-          dates.startedAt,
-          dates.endedAt,
-          nowISO(),
-          row.id,
-        ]
+        [...Object.values(next), teamChanged ? nowISO() : editStamp(row, next), row.id]
       );
       if (Array.isArray(body.pentesterIds)) await setPentesters(tx, row.id, body.pentesterIds);
     });
@@ -1964,23 +2008,27 @@ export const api = {
     // A retest follows exactly the same date rules as a project.
     const dates = resolveDates(body, row, nextStatus, row.status);
 
+    const next = {
+      title: body.title !== undefined ? String(body.title).trim() || row.title : row.title,
+      findings: body.findings !== undefined ? String(body.findings) : row.findings,
+      requested_by: body.requestedBy !== undefined ? String(body.requestedBy) : row.requested_by,
+      requested_at: body.requestedAt !== undefined ? String(body.requestedAt) || null : row.requested_at,
+      status: nextStatus,
+      notes: body.notes !== undefined ? String(body.notes) : row.notes,
+      started_at: dates.startedAt,
+      ended_at: dates.endedAt,
+    };
+    const stamp = editStamp(row, next);
     await db.run(
-      `UPDATE retests SET title = ?, findings = ?, requested_by = ?, requested_at = ?, status = ?, notes = ?, started_at = ?, ended_at = ?, updated_at = ?
+      `UPDATE retests SET ${Object.keys(next).map((c) => `${c} = ?`).join(', ')}, updated_at = ?
         WHERE id = ?`,
-      [
-        body.title !== undefined ? String(body.title).trim() || row.title : row.title,
-        body.findings !== undefined ? String(body.findings) : row.findings,
-        body.requestedBy !== undefined ? String(body.requestedBy) : row.requested_by,
-        body.requestedAt !== undefined ? String(body.requestedAt) || null : row.requested_at,
-        nextStatus,
-        body.notes !== undefined ? String(body.notes) : row.notes,
-        dates.startedAt,
-        dates.endedAt,
-        nowISO(),
-        row.id,
-      ]
+      [...Object.values(next), stamp, row.id]
     );
-    await db.run('UPDATE projects SET updated_at = ? WHERE id = ?', [nowISO(), row.project_id]);
+    // The project's stamp follows the retest's rather than being written
+    // unconditionally, or an unchanged save would reshuffle the project list too.
+    if (stamp !== row.updated_at) {
+      await db.run('UPDATE projects SET updated_at = ? WHERE id = ?', [stamp, row.project_id]);
+    }
 
     const retest = await db.get('SELECT * FROM retests WHERE id = ?', [row.id]);
     return { retest: shapeRetest(retest) };
@@ -2060,9 +2108,16 @@ export const api = {
         body.notes !== undefined ? String(body.notes) : row.notes,
         row.id,
       ]);
-      // keep the denormalised copy on projects in sync
+      // keep the denormalised copy on projects in sync. This writes the client
+      // NAME onto every project pointing here, which is text the project list
+      // renders — so the row's timestamp has to move with it. Leaving it alone
+      // made a renamed project look untouched for days.
       if (name !== row.name) {
-        await tx.run('UPDATE projects SET client = ? WHERE client_id = ?', [name, row.id]);
+        await tx.run('UPDATE projects SET client = ?, updated_at = ? WHERE client_id = ?', [
+          name,
+          nowISO(),
+          row.id,
+        ]);
       }
       if (Array.isArray(body.supervisorIds)) {
         await setClientSupervisors(tx, Number(row.id), body.supervisorIds);
@@ -2454,16 +2509,20 @@ export const api = {
     } else if (!next.title && !parseTable(next.data).columns.length) {
       throw new HttpError(400, 'Give the note a title or some columns');
     }
-    // Pinning is a bookmark, not an edit: bumping updated_at for it would make
-    // every pinned note claim "edited just now" and reshuffle the date order
-    // under the user. Only a real content change moves the timestamp.
-    const contentChanged =
-      next.title !== row.title ||
-      next.body !== row.body ||
-      next.category !== row.category ||
-      next.kind !== (row.kind || 'text') ||
-      next.data !== (row.data || '');
-    const stamp = contentChanged ? nowISO() : row.updated_at;
+    // Pinning is a bookmark, not an edit, and neither is moving a note between
+    // Dev and Prod — so `pinned` and `env` are written but not compared: bumping
+    // the stamp for them would make the note claim "edited just now" and
+    // reshuffle the date order under the user.
+    const stamp = editStamp(
+      { ...row, kind: row.kind || 'text' },
+      {
+        title: next.title,
+        body: next.body,
+        category: next.category,
+        kind: next.kind,
+        data: next.data,
+      }
+    );
     await db.run(
       `UPDATE info_entries SET title = ?, body = ?, category = ?, kind = ?, data = ?, env = ?, pinned = ?, updated_at = ?
         WHERE id = ?`,

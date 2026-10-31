@@ -114,3 +114,47 @@ the modal head (which truncates on purpose) uses.
 `.mt-9`, `.block` and `.muted` were written for sites that ended up not needing them.
 Removed rather than shipped: a helper class nobody uses is a class the next person
 copies.
+
+## `updated-at`
+
+R6 from the four-axis review was "audit the `updated_at` call sites" — an audit, not a
+fix, because nobody knew yet whether anything was wrong. The audit found three defects
+and two things that only look like defects. Full reasoning in `SPEC-updated-at.md`.
+
+- [x] **The rule, named once** — `editStamp(row, next)` compares the exact columns the
+  statement writes and returns `nowISO()` only when something really differs. `next` is
+  keyed by DB column, and the `UPDATE` now builds its `SET` list from those same keys, so
+  the comparison and the write cannot drift apart. `PATCH /api/info/:id`'s inline
+  `contentChanged` block was the one correct implementation in the codebase; it now calls
+  the helper, which is what D1 and D2 could not reach before.
+- [x] **D1 — a no-op save is not an edit** (`server/api.js`, `PATCH /api/projects/:id` and
+  `PATCH /api/retests/:id`). Both stamped unconditionally. Every client posts the whole
+  form, so "open it, change nothing, press Save" was indistinguishable server-side — and
+  `GET /api/projects` orders by `updated_at` inside each status group, so the row jumped to
+  the top of its block in front of the user. The retest path also stamped its parent
+  project; that now follows the retest's decision instead of being written blindly.
+- [x] **D2 — the cascade that does change a project now says so** (`PATCH /api/clients/:id`).
+  Renaming a client rewrites the denormalised `projects.client` name — text the project list
+  renders — and stamped nothing, so a row whose visible content had just changed claimed to
+  be untouched for days.
+- [x] **The test bench is compared separately.** It lives in `project_pentesters`, not in a
+  column that statement writes, so `next` cannot see it. Left out, adding a pentester through
+  the drawer form would leave the project claiming an old timestamp while its team cell
+  changed — the dedicated assign routes have always stamped.
+- [x] **Two paths deliberately left alone**, now asserted so nobody "helpfully" stamps them:
+  `PATCH /api/devices/order` (a drag is not an edit — stamping would rewrite twenty rows
+  because one moved) and the device-column purge (a sheet schema change, not a device edit).
+- [x] **A bulk device save is the caller's promise.** The server does not diff: `extra` is a
+  JSON blob, and comparing it by string would flag every row on a key-order change. The
+  client already sends only what it changed, and no screen prints a device timestamp.
+- [x] **Verify** — 46/46 tests (6 new), live md5 equal, and in the running app: saving an
+  unchanged project through the drawer keeps `Updated 3h ago` and keeps the list order, a
+  real edit moves the row to the top of its status block, a client rename stamps exactly its
+  own projects, and a test row's notes were restored afterwards.
+
+### One pre-existing hazard, not introduced here
+
+`ORDER BY status, updated_at DESC` has no tiebreaker. Two rows written inside the same
+millisecond (a client rename stamps every project it owns in a loop) get an arbitrary
+relative order. Left as-is: adding `, p.id DESC` would change list ordering for everybody,
+which is not what this task asked for.

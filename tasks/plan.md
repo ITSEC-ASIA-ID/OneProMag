@@ -24,3 +24,19 @@ Approved basis: `SPECS.md`, `SPEC-harden-api.md`, `SPEC-split-app-js.md`.
    everything else is already green and a broken page is unambiguous)
 
 Then `split-app-js`, 11 commits, lowest-risk area first, browser-verified per commit.
+
+---
+
+## `updated-at` — the R6 audit
+
+R6 was queued as an audit, so the first deliverable was the finding list, not a patch.
+Audit → `SPEC-updated-at.md` → implement → verify, in that order; the spec records the two
+paths that look wrong and are right, because those are the ones a future reader would
+otherwise "fix".
+
+| Open question | Taken | Reason |
+|---|---|---|
+| Helper or `updated_at` trigger? | Helper in `server/api.js` | A trigger sees the new row, not the intent, and would have to stay in sync across both engines *and* with `resolveDates()`'s date stamping. |
+| Compare the whole row or the written fields? | Written fields | The row contains `updated_at` itself, so a whole-row compare always differs. Building the `SET` list from the same key object is what keeps them truthful. |
+| Stamp the parent project when a retest changes? | Yes, using the retest's own decision | It already did — unconditionally. Now a no-op retest save leaves the project alone too. |
+| Fix the missing `ORDER BY` tiebreaker while here? | No | Real, pre-existing, and would reorder everybody's list. Recorded in `tasks/todo.md` instead. |

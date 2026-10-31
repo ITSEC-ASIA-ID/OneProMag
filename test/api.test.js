@@ -943,3 +943,256 @@ test('every response forbids framing and inline script', async () => {
   assert.match(CSP, /fonts\.googleapis\.com/);
   assert.match(CSP, /fonts\.gstatic\.com/);
 });
+
+/**
+ * `updated_at` is a claim about the row, and three write paths were lying about it.
+ *
+ * The client posts the whole form on every save, so "open the record, change
+ * nothing, press Save" reaches the server looking exactly like an edit. It used to
+ * be stamped unconditionally — which moved the project to the top of its status
+ * block, because the list orders by `updated_at`, and made the drawer footer
+ * announce an edit that never happened.
+ *
+ * Each case pins the row's stamp to a fixed old value first, so the assertion
+ * cannot accidentally pass because two writes landed in the same millisecond.
+ */
+test('saving a project without changing anything is not an edit', async () => {
+  const user = await lead();
+  const { client, application } = await freshApplication(user);
+  const older = (
+    await call('POST /api/projects', user, {
+      body: { name: 'Older Ongoing', clientId: client.id, applicationId: application.id, status: 'Ongoing' },
+    })
+  ).project;
+  const newer = (
+    await call('POST /api/projects', user, {
+      body: { name: 'Newer Ongoing', clientId: client.id, applicationId: application.id, status: 'Ongoing' },
+    })
+  ).project;
+  await db.run('UPDATE projects SET updated_at = ? WHERE id = ?', [
+    '2020-01-01T00:00:00.000Z',
+    older.id,
+  ]);
+  await db.run('UPDATE projects SET updated_at = ? WHERE id = ?', [
+    '2021-01-01T00:00:00.000Z',
+    newer.id,
+  ]);
+
+  // Exactly what the drawer's form sends: every field, nothing altered.
+  const saved = await call('PATCH /api/projects/:id', user, {
+    params: { id: older.id },
+    body: {
+      name: older.name,
+      clientId: client.id,
+      applicationId: application.id,
+      variantId: null,
+      supervisorId: null,
+      category: older.category,
+      platform: older.platform,
+      env: older.env,
+      status: older.status,
+      method: older.method,
+      notes: older.notes,
+      pentesterIds: [],
+      startedAt: older.startedAt,
+      endedAt: older.endedAt,
+    },
+  });
+  assert.equal(
+    saved.project.updatedAt,
+    '2020-01-01T00:00:00.000Z',
+    'a save that changed nothing must not claim an edit'
+  );
+
+  // And the list it feeds is untouched: the genuinely newer row still comes first.
+  const { projects } = await call('GET /api/projects', user, { query: { status: 'Ongoing' } });
+  const order = projects.filter((p) => p.id === older.id || p.id === newer.id).map((p) => p.id);
+  assert.deepEqual(order, [newer.id, older.id], 'a no-op save must not reorder the list');
+});
+
+test('changing one field of a project moves its timestamp', async () => {
+  const user = await lead();
+  const { client, application } = await freshApplication(user);
+  const { project } = await call('POST /api/projects', user, {
+    body: { name: 'Edited', clientId: client.id, applicationId: application.id },
+  });
+  await db.run('UPDATE projects SET updated_at = ? WHERE id = ?', [
+    '2020-01-01T00:00:00.000Z',
+    project.id,
+  ]);
+
+  const saved = await call('PATCH /api/projects/:id', user, {
+    params: { id: project.id },
+    body: { notes: 'a real edit' },
+  });
+  assert.notEqual(saved.project.updatedAt, '2020-01-01T00:00:00.000Z');
+
+  // A status transition counts even when no body field differs: resolveDates
+  // stamps started_at, so the row really did change.
+  await db.run('UPDATE projects SET updated_at = ? WHERE id = ?', [
+    '2020-01-01T00:00:00.000Z',
+    project.id,
+  ]);
+  const moved = await call('PATCH /api/projects/:id', user, {
+    params: { id: project.id },
+    body: { status: 'Ongoing' },
+  });
+  assert.notEqual(moved.project.updatedAt, '2020-01-01T00:00:00.000Z');
+  assert.equal(moved.project.startedAt.length, 10, 'entering Ongoing still stamps the start date');
+
+  // The test bench lives in its own table, so it has to be compared explicitly:
+  // adding somebody changes the team cell the list renders.
+  await db.run('UPDATE projects SET updated_at = ? WHERE id = ?', [
+    '2020-01-01T00:00:00.000Z',
+    project.id,
+  ]);
+  const pentester = await asUser('bagas');
+  const staffed = await call('PATCH /api/projects/:id', user, {
+    params: { id: project.id },
+    body: { pentesterIds: [pentester.id] },
+  });
+  assert.notEqual(staffed.project.updatedAt, '2020-01-01T00:00:00.000Z');
+  assert.equal(staffed.project.pentesters.length, 1);
+});
+
+test('a retest save follows the same rule, and so does the project it belongs to', async () => {
+  const user = await lead();
+  const { client, application } = await freshApplication(user);
+  const { project } = await call('POST /api/projects', user, {
+    body: { name: 'Retest host', clientId: client.id, applicationId: application.id },
+  });
+  const { retest } = await call('POST /api/projects/:id/retests', user, {
+    params: { id: project.id },
+    body: { notes: 'first pass' },
+  });
+  await db.run('UPDATE retests SET updated_at = ? WHERE id = ?', [
+    '2020-01-01T00:00:00.000Z',
+    retest.id,
+  ]);
+  await db.run('UPDATE projects SET updated_at = ? WHERE id = ?', [
+    '2020-01-01T00:00:00.000Z',
+    project.id,
+  ]);
+
+  const same = await call('PATCH /api/retests/:id', user, {
+    params: { id: retest.id },
+    body: {
+      requestedAt: retest.requestedAt,
+      status: retest.status,
+      notes: retest.notes,
+      startedAt: retest.startedAt,
+      endedAt: retest.endedAt,
+    },
+  });
+  assert.equal(same.retest.updatedAt, '2020-01-01T00:00:00.000Z', 'a no-op retest save is not an edit');
+  const projectRow = await db.get('SELECT updated_at FROM projects WHERE id = ?', [project.id]);
+  assert.equal(projectRow.updated_at, '2020-01-01T00:00:00.000Z', 'and it leaves the project alone');
+
+  const changed = await call('PATCH /api/retests/:id', user, {
+    params: { id: retest.id },
+    body: { notes: 'second pass' },
+  });
+  assert.notEqual(changed.retest.updatedAt, '2020-01-01T00:00:00.000Z');
+  const after = await db.get('SELECT updated_at FROM projects WHERE id = ?', [project.id]);
+  assert.notEqual(after.updated_at, '2020-01-01T00:00:00.000Z', 'a real retest edit moves the project');
+});
+
+test('renaming a client touches the projects that print its name', async () => {
+  const user = await lead();
+  const { client, application } = await freshApplication(user);
+  const mine = (
+    await call('POST /api/projects', user, {
+      body: { name: 'On the renamed client', clientId: client.id, applicationId: application.id },
+    })
+  ).project;
+  const { client: otherClient, application: otherApp } = await freshApplication(user);
+  const untouched = (
+    await call('POST /api/projects', user, {
+      body: { name: 'Somewhere else', clientId: otherClient.id, applicationId: otherApp.id },
+    })
+  ).project;
+  const OLD = '2020-01-01T00:00:00.000Z';
+  await db.run('UPDATE projects SET updated_at = ? WHERE id IN (?, ?)', [OLD, mine.id, untouched.id]);
+
+  await call('PATCH /api/clients/:id', user, {
+    params: { id: client.id },
+    body: { name: `${client.name} Holdings` },
+  });
+
+  // The denormalised `client` column is re-rendered in every project list, so the
+  // row that changed has to say so — and a project on another client must not.
+  const moved = await db.get('SELECT client, updated_at FROM projects WHERE id = ?', [mine.id]);
+  assert.equal(moved.client, `${client.name} Holdings`);
+  assert.notEqual(moved.updated_at, OLD, 'the renamed project must not look untouched');
+  const still = await db.get('SELECT updated_at FROM projects WHERE id = ?', [untouched.id]);
+  assert.equal(still.updated_at, OLD, 'a project on another client did not change');
+});
+
+/**
+ * A drag is not an edit, and a bulk save is exactly the rows it was handed.
+ *
+ * Asserted so a future refactor cannot "helpfully" stamp twenty rows because one
+ * was dragged. The bulk half is the opposite promise: the server does not diff — it
+ * cannot, `extra` is a JSON blob where a key-order change would flag every row — so
+ * the client is what sends only the rows it changed.
+ */
+test('reordering devices is not an edit, and a bulk save writes exactly what it is given', async () => {
+  const user = await lead();
+  const { devices } = await call('GET /api/devices', user, { query: { kind: 'Android' } });
+  assert.ok(devices.length >= 2, 'the seed has Android devices to reorder');
+  const [a, b] = devices;
+  const OLD = '2020-01-01T00:00:00.000Z';
+  await db.run('UPDATE devices SET updated_at = ? WHERE kind = ?', [OLD, 'Android']);
+
+  // Dragging a row reorders the sheet without changing the device.
+  await call('PATCH /api/devices/order', user, {
+    body: { kind: 'Android', ids: [b.id, a.id] },
+  });
+  const afterOrder = await db.all('SELECT updated_at FROM devices WHERE kind = ?', ['Android']);
+  assert.ok(
+    afterOrder.every((r) => r.updated_at === OLD),
+    'a reorder must not stamp every row'
+  );
+
+  // And a row that is posted IS written and stamped — the client is what avoids
+  // sending the untouched ones.
+  const current = await call('GET /api/devices', user, { query: { kind: 'Android' } });
+  const unchanged = current.devices.map((d) => ({ id: d.id, kind: d.kind, name: d.name, extra: d.extra }));
+  const bulk = await call('PATCH /api/devices/bulk', user, { body: { updates: unchanged } });
+  assert.equal(bulk.updated, unchanged.length);
+  const afterBulk = await db.all(
+    'SELECT updated_at FROM devices WHERE id IN (' + unchanged.map(() => '?').join(',') + ')',
+    unchanged.map((d) => d.id)
+  );
+  assert.ok(
+    afterBulk.every((r) => r.updated_at !== OLD),
+    'a bulk save writes the rows it was given'
+  );
+});
+
+/**
+ * Pinning is a bookmark. This is the rule the other paths now share, so it is
+ * pinned here too — it is the behaviour most likely to be "simplified" away.
+ */
+test('pinning a note is a bookmark, not an edit', async () => {
+  const user = await lead();
+  const { client } = await freshApplication(user);
+  const { entry } = await call('POST /api/info', user, {
+    body: { scope: 'client', scopeId: client.id, title: 'Pinned note', body: 'words' },
+  });
+  const OLD = '2020-01-01T00:00:00.000Z';
+  await db.run('UPDATE info_entries SET updated_at = ? WHERE id = ?', [OLD, entry.id]);
+
+  const pinned = await call('PATCH /api/info/:id', user, {
+    params: { id: entry.id },
+    body: { pinned: true },
+  });
+  assert.equal(pinned.entry.pinned, true);
+  assert.equal(pinned.entry.updatedAt, OLD, 'pinning must not claim "edited just now"');
+
+  const edited = await call('PATCH /api/info/:id', user, {
+    params: { id: entry.id },
+    body: { body: 'different words' },
+  });
+  assert.notEqual(edited.entry.updatedAt, OLD, 'a real content change does move it');
+});
