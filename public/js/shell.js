@@ -4,7 +4,7 @@ import { loadDirectory } from './directory.js';
 import { loadInfoPage } from './info.js';
 import { loadProjects, mountContent, openProjectForm } from './projects.js';
 import { openPerson } from './shared.js';
-import { ADMIN_NAV, NAV, canManageCatalog, navAllowed, root, state } from './state.js';
+import { ADMIN_NAV, DEFAULT_NAV, NAV, canManageCatalog, navAllowed, navForPath, pathForNav, root, state } from './state.js';
 import { loadBoard } from './team.js';
 import { refreshUsers } from './users.js';
 import { api } from './api.js';
@@ -108,6 +108,17 @@ export function shellHTML() {
 
 
 export function bindShell() {
+  // Back and Forward move between pages, because a page is a URL now. Bound once:
+  // bindShell runs again on every login, and the listener would stack.
+  if (!window.__opmPopBound) {
+    window.__opmPopBound = true;
+    window.addEventListener('popstate', () => {
+      const nav = navForPath(location.pathname);
+      if (nav && navAllowed(nav)) handleNav(nav, { history: 'none' });
+      else syncUrl('replace');
+    });
+  }
+
   document.getElementById('hamburger').addEventListener('click', () => {
     document.getElementById('app').classList.add('nav-open');
   });
@@ -138,7 +149,7 @@ export function bindSidebar() {
 }
 
 
-export function handleNav(nav) {
+export function handleNav(nav, opts = {}) {
   document.getElementById('app').classList.remove('nav-open');
 
   if (nav === 'team' && state.nav !== 'team') state.boardLoaded = false;
@@ -149,18 +160,36 @@ export function handleNav(nav) {
       return;
     }
     state.nav = nav;
-    finishNav();
+    finishNav(opts.history);
     return;
   }
 
   // reset scope, then apply the selected one
   state.nav = nav;
-  finishNav();
+  finishNav(opts.history);
 }
 
 
-export function finishNav() {
+/**
+ * Keep the address bar on the page that is actually shown.
+ *
+ * `push` is a click (Back should return to where you were), `replace` is the app
+ * correcting a URL it did not choose — a bare `/`, an unknown path, a page the
+ * signed-in account may not open, or the first paint after a reload onto a deep
+ * link, which must not add a duplicate history entry. `none` means the URL is
+ * already right because Back/Forward produced this navigation.
+ */
+export function syncUrl(mode = 'push') {
+  if (mode === 'none') return;
+  const path = pathForNav(state.nav);
+  if (location.pathname === path) return;
+  history[mode === 'replace' ? 'replaceState' : 'pushState']({ nav: state.nav }, '', path);
+}
+
+
+export function finishNav(historyMode = 'push') {
   localStorage.setItem('opm-nav', state.nav);
+  syncUrl(historyMode);
   document.querySelectorAll('[data-nav]').forEach((b) => b.classList.toggle('active', b.dataset.nav === state.nav));
 
   const onBoard = state.nav === 'team';
@@ -427,13 +456,20 @@ export async function boot() {
       state.pentesterTree = treeRes.tree;
     }
 
-    // A remembered admin page must not survive a switch to an unprivileged
-    // account, or the shell would render a page whose nav row is not even shown.
-    if (!navAllowed(state.nav)) state.nav = 'active';
-    if (!NAV[state.nav]) state.nav = 'active';
+    // A URL is the source of truth when it names a page we render; the remembered
+    // nav is only the fallback for "/" and for a link shared before that page had
+    // a path. A remembered or linked admin page must not survive a switch to an
+    // unprivileged account, or the shell would render a page whose nav row is not
+    // even shown.
+    const fromPath = navForPath(location.pathname);
+    if (fromPath && navAllowed(fromPath)) state.nav = fromPath;
+    else if (fromPath) toast('Only admin, lead or sub lead can open the admin panel', 'err');
+    if (!navAllowed(state.nav)) state.nav = DEFAULT_NAV;
+    if (!NAV[state.nav]) state.nav = DEFAULT_NAV;
 
     root.innerHTML = shellHTML();
     bindShell();
+    syncUrl('replace');
     mountContent();
     document.querySelectorAll('[data-nav]').forEach((b) => b.classList.toggle('active', b.dataset.nav === state.nav));
 

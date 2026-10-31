@@ -70,13 +70,16 @@ export const NAV = {
   // Pentesters and project managers are one page: same `users` table, same create
   // path, same question ("who works here?"). Two pages made adding someone start
   // with a guess about which one they belonged on.
-  // Two pages answer "who works here": this one is the read-only directory anyone can
-  // open, and `accounts` manages them. Same table, different job, different name.
+  // Two pages answer "who works here": this one is the read-only directory anyone
+  // can open, and `users` manages them. Same table, different job, different name.
   directory: {
     title: 'Users',
     sub: 'Everyone on the team, with the role and contact details to reach them',
   },
-  accounts: {
+  // Keyed `users`, like the nav row and the route — it used to be `accounts`, so
+  // `NAV[state.nav]` was undefined on this page and the "is this a real page?"
+  // guard below bounced a reload straight back to Active projects.
+  users: {
     title: 'Manage users',
     sub: 'Accounts, roles and the pentest reporting tree',
   },
@@ -85,6 +88,47 @@ export const NAV = {
     sub: 'The categories and statuses a project can carry',
   },
 };
+
+
+/**
+ * One URL per page.
+ *
+ * The app is a single document, so before this the address bar read "/" on every
+ * page: you could not reload onto a page, bookmark one, or use Back, and "did that
+ * click do anything?" had no answer outside the topbar title. Every nav id now owns
+ * a real path. The server already answers any extensionless path with index.html,
+ * so a deep link survives a reload and a shared link opens the right page.
+ */
+export const NAV_PATHS = {
+  active: '/projects',
+  all: '/projects/all',
+  mineActive: '/my-projects',
+  mineAll: '/my-projects/all',
+  team: '/team',
+  directory: '/users',
+  info: '/info',
+  devices: '/devices',
+  clients: '/clients',
+  users: '/admin/users',
+  properties: '/admin/properties',
+};
+
+export const DEFAULT_NAV = 'active';
+
+const PATH_NAV = Object.fromEntries(Object.entries(NAV_PATHS).map(([nav, path]) => [path, nav]));
+
+
+/** The URL a nav id lives at. Anything unknown falls back to the default page. */
+export function pathForNav(nav) {
+  return NAV_PATHS[nav] || NAV_PATHS[DEFAULT_NAV];
+}
+
+
+/** The nav id a path stands for, or null when the path belongs to no page. */
+export function navForPath(pathname) {
+  const clean = `/${String(pathname || '').replace(/^\/+/, '')}`.replace(/\/+$/, '');
+  return PATH_NAV[clean || '/'] || null;
+}
 
 
 export const state = {

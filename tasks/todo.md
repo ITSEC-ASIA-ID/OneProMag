@@ -158,3 +158,11 @@ and two things that only look like defects. Full reasoning in `SPEC-updated-at.m
 millisecond (a client rename stamps every project it owns in a loop) get an arbitrary
 relative order. Left as-is: adding `, p.id DESC` would change list ordering for everybody,
 which is not what this task asked for.
+
+## `url-per-page`
+
+- [x] **Every page owns a URL**
+  - Acceptance: each sidebar row has its own path (`/projects`, `/projects/all`, `/my-projects`, `/my-projects/all`, `/team`, `/users`, `/info`, `/devices`, `/clients`, `/admin/users`, `/admin/properties`); clicking one pushes history; Back/Forward move between pages; a reload on any of them stays on that page; an unknown path falls back to the default page with `replaceState`; a deep link to an admin page the account may not open redirects to that account's page with a toast.
+  - Verify: browser pass as admin (11 pages clicked, 11 deep links reloaded, path kept on every one) and as a member (8 pages, `/admin/properties` refused with the toast); zero console errors; `npm test` green (46).
+  - Files: `public/js/state.js` (`NAV_PATHS`, `DEFAULT_NAV`, `pathForNav`, `navForPath`), `public/js/shell.js` (`syncUrl`, `handleNav(nav, opts)`, `finishNav(mode)`, popstate listener, boot resolves the nav from the path), `public/js/projects.js`
+  - Fixed on the way: `NAV` keyed the accounts page `accounts` while every other place called it `users`, so `NAV[state.nav]` was undefined there and the "is this a real page?" guard bounced a reload straight off the Manage users page. Renamed the entry to `users`.

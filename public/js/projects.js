@@ -372,7 +372,7 @@ export function mountContent() {
   if (state.nav === 'users') {
     content.innerHTML = usersHTML();
     bindUsers();
-    setTitle(NAV.accounts.title, NAV.accounts.sub);
+    setTitle(NAV.users.title, NAV.users.sub);
     return;
   }
 
