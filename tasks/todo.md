@@ -61,3 +61,56 @@ zero `window.onerror` entries throughout.
 2. Every template call site died with `ReferenceError: h is not defined` — the monolith
    imported `escapeHtml` as `h`, and the generator had no concept of a rename. Alias
    imports have to be reproduced as `escapeHtml as h`, not looked up as a local name.
+
+## `csp-inline-styles`
+
+The last thing keeping `style-src 'unsafe-inline'` in the policy, and the reason the
+split had to land first: 38 `style="…"` attributes spread over five modules are
+local edits once each module is its own file, and an unscoped search-and-replace
+across one 9k-line file is how a "small cleanup" breaks the app.
+
+- [x] **Inventory** — 38 attributes: `auth.js` 11, `drawer.js` 17, `projects.js` 5,
+  `ui.js` 5, `shell.js` 1; `public/index.html` clean. No `<style>` injection, no
+  `cssText`, no `setAttribute('style', …)`.
+- [x] **Static values become classes** — 33 sites. New helpers at the end of
+  `public/css/styles.css`: `.mt-0/2/12/14/20`, `.ml-auto`, `.flex-1`, `.min-0`,
+  `.flex-row`, `.inline-flex`, `.faint`, `.auth-submit`, `.note-line`, `.note-count`,
+  `.note-updated`, `.hint-block`, `.confirm-text`, `.retest-note`, `.pick-readonly`,
+  `.empty-bare`, `.is-prod`.
+- [x] **Runtime values become data attributes** — 5 sites, each drawing from a closed
+  set: `.cat-icon[data-cat]` / `.pcard[data-cat]` (category palette, falling back to
+  slate for a category an admin added), `.stat[data-accent]`, `.retest[data-tone]`,
+  `.badge-outline.is-prod`. This is the pattern `.badge[data-tone]` already used.
+- [x] **CSP tightened** — `server/security.js` drops `'unsafe-inline'` from
+  `style-src`; the test asserts it stays out (`style-src must not allow inline: no
+  markup carries a style= attribute`).
+- [x] **Verify** — 40/40 tests; live container md5 equal to local; no CSP violations
+  and no console errors on 11 pages, both themes, 430px.
+
+### Why the verification is a computed-style dump
+
+Screenshots could not answer the question. The app animates, and the drawer footer
+prints a relative timestamp that re-renders every minute, so **two captures of an
+unchanged build already differ** (measured: 13 of 16 states). A pixel diff would have
+reported regressions that were not there.
+
+The check that works: walk the DOM, key every element by its tree path (the change
+only added classes and removed `style=` attributes, so the shape is identical), and
+record ~22 computed properties per element. Diff the two builds state by state.
+
+Result: **16 states, identical element counts, zero property differences** outside the
+two categories that are pure capture noise — the sidebar's `active` highlight (which
+depends on the page the script visited last) and the drawer footer's timestamp width.
+
+### One real regression, caught by that dump
+
+`.flex-1` was written as `flex: 1 1 0%; min-width: 0`. The theme buttons in the account
+panel had only ever set `flex: 1`, and a zero minimum width lets a flex item shrink
+below its own label. Split into `.flex-1` and a separate `.min-0` modifier that only
+the modal head (which truncates on purpose) uses.
+
+### Dead code deleted
+
+`.mt-9`, `.block` and `.muted` were written for sites that ended up not needing them.
+Removed rather than shipped: a helper class nobody uses is a class the next person
+copies.
