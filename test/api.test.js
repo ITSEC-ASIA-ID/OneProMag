@@ -797,3 +797,40 @@ test('a fresh database has the columns the code selects', async () => {
     assert.ok(columns.includes(needed), `projects.${needed} missing from a fresh install`);
   }
 });
+
+/**
+ * A write from outside a transaction must wait for it, not run inside it.
+ *
+ * Before this, a bare `run()` executed outside the driver's lock: it could fire
+ * between another caller's BEGIN IMMEDIATE and COMMIT, so it was either swept up
+ * in that transaction's ROLLBACK or rejected as SQLITE_BUSY. Ordering is the
+ * assertion — "did not throw" would pass even if the write landed in the middle.
+ */
+test('a write outside a transaction waits for it instead of racing it', async () => {
+  const order = [];
+  let release;
+  const gate = new Promise((resolve) => {
+    release = resolve;
+  });
+
+  const tx = db.transaction(async (inner) => {
+    order.push('tx:begin');
+    await gate;
+    order.push('tx:end');
+  });
+
+  const concurrent = db.run('UPDATE properties SET label = label WHERE 1 = 0').then(() => {
+    order.push('write');
+  });
+
+  release();
+  await Promise.all([tx, concurrent]);
+
+  assert.deepEqual(order, ['tx:begin', 'tx:end', 'write']);
+
+  const busy = await db.get('PRAGMA busy_timeout');
+  assert.ok(
+    Number(Object.values(busy)[0]) > 0,
+    'busy_timeout must be set, or a second process on the same file fails instantly'
+  );
+});

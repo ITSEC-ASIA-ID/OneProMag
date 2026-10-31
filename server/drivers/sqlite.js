@@ -15,6 +15,18 @@ export function createSqliteDriver(filePath) {
   const withLock = createLock();
   let inTransaction = false;
 
+  // Waits instead of failing when another connection holds the write lock. The
+  // app has exactly one connection, but `docker compose` can still point a
+  // second process at the same file (a CLI command while the server runs), and
+  // the default of 0 turns that ordinary overlap into an instant SQLITE_BUSY.
+  db.exec('PRAGMA busy_timeout = 5000');
+
+  /** The statement itself, with no locking decision. Callers own the lock. */
+  function runNow(sql, params) {
+    const info = db.prepare(sql).run(...params);
+    return { rowCount: Number(info.changes), lastInsertId: Number(info.lastInsertRowid) };
+  }
+
   return {
     engine: 'sqlite',
     // SQLite serialises writers with BEGIN IMMEDIATE, so no row lock is needed.
@@ -32,9 +44,17 @@ export function createSqliteDriver(filePath) {
       return db.prepare(sql).get(...params) ?? null;
     },
 
+    /**
+     * A bare UPDATE must take the same lock as a transaction, or it can execute
+     * in the middle of someone else's BEGIN IMMEDIATE and fail with SQLITE_BUSY
+     * — or, worse, land between their statements and be rolled back with them.
+     * Inside a transaction the lock is already held, so it is taken again only
+     * outside one: waiting on a promise chain that will not resolve until this
+     * very call finishes is a deadlock, not a queue.
+     */
     async run(sql, params = []) {
-      const info = db.prepare(sql).run(...params);
-      return { rowCount: Number(info.changes), lastInsertId: Number(info.lastInsertRowid) };
+      if (inTransaction) return runNow(sql, params);
+      return withLock(() => runNow(sql, params));
     },
 
     /**
