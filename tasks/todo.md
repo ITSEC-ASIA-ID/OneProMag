@@ -179,3 +179,18 @@ which is not what this task asked for.
   - Verify: live — 5 of 7 projects offered (Ongoing *Partner Payment API* and Hold *Brimo iOS Build* correctly absent), `core` narrowed to *Core Banking Web Portal*, `zzzz` showed the empty state, saving with nothing chosen said "Choose the project this retest belongs to", creating `RT-005-02` then deleting it left project 5 back to its one pre-existing retest; 430px wide with no overflow; zero console errors; `npm test` 46.
   - Files: `public/js/drawer.js` (`.plist` radio list + `#r-project-q` filter in `openRetestForm`), `public/css/styles.css` (`.plist`, `.plist-item`, `.plist-text`, `.plist-name`, `.plist-meta`, `.plist-check`)
   - Note: the rule is a UI rule only — `POST /api/projects/:id/retests` still accepts any project, so raising a retest from a drawer (or the API) is not blocked by the project's status.
+
+## `split-server-api`
+
+- [x] **One route file per resource**
+  - Acceptance: `server/api.js` stops holding route bodies; `index.js` keeps seeing one flat `api` map, so no route, URL, status code or response body changes; the module graph stays acyclic apart from route files importing `shared.js`.
+  - Verify: `Object.keys(api)` byte-identical to the pre-split list (56 routes, none missing, none extra, no key defined twice across files); all 73 original top-level declarations present exactly once (`columnValueFor` deliberately deleted — nothing referenced it); `node --check` on all seven files; `npm test` 46/46; live md5 matches; all eleven pages render with zero console errors and every resource group answers 200.
+  - Files: `server/api.js` (18 lines — spreads five `routes` maps), `server/shared.js`, `server/routes/{people,projects,catalogue,info,devices}.js`
+  - Why one commit instead of one per file: the files were generated from a single source and then proved (identical route table, identical declaration inventory), so there is no intermediate state in which the tree is greener than at the start.
+
+- [x] **Ownership was computed, not chosen**
+  - Method: start from each route, walk the declarations it references, and propagate owner sets to a fixpoint. Thirteen helpers ended up shared (`SUPERVISOR_ROLES`, `assertProject`, `canSupervise`, `editStamp`, `getProjectRaw`, `projectSelect`, `properties`, `propertyCache`, `propertyKeys`, `requireCatalogManager`, `requireDeleter`, `retestOpen`, `shapeProperty`); the rest stayed private — people 14, projects 16, catalogue 13, info 9, devices 6.
+  - The one rename the move forced: `propertyCache` was exported as a mutable binding and assigned from the catalogue routes, which throws on an imported binding. It is now module state in `server/shared.js` behind `clearPropertyCache()`.
+
+- [x] **Known and left alone**
+  - `PATCH /api/properties/:kind/:id` with a non-numeric id compares an integer column against a string, which Postgres rejects with a 500 instead of a 404. The UI only ever sends numeric ids, and tightening it is an input-validation change, not a code move — recorded here instead of folded into this commit.
