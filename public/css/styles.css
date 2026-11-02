@@ -6585,3 +6585,29 @@ svg { display: block; }
   .ckp-search .input { width: 100%; }
   .ckp-title h2 { font-size: 17px; }
 }
+
+/* ---- attachments: drag and drop ---------------------------------------- */
+.files-hint {
+  font-size: 11.5px;
+  color: var(--faint);
+  margin-right: 2px;
+}
+/* The whole panel is the drop target, so this is a state, not a box. */
+.files.is-over {
+  outline: 2px dashed var(--accent);
+  outline-offset: -6px;
+  border-radius: 12px;
+  background: var(--cat-soft, rgba(91, 124, 250, 0.06));
+}
+.files.is-over .files-hint {
+  color: var(--accent);
+}
+
+/* ---- checklist picker -------------------------------------------------- */
+.ck-pick-now {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--muted);
+  text-transform: none;
+  letter-spacing: 0;
+}

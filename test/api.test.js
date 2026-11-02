@@ -1374,15 +1374,19 @@ test('choosing a category attaches its default checklist, and only once', async 
   const again = await call('GET /api/projects/:id/checklists', user, { params: { id: project.id } });
   assert.equal(again.checklists.length, 1);
 
-  // A second, non-default template is still attachable by hand.
+  // A different template is still attachable by hand — and since a project holds
+  // exactly one checklist, attaching it REPLACES the default rather than adding a
+  // second one. The old list had no answers, so nothing is lost.
   const { checklists } = await call('GET /api/checklists', user);
   const hardening = checklists.find((c) => c.name === 'Web hardening basics');
-  await call('POST /api/projects/:id/checklists', user, {
+  const swapped = await call('POST /api/projects/:id/checklists', user, {
     params: { id: project.id },
     body: { checklistId: hardening.id },
   });
-  const both = await call('GET /api/projects/:id/checklists', user, { params: { id: project.id } });
-  assert.equal(both.checklists.length, 2);
+  assert.equal(swapped.replaced, true, 'attaching another list replaces the first');
+  assert.equal(swapped.answered, 0, 'and reports how much work it destroyed');
+  assert.equal(swapped.checklists.length, 1);
+  assert.equal(swapped.checklists[0].name, 'Web hardening basics');
 
   await call('DELETE /api/projects/:id', admin, { params: { id: project.id } });
 });
@@ -1448,14 +1452,13 @@ test('attach, answer, progress and detach — with the in-use delete refused', a
   );
   assert.equal(Number(answerRows.n), 0);
 
-  await assert.rejects(
-    () =>
-      call('POST /api/projects/:id/checklists', user, {
-        params: { id: projectId },
-        body: { checklistId: template.id },
-      }),
-    { status: 409 }
-  );
+  // Asking for the one it already has is a no-op, not a second row.
+  const same = await call('POST /api/projects/:id/checklists', user, {
+    params: { id: projectId },
+    body: { checklistId: template.id },
+  });
+  assert.equal(same.replaced, false);
+  assert.equal(same.checklists.length, 1);
 
   const itemId = link.items[0].id;
   const answered = await call('PATCH /api/project-checklists/:id/items/:itemId', user, {
@@ -1489,6 +1492,20 @@ test('attach, answer, progress and detach — with the in-use delete refused', a
     assert.match(err.message, /used by 1 project/);
     return true;
   });
+
+  // Replacing a checklist destroys its answers, so it follows the same rule as
+  // detaching: a Member may not, a lead may.
+  const otherTemplate = (await call('GET /api/checklists', user)).checklists.find(
+    (c) => c.id !== template.id
+  );
+  await assert.rejects(
+    () =>
+      call('POST /api/projects/:id/checklists', user, {
+        params: { id: projectId },
+        body: { checklistId: otherTemplate.id },
+      }),
+    { status: 403 }
+  );
 
   // Detaching destroys work, so a Member cannot; a lead can, and is told how much.
   await assert.rejects(

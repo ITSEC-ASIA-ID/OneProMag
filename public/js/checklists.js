@@ -128,6 +128,13 @@ function checklistCardHTML(link, files) {
       </div>
       <div class="spacer"></div>
       ${
+        // Swapping throws the answers away, so it belongs to the people who can
+        // remove things once anything has been answered.
+        !Number(link.progress?.answered) || canManageCatalog()
+          ? `<button type="button" class="btn btn-sm" data-ck-change>Change</button>`
+          : ''
+      }
+      ${
         canManageCatalog()
           ? `<button type="button" class="btn btn-icon btn-icon-danger" data-ck-detach="${link.id}"
                title="Remove this checklist from the project" aria-label="Remove ${h(link.name)}">${icon.trash(13)}</button>`
@@ -141,80 +148,20 @@ function checklistCardHTML(link, files) {
 
 
 /**
- * The drawer's Checklist tab: what is attached and how far it has got.
- *
- * The work itself happens on its own page — a real OWASP list is twenty items
- * with a note and an evidence field each, and a drawer 520px wide turns that
- * into scrolling rather than testing. This tab answers "is it attached, is
- * anything failing, where do I continue" and links out.
+ * A project carries ONE checklist, so this renders a card or an invitation —
+ * never a list of lists.
  */
-export function checklistLauncherHTML(links = []) {
-  const fails = links.reduce((n, l) => n + (Number(l.progress?.fail) || 0), 0);
-  return `<div class="ck-wrap">
-    <div class="ck-toolbar">
-      <span class="note-count">${links.length} checklist${links.length === 1 ? '' : 's'}</span>
-      ${
-        fails
-          ? `<span class="badge badge-outline" data-tone="rose"><span class="dot"></span>${fails} fail${fails === 1 ? '' : 's'}</span>`
-          : ''
-      }
-      <div class="spacer"></div>
-      <button type="button" class="btn btn-sm" data-ck-attach>${icon.plus(13)} Attach</button>
-    </div>
-    ${
-      links.length
-        ? links
-            .map(
-              (l) => `<button type="button" class="ck-sum" data-ck-open="${l.id}" data-ck-project="${l.projectId || ''}">
-          <span class="ck-sum-top">
-            <span class="ck-sum-name">${h(l.name)}</span>
-            ${l.category ? `<span class="badge badge-outline" data-tone="slate">${h(l.category)}</span>` : ''}
-          </span>
-          <span class="ck-sum-meta">${h(progressLine(l.progress))}${Number(l.progress?.fail) ? ' · needs attention' : ''}</span>
-          <span class="ck-sum-go">Open checklist ${icon.arrowRight(13)}</span>
-        </button>`
-            )
-            .join('')
-        : `<div class="empty">
-             <div class="icon">${icon.shield(24)}</div>
-             <h3>No checklist on this project</h3>
-             <p>Choosing the project's category attaches its default list. Anything else can be attached by hand.</p>
-           </div>`
-    }
-  </div>`;
-}
-
-
-export function bindChecklistLauncher(el, project, links, reload) {
-  el.querySelector('[data-ck-attach]')?.addEventListener('click', () =>
-    openAttachPicker(project, links.map((l) => Number(l.checklistId)), reload)
-  );
-  el.querySelectorAll('[data-ck-open]').forEach((btn) => {
-    btn.addEventListener('click', () => {
-      // The page replaces the drawer, not sits under it.
-      closeDrawer();
-      openChecklistPage(project.id);
-    });
-  });
-}
-
-
 export function checklistBodyHTML(links = [], files = []) {
-  const fails = links.reduce((n, l) => n + (Number(l.progress?.fail) || 0), 0);
+  const link = links[0] || null;
   return `<div class="ck-wrap">
-    <div class="ck-toolbar">
-      <span class="note-count">${links.length} checklist${links.length === 1 ? '' : 's'}</span>
-      ${fails ? `<span class="badge badge-outline" data-tone="rose"><span class="dot"></span>${fails} fail${fails === 1 ? '' : 's'}</span>` : ''}
-      <div class="spacer"></div>
-      <button type="button" class="btn btn-sm" data-ck-attach>${icon.plus(13)} Attach checklist</button>
-    </div>
     ${
-      links.length
-        ? links.map((l) => checklistCardHTML(l, files)).join('')
+      link
+        ? checklistCardHTML(link, files)
         : `<div class="empty">
              <div class="icon">${icon.shield(24)}</div>
              <h3>No checklist on this project</h3>
-             <p>Attach a security checklist and work through it — OWASP Top 10 is a good default, and your team's own list works the same way.</p>
+             <p>Choose one to work through — a project keeps a single checklist, and it can be swapped later (which discards its answers).</p>
+             <button type="button" class="btn btn-primary" data-ck-attach>${icon.plus(14)} Choose a checklist</button>
            </div>`
     }
   </div>`;
@@ -263,7 +210,10 @@ function applyAnswer(itemEl, item) {
 
 export function bindChecklistBody(el, project, links, files, reload, onProgress = null) {
   el.querySelector('[data-ck-attach]')?.addEventListener('click', () =>
-    openAttachPicker(project, links.map((l) => l.checklistId), reload)
+    openAttachPicker(project, links, reload)
+  );
+  el.querySelector('[data-ck-change]')?.addEventListener('click', () =>
+    openAttachPicker(project, links, reload)
   );
 
   el.querySelectorAll('[data-ck-help]').forEach((btn) =>
@@ -386,33 +336,46 @@ export function bindChecklistBody(el, project, links, files, reload, onProgress 
 }
 
 
-async function openAttachPicker(project, attachedIds, reload) {
+/**
+ * Chooses the project's checklist. A project holds exactly one, so picking a
+ * different one REPLACES it — and the answers belonging to the old items are
+ * destroyed with it, which the caller must be told before it happens.
+ */
+async function openAttachPicker(project, links, reload) {
+  const current = links[0] || null;
   let available = [];
   try {
     const { checklists } = await api.checklists();
-    available = checklists.filter((c) => !attachedIds.includes(c.id));
+    available = checklists;
   } catch (err) {
     toast(err.message, 'err');
     return;
   }
   if (!available.length) {
-    toast('Every checklist is already on this project');
+    toast('No checklist template exists yet — create one in the Admin panel');
     return;
   }
+  const answered = Number(current?.progress?.answered) || 0;
 
   openModal({
-    title: 'Attach checklist',
-    subtitle: 'The project links the template, so edits in the Admin panel reach it too.',
+    title: current ? 'Change checklist' : 'Choose a checklist',
+    subtitle: current
+      ? answered
+        ? `This project has ${answered} answer${answered === 1 ? '' : 's'} on "${current.name}". Choosing another checklist discards them.`
+        : 'The project links the template, so edits in the Admin panel reach it too.'
+      : 'The project links the template, so edits in the Admin panel reach it too.',
     body: `<div class="ck-pick">
       ${available
         .map(
-          (c) => `<button type="button" class="ck-pick-item" data-pick="${c.id}">
+          (c) => `<button type="button" class="ck-pick-item${current?.checklistId === c.id ? ' on' : ''}" data-pick="${c.id}">
             <span class="ck-pick-check">${icon.check(13)}</span>
             <span class="ck-pick-text">
-              <span class="ck-pick-name">${h(c.name)}</span>
-              <span class="ck-pick-meta">${Number(c.itemCount) || 0} item${Number(c.itemCount) === 1 ? '' : 's'}${
-                c.description ? ` · ${h(c.description)}` : ''
+              <span class="ck-pick-name">${h(c.name)}${
+                current?.checklistId === c.id ? ' <span class="ck-pick-now">on this project</span>' : ''
               }</span>
+              <span class="ck-pick-meta">${Number(c.itemCount) || 0} item${Number(c.itemCount) === 1 ? '' : 's'}${
+                c.category ? ` · ${h(c.category)}` : ''
+              }${c.isDefault ? ' · default' : ''}${c.description ? ` · ${h(c.description)}` : ''}</span>
             </span>
           </button>`
         )
@@ -420,9 +383,9 @@ async function openAttachPicker(project, attachedIds, reload) {
     </div>`,
     footer: `<span class="spacer"></span>
       <button class="btn btn-ghost" data-close>Cancel</button>
-      <button class="btn btn-primary" data-attach-go disabled>Attach</button>`,
+      <button class="btn btn-primary" data-attach-go ${current ? '' : 'disabled'}>${current ? 'Use this checklist' : 'Attach'}</button>`,
     onMount: (modal, close) => {
-      let chosen = null;
+      let chosen = current ? Number(current.checklistId) : null;
       const go = modal.querySelector('[data-attach-go]');
       modal.querySelectorAll('[data-pick]').forEach((btn) =>
         btn.addEventListener('click', () => {
@@ -432,11 +395,14 @@ async function openAttachPicker(project, attachedIds, reload) {
         })
       );
       go.addEventListener('click', async () => {
-        if (!chosen) return;
+        if (!chosen || chosen === current?.checklistId) {
+          close();
+          return;
+        }
         go.disabled = true;
         try {
-          await api.attachChecklist(project.id, chosen);
-          toast('Checklist attached');
+          const res = await api.attachChecklist(project.id, chosen);
+          toast(res.replaced ? 'Checklist replaced' : 'Checklist attached');
           close();
           await reload();
         } catch (err) {

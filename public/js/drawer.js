@@ -1,8 +1,7 @@
 import { bindAttachmentsTab, attachmentsTabHTML } from './files.js';
-import { bindChecklistLauncher, checklistLauncherHTML } from './checklists.js';
 import { deleteRetestFlow, loadProjects, openProjectForm, refreshAll } from './projects.js';
 import { hideMenu, placeMenu } from './shared.js';
-import { loadStats } from './shell.js';
+import { loadStats, openChecklistPage } from './shell.js';
 import { ENUMS, canManageCatalog, state, statusTones } from './state.js';
 import { bindPicker, pentesterPickerHTML, pickerValues } from './users.js';
 import { api } from './api.js';
@@ -158,7 +157,8 @@ export function drawerHTML(project, retests, tab, extras = { files: [], checklis
 
 export function tabBody(project, retests, tab, extras = { files: [], checklists: [] }) {
   if (tab === 'checklist') {
-    return checklistLauncherHTML(extras.checklists || []);
+    // Not reachable: the Checklist tab navigates to the project's own page.
+    return '';
   }
 
   if (tab === 'attachments') {
@@ -317,7 +317,6 @@ export function bindDrawer(el, project, retests, extras = { files: [], checklist
   // user is standing on instead of dropping them back on Overview.
   const reload = () => renderDrawer(project.id, state.drawerTab, true);
   bindAttachmentsTab(el, project, extras.files || [], reload);
-  bindChecklistLauncher(el, project, extras.checklists || [], reload);
 
   // Quick status inside the drawer: refresh the drawer AND the list behind it.
   el.querySelectorAll('[data-set-status]').forEach((item) => {
@@ -346,7 +345,17 @@ export function bindDrawer(el, project, retests, extras = { files: [], checklist
   });
 
   el.querySelectorAll('[data-tab]').forEach((btn) =>
-    btn.addEventListener('click', () => renderDrawer(project.id, btn.dataset.tab, true))
+    btn.addEventListener('click', () => {
+      // The checklist is a page, not a panel: a real list is longer than a
+      // drawer, and the seat where it is worked through should be a place you can
+      // bookmark. The tab is the way in.
+      if (btn.dataset.tab === 'checklist') {
+        closeDrawer();
+        openChecklistPage(project.id);
+        return;
+      }
+      renderDrawer(project.id, btn.dataset.tab, true);
+    })
   );
   el.querySelectorAll('[data-tab-jump]').forEach((btn) =>
     btn.addEventListener('click', () => renderDrawer(project.id, btn.dataset.tabJump, true))

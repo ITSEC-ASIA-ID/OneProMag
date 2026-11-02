@@ -262,3 +262,37 @@ attaches itself.
 
 - [x] **Not in scope, deliberately**
   - Per-project snapshots of item text, checklist scoring or a compliance percentage, assigning an owner per item, and attachments as evidence on the full page beyond the field that already exists. A checklist records what was checked; it does not produce a verdict.
+
+## one-checklist-and-drag-drop
+
+**m03593** — "Every project only have 1 checklist, when you click tab checklist auto direct to page." and "The file upload, you can drag and drop".
+
+- [x] **One checklist per project, enforced by the database**
+  - Acceptance: a project holds zero or one checklist; attaching a second one replaces the first instead of adding a row; a database that already has duplicates becomes valid on boot.
+  - Verify: `CREATE UNIQUE INDEX idx_project_checklists_one ON project_checklists(project_id)`; `dedupeProjectChecklists()` runs before `createIndexes()` on both engines and keeps the newest link per project; `pg_indexes` on the dev stack lists the index; the test suite attaches a second template and asserts one row remains.
+  - Files: `server/db.js`, `server/routes/checklists.js`
+
+- [x] **Replacing a checklist is a delete, and says so**
+  - Acceptance: the attach route returns `replaced: true` and the number of answers it discarded; asking for the checklist the project already has is a no-op; discarding answers needs the same permission as detaching.
+  - Reason: swapping templates deletes `project_checklist_items` the same way detaching does, so letting a Member do it would be a back door around `requireDeleter()`.
+  - Verify: `POST /api/projects/:id/checklists` returns `{ checklists, replaced, answered }`; `answered > 0` calls `requireDeleter(ctx, 'a checklist that has answers')`; the picker's subtitle names the answer count, and `[data-ck-change]` is hidden from people who could not complete the swap.
+  - Files: `server/routes/checklists.js`, `public/js/checklists.js`
+
+- [x] **Auto-attach fills an empty slot, never overwrites a choice**
+  - Acceptance: a project with no checklist gets its category default on save; a project that already has one keeps it, whatever the category.
+  - Verify: `attachCategoryDefaults()` returns `[]` as soon as any `project_checklists` row exists; the category test saves twice and asserts nothing extra is attached.
+
+- [x] **The Checklist tab opens the page**
+  - Acceptance: clicking the tab in the drawer closes the drawer and navigates to `/project/<id>/checklist`; the tab keeps its fail badge so a failing engagement is still visible from the list.
+  - Verify: `[data-tab="checklist"]` calls `closeDrawer()` + `openChecklistPage(project.id)`; probe: drawer gone, `location.pathname === '/project/4/checklist'`, zero console errors; the page's empty state offers `Choose a checklist`, the attached state offers `Change`.
+  - Files: `public/js/drawer.js`, `public/js/checklists.js`
+
+- [x] **Drag and drop onto the Files tab**
+  - Acceptance: dropping one or many files anywhere in the attachments panel uploads them and refreshes the list once; dropping does not navigate away; the oversize and failure messages still appear.
+  - Reason for a whole-panel target: a thin dashed box is a worse aim than "drop it in the Files tab".
+  - Verify: a synthetic `DataTransfer` drop of `dropped-note.txt` produced a row; `.is-over` cleared on drop; the depth counter keeps the highlight stable over child elements; deleting the file restored "No files yet".
+  - Files: `public/js/files.js`, `public/css/styles.css`
+
+- [x] **Verified end to end on the dev stack**
+  - 56/56 tests, md5 live == local for every touched file, `schema_migrations` at 21, `project_checklists` / `project_checklist_items` / `project_files` back to 0 and `/data/uploads` empty afterwards.
+  - Chips read `All 10 / Open 8 / Pass 0 / Fail 0 / N/A 2` on a real attached list; the detach dialog named "2 answers and their notes".

@@ -1609,6 +1609,7 @@ download with a click, delete with a lead's account.
 | Where the bytes live | `${DATA_DIR}/uploads/<projectId>/<uuid>` — a volume, not the database |
 | Where the facts live | `project_files`: name, mime, size, who uploaded it, stored name |
 | Limit | **20 MB per file**, checked in the browser and again on the server |
+| Upload | the **Upload** button, or drag files into the Files tab (a batch goes one file at a time) |
 | Transport | base64 JSON POST — no multipart dependency, one code path |
 | Download | `Content-Disposition: attachment`, `application/octet-stream`, never the stored mime |
 
@@ -1631,7 +1632,7 @@ cascade — the same trap that once leaked variant notes.
 
 ### Security checklists (project drawer → Checklist, `/project/<id>/checklist`, Admin panel → Checklists)
 
-A project links a checklist template and works through it: **Open · Pass · Fail ·
+A project works through **one** checklist: **Open · Pass · Fail ·
 N/A** per item, a note that explains a Fail, and optionally one of the project's
 files as evidence. Three templates ship, all ordinary editable rows afterwards:
 **OWASP Top 10:2025** and **OWASP API Security Top 10 2023** (twenty and ten
@@ -1642,16 +1643,17 @@ successor.
 
 A template carries a **category** (`Web · Mobile · API · EDC`, the same values a
 project carries) and at most one template per category is its **default**. Saving
-a project attaches its category's default if the project does not already have it,
-which is why a Web project arrives with the 2025 list already waiting. Nothing is
-ever detached automatically, and any other template can still be attached by hand
-from the picker.
+a project attaches its category's default when the project has no checklist yet,
+which is why a Web project arrives with the 2025 list already waiting. A list
+chosen by hand is never overwritten by that rule; changing it is the page's
+**Change** button, and a template can always be swapped for another one.
 
-The drawer tab is a launcher: it shows each linked list's progress and opens the
-full page at `/project/<id>/checklist`, where the items get the room a real list
-needs — filter by status, search the text, and answer without the drawer
+The Checklist tab opens `/project/<id>/checklist` rather than a panel — a real
+list is longer than a drawer. There the items get the room they need: filter by
+status, search the text, group by section, and answer without the drawer
 scrolling under you. The URL is the page, so a checklist can be bookmarked or
-sent to a colleague.
+sent to a colleague. Swapping the checklist underneath answered work is a delete:
+a lead or sub-lead, with the answer count named in the dialog.
 
 The Admin panel manages the templates: name, description, one row per item
 (section, what to check, how to check it), reorder, delete, plus a **Paste a list**
@@ -1659,7 +1661,8 @@ box that takes `Section | What to check | How to check it` per line.
 
 | | |
 | --- | --- |
-| A project | **links** a template, it does not copy it |
+| A project | **links** one template, it does not copy it |
+| Checklists per project | exactly one — `UNIQUE (project_id)`; attaching another replaces it |
 | An unanswered item | has **no row** — `Open` is the absence of an answer, not a stored one |
 | Deleting a template | refused while a project uses it, naming how many |
 | Deleting a project | takes its answers with it; the template is untouched |
@@ -1743,6 +1746,22 @@ can contain a path separator, a second extension, or 255 bytes of anything. The
 catalogue name is kept purely for display. `RESTRICT` on `checklist_id` is what makes
 "you cannot delete a template a project is using" a property of the database rather
 than a promise the route remembers to keep.
+
+**`v1.20` — category, one default per category, a versioned seed.**
+`checklists` gained `category`, `is_default`, `seed_key` and `seed_version`, all
+added by `addColumnIfMissing()` in both migration paths. `is_default` is `BOOLEAN`
+on Postgres and `INTEGER` on SQLite, so every statement that touches it uses the
+`TRUE`/`FALSE` literal: a bound JS boolean is rejected by the SQLite driver and
+`= 1` is a type error on Postgres (`operator does not exist: boolean = integer`).
+`seed_version` is what lets a release replace a shipped list's items in place
+instead of adding a second copy beside it.
+
+**`v1.21` — one checklist per project.** `CREATE UNIQUE INDEX
+idx_project_checklists_one ON project_checklists(project_id)`. A database that
+predates the rule can hold duplicates, so `dedupeProjectChecklists()` runs before
+`createIndexes()` on both engines: it keeps the newest link for each project (and
+drops the answers on the others) and logs how many it removed. The invariant then
+lives in the engine, not in every route that might forget it.
 
 ### Renamed in v1.13: the supervisor columns
 The **role stayed `Project Manager`**. What was renamed is the field that says who

@@ -1227,8 +1227,9 @@ async function writeChecklistItems(conn, checklistId, items) {
  * 12 — retest rows in the active lists, paging, properties, documents per env.
  * 19 — project attachments and security checklists.
  * 20 — checklist categories, one default per category, versioned seed.
+ * 21 — one checklist per project: a unique index on project_checklists(project_id).
  */
-export const SCHEMA_VERSION = 20;
+export const SCHEMA_VERSION = 21;
 
 let appliedSchemaVersion = 0;
 
@@ -1276,6 +1277,7 @@ export async function initDatabase() {
     await migratePostgres();
     await migrateDocumentsKey();
     await migrateSupervisorNames();
+    await dedupeProjectChecklists();
     await createIndexes();
   } else {
     const { createSqliteDriver } = await import('./drivers/sqlite.js');
@@ -1286,6 +1288,7 @@ export async function initDatabase() {
     await migrateSqlite();
     await migrateDocumentsKey();
     await migrateSupervisorNames();
+    await dedupeProjectChecklists();
     await createIndexes();
   }
   fs.mkdirSync(UPLOAD_DIR, { recursive: true });
@@ -1551,6 +1554,30 @@ async function pruneOrphanNotes() {
   }
 }
 
+/**
+ * A project carries ONE checklist. The table started as many-per-project, so a
+ * database that predates the rule can hold duplicates: keep the newest link and
+ * drop the rest (their answers go with them), then the unique index below can be
+ * created. Runs before createIndexes(), which would otherwise fail.
+ */
+async function dedupeProjectChecklists() {
+  const dupes = await db.all(
+    `SELECT id FROM project_checklists pc
+      WHERE EXISTS (
+        SELECT 1 FROM project_checklists newer
+         WHERE newer.project_id = pc.project_id
+           AND (newer.created_at > pc.created_at
+                OR (newer.created_at = pc.created_at AND newer.id > pc.id))
+      )`
+  );
+  if (!dupes.length) return 0;
+  const ids = dupes.map((row) => row.id);
+  await db.run(`DELETE FROM project_checklist_items WHERE project_checklist_id IN (${ids.map(() => '?').join(',')})`, ids);
+  await db.run(`DELETE FROM project_checklists WHERE id IN (${ids.map(() => '?').join(',')})`, ids);
+  console.warn(`[db] kept the newest checklist for ${ids.length} project(s); the rest were removed`);
+  return ids.length;
+}
+
 async function createIndexes() {
   const statements = [
     'CREATE INDEX IF NOT EXISTS idx_retests_project ON retests(project_id)',
@@ -1581,6 +1608,9 @@ async function createIndexes() {
     'CREATE UNIQUE INDEX IF NOT EXISTS idx_retests_code ON retests(project_id, code)',
     // Attachments are listed newest-first for one project on every drawer open.
     'CREATE INDEX IF NOT EXISTS idx_project_files_project ON project_files(project_id, created_at DESC)',
+    // One checklist per project, enforced by the engine rather than by every
+    // route remembering to check. dedupeProjectChecklists() clears the way.
+    'CREATE UNIQUE INDEX IF NOT EXISTS idx_project_checklists_one ON project_checklists(project_id)',
     // A checklist is rendered section by section, in stored order.
     'CREATE INDEX IF NOT EXISTS idx_checklist_items_checklist ON checklist_items(checklist_id, position)',
     // "which projects use this template" gates the delete; "which templates does

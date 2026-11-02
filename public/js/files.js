@@ -49,10 +49,11 @@ function fileRowHTML(file) {
 }
 
 export function attachmentsTabHTML(files = []) {
-  return `<div class="files">
+  return `<div class="files" data-file-drop>
     <div class="files-head">
       <span class="note-count">${files.length} file${files.length === 1 ? '' : 's'}</span>
       <div class="spacer"></div>
+      <span class="files-hint">or drop files here</span>
       <button class="btn btn-sm" data-file-add>${icon.upload(14)} Upload</button>
     </div>
     ${
@@ -96,6 +97,38 @@ async function upload(projectId, file) {
   });
 }
 
+/** A drag that carries files, not text or a link. */
+function carriesFiles(event) {
+  const types = event.dataTransfer?.types;
+  return Boolean(types && [...types].includes('Files'));
+}
+
+/**
+ * Uploads a batch, then refreshes once.
+ *
+ * Sequential on purpose: each file is base64 in one JSON body, and firing five of
+ * those at once is how a laptop on hotel wifi produces five timeouts instead of
+ * two successes. One failure does not abandon the rest of the drop.
+ */
+async function uploadMany(projectId, list, reload) {
+  const files = [...list];
+  const failed = [];
+  let done = 0;
+  for (const file of files) {
+    try {
+      toast(done === 0 ? `Uploading ${file.name}…` : `Uploading ${file.name}… (${done}/${files.length})`);
+      await upload(projectId, file);
+      done += 1;
+    } catch (err) {
+      failed.push(`${file.name}: ${err.message}`);
+    }
+  }
+  await reload();
+  if (done === 1) toast('File uploaded');
+  else if (done > 1) toast(`${done} files uploaded`);
+  if (failed.length) toast(failed[0], 'err');
+}
+
 /** `reload` re-renders the drawer's Attachments tab after a change. */
 export function bindAttachmentsTab(el, project, files, reload) {
   el.querySelector('[data-file-add]')?.addEventListener('click', () => {
@@ -107,9 +140,7 @@ export function bindAttachmentsTab(el, project, files, reload) {
       input.remove();
       if (!file) return;
       try {
-        toast(`Uploading ${file.name}…`);
-        await upload(project.id, file);
-        await reload();
+        await uploadMany(project.id, [file], reload);
       } catch (err) {
         toast(err.message, 'err');
       }
@@ -117,6 +148,47 @@ export function bindAttachmentsTab(el, project, files, reload) {
     document.body.appendChild(input);
     input.click();
   });
+
+  // Drag and drop. The whole attachments panel is the target, because aiming at a
+  // thin dashed box while carrying a file is a worse experience than "drop it in
+  // the Files tab".
+  const zone = el.querySelector('[data-file-drop]');
+  if (zone) {
+    let depth = 0;
+    const clear = () => {
+      depth = 0;
+      zone.classList.remove('is-over');
+    };
+    zone.addEventListener('dragenter', (e) => {
+      if (!carriesFiles(e)) return;
+      e.preventDefault();
+      depth += 1;
+      zone.classList.add('is-over');
+    });
+    zone.addEventListener('dragover', (e) => {
+      if (!carriesFiles(e)) return;
+      // Without this the browser navigates away and opens the file itself.
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'copy';
+    });
+    zone.addEventListener('dragleave', (e) => {
+      if (!carriesFiles(e)) return;
+      depth -= 1;
+      if (depth <= 0 || !el.contains(e.relatedTarget)) clear();
+    });
+    zone.addEventListener('drop', async (e) => {
+      if (!carriesFiles(e)) return;
+      e.preventDefault();
+      clear();
+      const dropped = [...(e.dataTransfer?.files || [])];
+      if (!dropped.length) return;
+      try {
+        await uploadMany(project.id, dropped, reload);
+      } catch (err) {
+        toast(err.message, 'err');
+      }
+    });
+  }
 
   el.querySelectorAll('[data-file-del]').forEach((btn) => {
     btn.addEventListener('click', async () => {

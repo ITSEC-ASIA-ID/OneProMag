@@ -204,24 +204,21 @@ async function itemLabel(itemId) {
 export async function attachCategoryDefaults(conn, projectId, category) {
   const key = String(category || '').trim();
   if (!key) return [];
-  const defaults = await conn.all(
+  // A project is already being tested against something: changing its category
+  // must not throw those answers away behind the user's back. Only an empty slot
+  // gets filled automatically.
+  const current = await conn.get('SELECT id FROM project_checklists WHERE project_id = ?', [projectId]);
+  if (current) return [];
+  const row = await conn.get(
     'SELECT id FROM checklists WHERE category = ? AND is_default = TRUE',
     [key]
   );
-  const attached = [];
-  for (const row of defaults) {
-    const exists = await conn.get(
-      'SELECT id FROM project_checklists WHERE project_id = ? AND checklist_id = ?',
-      [projectId, row.id]
-    );
-    if (exists) continue;
-    await conn.run(
-      'INSERT INTO project_checklists (project_id, checklist_id, created_at) VALUES (?, ?, ?)',
-      [projectId, row.id, nowISO()]
-    );
-    attached.push(Number(row.id));
-  }
-  return attached;
+  if (!row) return [];
+  await conn.run(
+    'INSERT INTO project_checklists (project_id, checklist_id, created_at) VALUES (?, ?, ?)',
+    [projectId, row.id, nowISO()]
+  );
+  return [Number(row.id)];
 }
 
 export const routes = {
@@ -383,15 +380,33 @@ export const routes = {
     }
     const template = await checklistRow(checklistId);
     const existing = await db.get(
-      'SELECT id FROM project_checklists WHERE project_id = ? AND checklist_id = ?',
-      [project.id, checklistId]
+      'SELECT id, checklist_id FROM project_checklists WHERE project_id = ?',
+      [project.id]
     );
-    if (existing) throw new HttpError(409, `"${template.name}" is already on this project`);
+    // One checklist per project: attaching another one REPLACES it. The answers
+    // belong to the old template's items, so they go with it — the caller is told
+    // how many, so the dialog can say what it is about to destroy.
+    let answered = 0;
+    if (existing) {
+      if (Number(existing.checklist_id) === checklistId) {
+        return { checklists: await projectChecklists(project.id), replaced: false };
+      }
+      const count = await db.get(
+        `SELECT COUNT(*) AS n FROM project_checklist_items
+          WHERE project_checklist_id = ? AND status <> ?`,
+        [existing.id, OPEN]
+      );
+      answered = Number(count?.n) || 0;
+      // Same rule as removing a checklist: discarding work is a delete.
+      if (answered > 0) requireDeleter(ctx, 'a checklist that has answers');
+      await db.run('DELETE FROM project_checklist_items WHERE project_checklist_id = ?', [existing.id]);
+      await db.run('DELETE FROM project_checklists WHERE id = ?', [existing.id]);
+    }
     await db.run(
       'INSERT INTO project_checklists (project_id, checklist_id, created_at) VALUES (?, ?, ?)',
       [project.id, checklistId, nowISO()]
     );
-    return { checklists: await projectChecklists(project.id) };
+    return { checklists: await projectChecklists(project.id), replaced: Boolean(existing), answered };
   },
 
   'DELETE /api/project-checklists/:id': async (ctx) => {
