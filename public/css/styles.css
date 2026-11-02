@@ -6468,3 +6468,120 @@ svg { display: block; }
   .ck-edit-row { grid-template-columns: 1fr; }
   .ck-edit-acts { justify-content: flex-end; }
 }
+
+
+/* ============================================================
+   A project's checklist, on its own page
+   ------------------------------------------------------------
+   The drawer tab lists what is attached and links here; the work
+   happens at full width because an OWASP list is long. The filter
+   chips carry their own counts so "3 fail" is one click away
+   instead of a scroll through answered items.
+   ============================================================ */
+.ckp { display: flex; flex-direction: column; gap: 14px; padding-bottom: 40px; }
+.ckp-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding-bottom: 2px;
+}
+.ckp-title { min-width: 0; }
+.ckp-title h2 {
+  margin: 0;
+  font-size: 19px;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+  overflow-wrap: anywhere;
+}
+.ckp-meta { margin: 3px 0 0; font-size: 12.5px; color: var(--muted); }
+.ckp-tools { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.ckp-sum { font-size: 12.5px; color: var(--muted); white-space: nowrap; }
+.ckp-search { display: flex; }
+.ckp-search .input { width: 220px; height: 34px; }
+.ckp-filters { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.ckp-filters:empty { display: none; }
+.ckp-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 30px;
+  padding: 0 11px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 12.5px;
+  font-weight: 550;
+  cursor: pointer;
+}
+.ckp-chip:hover { border-color: var(--border-strong); color: var(--text); }
+.ckp-chip[aria-pressed="true"] {
+  background: var(--text);
+  border-color: var(--text);
+  color: var(--surface);
+}
+.ckp-chip-count {
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  opacity: 0.72;
+}
+.ckp-body { display: flex; flex-direction: column; gap: 14px; }
+.ckp-body .ck-item[hidden] { display: none; }
+.ckp-body .ck-section[hidden] { display: none; }
+.ckp-none { margin: 0; padding: 18px 2px; font-size: 13px; }
+
+/* The drawer's way into the page: one clickable summary per attached list. */
+.ck-sum {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  width: 100%;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  text-align: left;
+  cursor: pointer;
+}
+.ck-sum:hover { border-color: var(--border-strong); background: var(--surface-2); }
+.ck-sum-top { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.ck-sum-name {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ck-sum-meta { font-size: 12px; color: var(--faint); }
+.ck-sum-go {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--accent);
+}
+.ck-marks { display: inline-flex; align-items: center; gap: 6px; margin-left: 8px; }
+
+/* Admin panel: the two fields that decide where a template attaches itself. */
+.field-row { display: flex; gap: 14px; flex-wrap: wrap; }
+.field-row > .field { flex: 1 1 220px; }
+.switch-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--muted);
+  cursor: pointer;
+}
+.switch-row input { margin-top: 2px; }
+
+@media (max-width: 720px) {
+  .ckp-tools { width: 100%; }
+  .ckp-search { flex: 1 1 100%; }
+  .ckp-search .input { width: 100%; }
+  .ckp-title h2 { font-size: 17px; }
+}

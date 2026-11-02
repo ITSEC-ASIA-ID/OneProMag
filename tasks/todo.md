@@ -226,3 +226,39 @@ which is not what this task asked for.
 
 - [x] **Not in scope, deliberately**
   - Template versioning or per-project snapshots of item text, object storage, resumable uploads, thumbnails, virus scanning, attachments on clients/applications/variants/retests, and any cross-project scoring. A checklist records what a pentester found; it does not certify the engagement.
+
+## `checklist-page-and-categories`
+
+Requested as three things at once: the current OWASP lists, a **full page** for a
+checklist ("it will need long check list"), and a **default per category** that
+attaches itself.
+
+- [x] **OWASP Top 10:2025 and OWASP API Security Top 10 2023, replacing 2021**
+  - Acceptance: the web template is the 2025 list with twenty checks (two per risk); the API template is the 2023 list with ten; `OWASP Top 10 2021` is gone rather than sitting beside its successor.
+  - Verify: seeded rows are `OWASP Top 10:2025 | Web | default | owasp-web | v1 | 20 items` and `OWASP API Security Top 10 2023 | API | default | owasp-api | v1 | 10 items`; the 2021 row is absent on a database that had it; the seed test asserts the three names, the absence of 2021, and 20/10 distinct sections.
+
+- [x] **Why the seed became versioned instead of insert-once**
+  - `checklists.seed_key` + `seed_version` identify a shipped list, so a release replaces its items **in place** — same id, so every project's link survives — and deletes shipped rows whose key disappeared. Rows with `seed_key = ''` (anything an admin typed) are never touched. The cost is the answers on replaced items; shipping a corrected standard with the old answers attached to the wrong items would be worse.
+
+- [x] **A category, and one default per category**
+  - Acceptance: `checklists.category` uses the same vocabulary as `projects.category` (`Web · Mobile · API · EDC`); marking a template default clears the previous default in that category; a template with no category cannot be the default.
+  - Verify: `claimDefault()` clears and validates, refusing with `Set a category before making a checklist the default`; the Admin table shows the category and a `default` badge.
+
+- [x] **Auto-attach on save, additive and idempotent**
+  - Acceptance: creating a project, or saving one after changing its category, attaches that category's default if it is not already attached; nothing is ever detached; any other template is still attachable by hand.
+  - Verify: `attachCategoryDefaults(conn, projectId, category)` runs inside the create and update transactions; changing a Web project to API added the API list and left the 2025 list alone; saving again attached nothing; the picker still offered the non-default hardening template, and attaching it made three cards / 40 items.
+  - Files: `server/routes/projects.js`, `server/routes/checklists.js`
+
+- [x] **The checklist is a page, not a drawer tab**
+  - Acceptance: `/project/<id>/checklist` renders the project's lists with filter chips (All/Open/Pass/Fail/N/A), search, and per-section grouping; the drawer tab becomes a launcher; Back and a cold reload both work.
+  - Verify: the URL reloads straight onto the page with the sidebar still highlighting the project list; chips filter, search narrows to zero and prints "Nothing matches that filter."; answering an item updates the item, the list progress, the chips and the answered total without a refetch; a 430px viewport has zero horizontal overflow; zero console errors on the page and in the drawer it was opened from.
+  - Files: `public/js/checklist-page.js`, `public/js/checklists.js`, `public/js/drawer.js`, `public/js/state.js`, `public/js/shell.js`, `public/js/projects.js`, `public/css/styles.css`
+
+- [x] **Bugs found while verifying**
+  - **Postgres-only 500 on creating a project:** `operator does not exist: boolean = integer` (PG `42883`). `is_default` is `BOOLEAN` on Postgres and `INTEGER` on SQLite, and the SQL compared it to `1`; booleans cannot be bound as parameters either, so every site now writes the literal `TRUE`/`FALSE`. The SQLite tests were green throughout — the bug only existed on the engine production runs.
+  - **`NAV.checklist` was missing**, so the page mounted into `Cannot read properties of undefined (reading 'title')` and rendered an empty skeleton. The entry exists for the title and the highlight; it is deliberately not a sidebar row.
+  - **The header counters went stale after an answer:** the item updated but the chips still said `Open 10 / Fail 0`, because the drawer's in-place repaint had no reason to touch them. `bindChecklistBody` now takes an `onProgress` callback and the page repaints chips, total and fail badge from the same `links` array.
+  - **The sidebar had no active row on the checklist page**, which reads as "lost". `boot()` and `finishNav()` both light the project list instead.
+
+- [x] **Not in scope, deliberately**
+  - Per-project snapshots of item text, checklist scoring or a compliance percentage, assigning an owner per item, and attachments as evidence on the full page beyond the field that already exists. A checklist records what was checked; it does not produce a verdict.

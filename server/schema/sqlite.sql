@@ -287,10 +287,17 @@ CREATE TABLE IF NOT EXISTS project_files (
 -- The catalogue of security checklists, owned by the Admin panel. `name` is
 -- unique because two templates called "OWASP Top 10 2021" help nobody.
 CREATE TABLE IF NOT EXISTS checklists (
-  id          INTEGER PRIMARY KEY AUTOINCREMENT,
-  name        TEXT NOT NULL UNIQUE,
-  description TEXT NOT NULL DEFAULT '',
-  created_at  TEXT NOT NULL
+  id           INTEGER PRIMARY KEY AUTOINCREMENT,
+  name         TEXT NOT NULL UNIQUE,
+  description  TEXT NOT NULL DEFAULT '',
+  -- Which `projects.category` this checklist answers to; '' fits any of them.
+  category     TEXT NOT NULL DEFAULT '',
+  -- The one a project is attached to by itself when that category is chosen.
+  is_default   INTEGER NOT NULL DEFAULT 0,
+  -- Identity of a shipped template, so it can be replaced; '' is admin-made.
+  seed_key     TEXT NOT NULL DEFAULT '',
+  seed_version INTEGER NOT NULL DEFAULT 0,
+  created_at   TEXT NOT NULL
 );
 
 -- One testable line of a template. `section` groups items without needing a

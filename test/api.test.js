@@ -1329,18 +1329,62 @@ test('deleting a project takes its attachment bytes with it', async () => {
   assert.ok(!fs.existsSync(dir), 'the upload directory must not outlive its project');
 });
 
-test('a fresh install arrives with OWASP Top 10 2021 and Web hardening basics', async () => {
+test('a fresh install arrives with the current OWASP lists, each the default of its category', async () => {
   const user = await member();
   const { checklists } = await call('GET /api/checklists', user);
   const names = checklists.map((c) => c.name);
-  assert.ok(names.includes('OWASP Top 10 2021'), `seeded: ${names.join(', ')}`);
+  assert.ok(names.includes('OWASP Top 10:2025'), `seeded: ${names.join(', ')}`);
+  assert.ok(names.includes('OWASP API Security Top 10 2023'));
   assert.ok(names.includes('Web hardening basics'));
+  assert.ok(!names.includes('OWASP Top 10 2021'), 'the 2021 list must not survive beside 2025');
 
-  const owasp = checklists.find((c) => c.name === 'OWASP Top 10 2021');
-  assert.equal(owasp.itemCount, 10);
-  const full = await call('GET /api/checklists/:id', user, { params: { id: owasp.id } });
-  assert.equal(full.checklist.items.length, 10);
+  const web = checklists.find((c) => c.name === 'OWASP Top 10:2025');
+  assert.equal(web.category, 'Web');
+  assert.equal(web.isDefault, true);
+  assert.equal(web.itemCount, 20);
+  const full = await call('GET /api/checklists/:id', user, { params: { id: web.id } });
+  assert.equal(full.checklist.items.length, 20);
   assert.ok(full.checklist.items.every((i) => i.section && i.title && i.help));
+  assert.equal(new Set(full.checklist.items.map((i) => i.section)).size, 10);
+
+  const api = checklists.find((c) => c.name === 'OWASP API Security Top 10 2023');
+  assert.equal(api.category, 'API');
+  assert.equal(api.isDefault, true);
+  assert.equal(api.itemCount, 10);
+});
+
+test('choosing a category attaches its default checklist, and only once', async () => {
+  const user = await member();
+  const admin = await lead();
+  const { clients } = await call('GET /api/clients', user);
+  const { project } = await call('POST /api/projects', user, {
+    body: { name: 'Category default probe', clientId: clients[0].id, category: 'API' },
+  });
+
+  const first = await call('GET /api/projects/:id/checklists', user, { params: { id: project.id } });
+  assert.equal(first.checklists.length, 1, 'the API default came along');
+  assert.equal(first.checklists[0].name, 'OWASP API Security Top 10 2023');
+  assert.equal(first.checklists[0].progress.open, 10, 'attaching writes no answers');
+
+  // Saving the project again must not attach a second copy nor duplicate rows.
+  await call('PATCH /api/projects/:id', admin, {
+    params: { id: project.id },
+    body: { category: 'API', notes: 'touched' },
+  });
+  const again = await call('GET /api/projects/:id/checklists', user, { params: { id: project.id } });
+  assert.equal(again.checklists.length, 1);
+
+  // A second, non-default template is still attachable by hand.
+  const { checklists } = await call('GET /api/checklists', user);
+  const hardening = checklists.find((c) => c.name === 'Web hardening basics');
+  await call('POST /api/projects/:id/checklists', user, {
+    params: { id: project.id },
+    body: { checklistId: hardening.id },
+  });
+  const both = await call('GET /api/projects/:id/checklists', user, { params: { id: project.id } });
+  assert.equal(both.checklists.length, 2);
+
+  await call('DELETE /api/projects/:id', admin, { params: { id: project.id } });
 });
 
 test('only a lead may create or edit a template, and a pasted list imports as items', async () => {

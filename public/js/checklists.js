@@ -1,6 +1,8 @@
 import { api } from './api.js';
 import { icon } from './icons.js';
 import { canManageCatalog } from './state.js';
+import { closeDrawer } from './drawer.js';
+import { openChecklistPage } from './shell.js';
 import { confirmDialog, escapeHtml as h, fmtRelative, openModal, toast } from './ui.js';
 
 
@@ -24,6 +26,18 @@ import { confirmDialog, escapeHtml as h, fmtRelative, openModal, toast } from '.
    writes nothing and then counts everything as open.
    ============================================================ */
 export const CHECKLIST_STATUS = ['Open', 'Pass', 'Fail', 'N/A'];
+
+/** `projects.category` values; '' is "fits any of them". */
+const CHECKLIST_CATEGORIES = ['Web', 'Mobile', 'API', 'EDC'];
+
+function categoryOptions(current = '') {
+  return ['', ...CHECKLIST_CATEGORIES]
+    .map(
+      (c) =>
+        `<option value="${c}"${c === (current || '') ? ' selected' : ''}>${c || 'Any category'}</option>`
+    )
+    .join('');
+}
 
 const OPEN = 'Open';
 
@@ -126,7 +140,66 @@ function checklistCardHTML(link, files) {
 }
 
 
-export function checklistTabHTML(links = [], files = []) {
+/**
+ * The drawer's Checklist tab: what is attached and how far it has got.
+ *
+ * The work itself happens on its own page — a real OWASP list is twenty items
+ * with a note and an evidence field each, and a drawer 520px wide turns that
+ * into scrolling rather than testing. This tab answers "is it attached, is
+ * anything failing, where do I continue" and links out.
+ */
+export function checklistLauncherHTML(links = []) {
+  const fails = links.reduce((n, l) => n + (Number(l.progress?.fail) || 0), 0);
+  return `<div class="ck-wrap">
+    <div class="ck-toolbar">
+      <span class="note-count">${links.length} checklist${links.length === 1 ? '' : 's'}</span>
+      ${
+        fails
+          ? `<span class="badge badge-outline" data-tone="rose"><span class="dot"></span>${fails} fail${fails === 1 ? '' : 's'}</span>`
+          : ''
+      }
+      <div class="spacer"></div>
+      <button type="button" class="btn btn-sm" data-ck-attach>${icon.plus(13)} Attach</button>
+    </div>
+    ${
+      links.length
+        ? links
+            .map(
+              (l) => `<button type="button" class="ck-sum" data-ck-open="${l.id}" data-ck-project="${l.projectId || ''}">
+          <span class="ck-sum-top">
+            <span class="ck-sum-name">${h(l.name)}</span>
+            ${l.category ? `<span class="badge badge-outline" data-tone="slate">${h(l.category)}</span>` : ''}
+          </span>
+          <span class="ck-sum-meta">${h(progressLine(l.progress))}${Number(l.progress?.fail) ? ' · needs attention' : ''}</span>
+          <span class="ck-sum-go">Open checklist ${icon.arrowRight(13)}</span>
+        </button>`
+            )
+            .join('')
+        : `<div class="empty">
+             <div class="icon">${icon.shield(24)}</div>
+             <h3>No checklist on this project</h3>
+             <p>Choosing the project's category attaches its default list. Anything else can be attached by hand.</p>
+           </div>`
+    }
+  </div>`;
+}
+
+
+export function bindChecklistLauncher(el, project, links, reload) {
+  el.querySelector('[data-ck-attach]')?.addEventListener('click', () =>
+    openAttachPicker(project, links.map((l) => Number(l.checklistId)), reload)
+  );
+  el.querySelectorAll('[data-ck-open]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      // The page replaces the drawer, not sits under it.
+      closeDrawer();
+      openChecklistPage(project.id);
+    });
+  });
+}
+
+
+export function checklistBodyHTML(links = [], files = []) {
   const fails = links.reduce((n, l) => n + (Number(l.progress?.fail) || 0), 0);
   return `<div class="ck-wrap">
     <div class="ck-toolbar">
@@ -188,7 +261,7 @@ function applyAnswer(itemEl, item) {
 }
 
 
-export function bindChecklistTab(el, project, links, files, reload) {
+export function bindChecklistBody(el, project, links, files, reload, onProgress = null) {
   el.querySelector('[data-ck-attach]')?.addEventListener('click', () =>
     openAttachPicker(project, links.map((l) => l.checklistId), reload)
   );
@@ -255,6 +328,9 @@ export function bindChecklistTab(el, project, links, files, reload) {
           applyAnswer(itemEl, res.item);
           if (prog) prog.textContent = progressLine(res.progress);
           syncTabBadge(links);
+          // The page's own counters (chips, "N of M answered") are painted from
+          // the same numbers, so it has to be told an answer landed.
+          if (onProgress) onProgress();
         } catch (err) {
           toast(err.message, 'err');
         }
@@ -381,8 +457,12 @@ function templateRowHTML(c) {
   const used = Number(c.projectCount) || 0;
   return `<tr data-ck-row="${c.id}">
     <td class="dev-name">${h(c.name)}${
-      c.description ? `<span class="ck-sub">${h(c.description)}</span>` : ''
-    }</td>
+      c.category || c.isDefault
+        ? `<span class="ck-marks">${c.category ? `<span class="badge badge-outline" data-tone="slate">${h(c.category)}</span>` : ''}${
+            c.isDefault ? `<span class="badge badge-outline" data-tone="amber"><span class="dot"></span>default</span>` : ''
+          }</span>`
+        : ''
+    }${c.description ? `<span class="ck-sub">${h(c.description)}</span>` : ''}</td>
     <td class="dev-mono-cell">${items} item${items === 1 ? '' : 's'}</td>
     <td>${used ? `<span class="badge badge-outline" data-tone="amber"><span class="dot"></span>${used} project${used === 1 ? '' : 's'}</span>` : '<span class="faint">not in use</span>'}</td>
     <td class="dev-acts"><span class="dev-acts-inner">
@@ -501,7 +581,7 @@ function itemEditRowHTML(item) {
 
 
 export async function openChecklistForm(id) {
-  let checklist = { id: null, name: '', description: '', items: [] };
+  let checklist = { id: null, name: '', description: '', category: '', isDefault: false, items: [] };
   if (id) {
     try {
       const res = await api.checklist(id);
@@ -527,6 +607,20 @@ export async function openChecklistForm(id) {
         <label class="label" for="ck-desc">Description</label>
         <input class="input" id="ck-desc" value="${h(checklist.description || '')}"
           placeholder="One line on what this list is for" />
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label class="label" for="ck-cat">Category</label>
+          <select class="input" id="ck-cat">${categoryOptions(checklist.category)}</select>
+          <span class="form-hint">Which kind of project this list answers to.</span>
+        </div>
+        <div class="field">
+          <label class="label" for="ck-default">Default</label>
+          <label class="switch-row" for="ck-default">
+            <input type="checkbox" id="ck-default"${checklist.isDefault ? ' checked' : ''} />
+            <span>Attach it to a new project of this category on its own</span>
+          </label>
+        </div>
       </div>
       <div class="field">
         <label class="label">Items <span class="ck-edit-count"></span></label>
@@ -610,12 +704,23 @@ export async function openChecklistForm(id) {
           modal.querySelector('#ck-name').focus();
           return;
         }
+        if (!modal.querySelector('#ck-cat').value && modal.querySelector('#ck-default').checked) {
+          toast('Pick a category before making this the default', 'err');
+          modal.querySelector('#ck-cat').focus();
+          return;
+        }
         const save = modal.querySelector('[data-save]');
         save.disabled = true;
         try {
           let targetId = checklist.id;
-          if (editing) await api.updateChecklist(targetId, { name, description });
-          else targetId = (await api.createChecklist({ name, description })).checklist.id;
+          const meta = {
+            name,
+            description,
+            category: modal.querySelector('#ck-cat').value,
+            isDefault: modal.querySelector('#ck-default').checked,
+          };
+          if (editing) await api.updateChecklist(targetId, meta);
+          else targetId = (await api.createChecklist(meta)).checklist.id;
 
           for (const itemId of removed) await api.deleteChecklistItem(itemId);
 

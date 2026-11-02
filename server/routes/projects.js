@@ -10,6 +10,7 @@ import {
 } from '../shared.js';
 import { db, ENUMS } from '../db.js';
 import { purgeProjectFiles } from './files.js';
+import { attachCategoryDefaults } from './checklists.js';
 import { HttpError, nowISO } from '../auth.js';
 
 
@@ -533,6 +534,8 @@ export const routes = {
       );
       const projectId = Number(row.id);
       await setPentesters(tx, projectId, body.pentesterIds);
+      // Choosing a category is enough: the default template for it comes along.
+      await attachCategoryDefaults(tx, projectId, category);
       return projectId;
     });
 
@@ -612,6 +615,9 @@ export const routes = {
         [...Object.values(next), teamChanged ? nowISO() : editStamp(row, next), row.id]
       );
       if (Array.isArray(body.pentesterIds)) await setPentesters(tx, row.id, body.pentesterIds);
+      // Additive and idempotent: an already-attached default is left alone, and
+      // nothing the user attached by hand is ever taken away.
+      await attachCategoryDefaults(tx, row.id, category);
     });
 
     return { project: await loadProject(row.id) };

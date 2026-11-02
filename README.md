@@ -115,6 +115,7 @@ have shipped:
 | both seeded checklists have ten items with text | the seed is usable, not empty scaffolding |
 | bulk paste splits `section \| title \| help` | the paste box produces the rows it promises |
 | attaching a checklist writes no answers | `Open` is an absence, not a row |
+| a project's category attaches its default, once | auto-attach is additive and idempotent |
 | a template in use cannot be deleted | `RESTRICT`, reported as 409 |
 | an item cannot cite another project's file | evidence stays with its engagement |
 
@@ -1628,12 +1629,29 @@ Deleting a project deletes its folder; deleting one file deletes its bytes and, 
 it was the last, the empty folder. Both read the stored names *before* the rows
 cascade — the same trap that once leaked variant notes.
 
-### Security checklists (project drawer → Checklist, Admin panel → Checklists)
+### Security checklists (project drawer → Checklist, `/project/<id>/checklist`, Admin panel → Checklists)
 
 A project links a checklist template and works through it: **Open · Pass · Fail ·
 N/A** per item, a note that explains a Fail, and optionally one of the project's
-files as evidence. Two templates are seeded — **OWASP Top 10 2021** and **Web
-hardening basics** — and both are ordinary editable rows afterwards.
+files as evidence. Three templates ship, all ordinary editable rows afterwards:
+**OWASP Top 10:2025** and **OWASP API Security Top 10 2023** (twenty and ten
+checks) plus **Web hardening basics**. The seed is versioned by `seed_key`, so a
+release that changes a shipped list replaces the items instead of adding a second
+copy beside it — and a retired list goes away rather than sitting next to its
+successor.
+
+A template carries a **category** (`Web · Mobile · API · EDC`, the same values a
+project carries) and at most one template per category is its **default**. Saving
+a project attaches its category's default if the project does not already have it,
+which is why a Web project arrives with the 2025 list already waiting. Nothing is
+ever detached automatically, and any other template can still be attached by hand
+from the picker.
+
+The drawer tab is a launcher: it shows each linked list's progress and opens the
+full page at `/project/<id>/checklist`, where the items get the room a real list
+needs — filter by status, search the text, and answer without the drawer
+scrolling under you. The URL is the page, so a checklist can be bookmarked or
+sent to a colleague.
 
 The Admin panel manages the templates: name, description, one row per item
 (section, what to check, how to check it), reorder, delete, plus a **Paste a list**
@@ -1900,7 +1918,8 @@ OneProMag/
 │       ├── users.js     Manage users (Admin panel)
 │       ├── admin.js     Admin panel shell
 │       ├── properties.js categories and statuses (Admin panel)
-│       ├── checklists.js security checklists: drawer tab + Admin panel
+│       ├── checklists.js checklists: drawer launcher, item editor, Admin panel
+│       ├── checklist-page.js one project's checklist, on its own URL
 │       ├── files.js     project attachments: upload, download, delete
 │       ├── api.js       fetch wrapper
 │       ├── ui.js        modal/toast/badge/segmented primitives, team + SV cell

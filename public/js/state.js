@@ -91,6 +91,12 @@ export const NAV = {
     title: 'Checklists',
     sub: 'Security checklists an engagement can be measured against',
   },
+  // Not in the sidebar: a project's checklist lives at /project/<id>/checklist,
+  // and this entry exists so the shell can title and highlight that page.
+  checklist: {
+    title: 'Checklist',
+    sub: 'Security checklist for this engagement',
+  },
 };
 
 
@@ -118,6 +124,13 @@ export const NAV_PATHS = {
   checklists: '/admin/checklists',
 };
 
+/**
+ * The one page whose URL carries an id: a project's checklist. It is not a nav
+ * row, so it cannot live in `NAV_PATHS`; `pathForNav` builds it from
+ * `state.checklistProjectId` and `navForPath` reads the id back out.
+ */
+export const CHECKLIST_PATH = (projectId) => `/project/${Number(projectId) || 0}/checklist`;
+
 export const DEFAULT_NAV = 'active';
 
 const PATH_NAV = Object.fromEntries(Object.entries(NAV_PATHS).map(([nav, path]) => [path, nav]));
@@ -125,6 +138,7 @@ const PATH_NAV = Object.fromEntries(Object.entries(NAV_PATHS).map(([nav, path]) 
 
 /** The URL a nav id lives at. Anything unknown falls back to the default page. */
 export function pathForNav(nav) {
+  if (nav === 'checklist') return CHECKLIST_PATH(state.checklistProjectId);
   return NAV_PATHS[nav] || NAV_PATHS[DEFAULT_NAV];
 }
 
@@ -132,6 +146,11 @@ export function pathForNav(nav) {
 /** The nav id a path stands for, or null when the path belongs to no page. */
 export function navForPath(pathname) {
   const clean = `/${String(pathname || '').replace(/^\/+/, '')}`.replace(/\/+$/, '');
+  const scoped = /^\/project\/(\d+)\/checklist$/.exec(clean);
+  if (scoped) {
+    state.checklistProjectId = Number(scoped[1]);
+    return 'checklist';
+  }
   return PATH_NAV[clean || '/'] || null;
 }
 
@@ -217,6 +236,8 @@ export const state = {
   filters: { q: '', status: '', category: '', env: '', method: '', clientId: '', applicationId: '' },
   filtersOpen: false,
   drawerProjectId: null,
+  // Which project's checklist the (id-carrying) checklist page is showing.
+  checklistProjectId: null,
   drawerTab: 'overview',
   drawer: null,
 };

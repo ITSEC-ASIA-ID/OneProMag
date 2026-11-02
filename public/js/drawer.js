@@ -1,5 +1,5 @@
 import { bindAttachmentsTab, attachmentsTabHTML } from './files.js';
-import { bindChecklistTab, checklistTabHTML } from './checklists.js';
+import { bindChecklistLauncher, checklistLauncherHTML } from './checklists.js';
 import { deleteRetestFlow, loadProjects, openProjectForm, refreshAll } from './projects.js';
 import { hideMenu, placeMenu } from './shared.js';
 import { loadStats } from './shell.js';
@@ -158,7 +158,7 @@ export function drawerHTML(project, retests, tab, extras = { files: [], checklis
 
 export function tabBody(project, retests, tab, extras = { files: [], checklists: [] }) {
   if (tab === 'checklist') {
-    return checklistTabHTML(extras.checklists || [], extras.files || []);
+    return checklistLauncherHTML(extras.checklists || []);
   }
 
   if (tab === 'attachments') {
@@ -317,7 +317,7 @@ export function bindDrawer(el, project, retests, extras = { files: [], checklist
   // user is standing on instead of dropping them back on Overview.
   const reload = () => renderDrawer(project.id, state.drawerTab, true);
   bindAttachmentsTab(el, project, extras.files || [], reload);
-  bindChecklistTab(el, project, extras.checklists || [], extras.files || [], reload);
+  bindChecklistLauncher(el, project, extras.checklists || [], reload);
 
   // Quick status inside the drawer: refresh the drawer AND the list behind it.
   el.querySelectorAll('[data-set-status]').forEach((item) => {
@@ -367,7 +367,7 @@ export function bindDrawer(el, project, retests, extras = { files: [], checklist
   el.querySelector('[data-delete-project]')?.addEventListener('click', async () => {
     const ok = await confirmDialog({
       title: 'Delete project?',
-      message: `"${project.name}" and its ${retests.length} retest request(s) will be permanently deleted. This cannot be undone.`,
+      message: `"${project.name}", its ${retests.length} retest request(s), its files and its checklist answers will be permanently deleted. This cannot be undone.`,
       confirmLabel: 'Delete project',
     });
     if (!ok) return;

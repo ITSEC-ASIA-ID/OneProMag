@@ -16,7 +16,34 @@ import { assertProject, requireCatalogManager, requireDeleter } from '../shared.
 
 export const CHECKLIST_STATUS = ['Open', 'Pass', 'Fail', 'N/A'];
 
+/** `projects.category` values, plus '' for a template that fits any of them. */
+export const CHECKLIST_CATEGORIES = ['', 'Web', 'Mobile', 'API', 'EDC'];
+
 const OPEN = 'Open';
+
+function wantedCategory(value) {
+  const raw = String(value ?? '').trim();
+  const match = CHECKLIST_CATEGORIES.find((c) => c.toLowerCase() === raw.toLowerCase());
+  if (match === undefined) {
+    throw new HttpError(400, `Unknown category: ${raw} — pick one of ${CHECKLIST_CATEGORIES.filter(Boolean).join(', ')}`);
+  }
+  return match;
+}
+
+/**
+ * One default per category: the whole point is that a project's category
+ * answers "which checklist am I measured against", and two defaults would make
+ * that answer depend on row order.
+ */
+async function claimDefault(conn, category, exceptId) {
+  if (category === '') {
+    throw new HttpError(400, 'Set a category before making a checklist the default');
+  }
+  await conn.run(
+    'UPDATE checklists SET is_default = FALSE WHERE category = ? AND id <> ?',
+    [category, Number(exceptId)]
+  );
+}
 
 function text(value, max = 300) {
   return String(value ?? '')
@@ -47,6 +74,8 @@ function shapeChecklist(row) {
     id: Number(row.id),
     name: row.name,
     description: row.description || '',
+    category: row.category || '',
+    isDefault: Boolean(row.is_default),
     createdAt: row.created_at,
     itemCount: row.item_count === undefined ? undefined : Number(row.item_count),
     projectCount: row.project_count === undefined ? undefined : Number(row.project_count),
@@ -100,7 +129,8 @@ function progressOf(items, answers) {
 /** The whole engagement view: attached templates, their items, the answers. */
 async function projectChecklists(projectId) {
   const attached = await db.all(
-    `SELECT pc.id, pc.checklist_id, pc.created_at, c.name, c.description
+    `SELECT pc.id, pc.checklist_id, pc.created_at, c.name, c.description,
+            c.category, c.is_default
        FROM project_checklists pc
        JOIN checklists c ON c.id = pc.checklist_id
       WHERE pc.project_id = ?
@@ -133,6 +163,8 @@ async function projectChecklists(projectId) {
       checklistId: Number(link.checklist_id),
       name: link.name,
       description: link.description || '',
+      category: link.category || '',
+      isDefault: Boolean(link.is_default),
       createdAt: link.created_at,
       progress: progressOf(mine, answers),
       items: mine.map((item) => {
@@ -161,14 +193,49 @@ async function itemLabel(itemId) {
   );
 }
 
+/**
+ * Attaches the default template of a category, if there is one and it is not
+ * already on the project. Called when a project is written with a category, so
+ * choosing "API" is enough to get the API checklist — while any other template
+ * can still be attached by hand, and nothing is ever detached implicitly.
+ *
+ * Returns the ids it attached, so the caller can say what happened.
+ */
+export async function attachCategoryDefaults(conn, projectId, category) {
+  const key = String(category || '').trim();
+  if (!key) return [];
+  const defaults = await conn.all(
+    'SELECT id FROM checklists WHERE category = ? AND is_default = TRUE',
+    [key]
+  );
+  const attached = [];
+  for (const row of defaults) {
+    const exists = await conn.get(
+      'SELECT id FROM project_checklists WHERE project_id = ? AND checklist_id = ?',
+      [projectId, row.id]
+    );
+    if (exists) continue;
+    await conn.run(
+      'INSERT INTO project_checklists (project_id, checklist_id, created_at) VALUES (?, ?, ?)',
+      [projectId, row.id, nowISO()]
+    );
+    attached.push(Number(row.id));
+  }
+  return attached;
+}
+
 export const routes = {
-  'GET /api/checklists': async () => {
+  'GET /api/checklists': async (ctx) => {
+    const filter = ctx.query && ctx.query.category;
+    const where = filter === undefined ? '' : 'WHERE c.category IN (?, \'\')';
     const rows = await db.all(
       `SELECT c.*,
               (SELECT COUNT(*) FROM checklist_items i WHERE i.checklist_id = c.id) AS item_count,
               (SELECT COUNT(*) FROM project_checklists pc WHERE pc.checklist_id = c.id) AS project_count
          FROM checklists c
-        ORDER BY c.name`
+        ${where}
+        ORDER BY c.is_default DESC, c.name`,
+      filter === undefined ? [] : [wantedCategory(filter)]
     );
     return { checklists: rows.map(shapeChecklist) };
   },
@@ -185,10 +252,14 @@ export const routes = {
   'POST /api/checklists': async (ctx) => {
     requireCatalogManager(ctx);
     const name = wanted(ctx.body?.name).slice(0, 120);
+    const category = wantedCategory(ctx.body?.category);
+    const isDefault = Boolean(ctx.body?.isDefault);
     await assertUniqueName(name);
+    if (isDefault) await claimDefault(db, category, 0);
     const info = await db.run(
-      'INSERT INTO checklists (name, description, created_at) VALUES (?, ?, ?) RETURNING id',
-      [name, text(ctx.body?.description, 500), nowISO()]
+      `INSERT INTO checklists (name, description, category, is_default, created_at)
+       VALUES (?, ?, ?, ${isDefault ? 'TRUE' : 'FALSE'}, ?) RETURNING id`,
+      [name, text(ctx.body?.description, 500), category, nowISO()]
     );
     const row = await checklistRow(info.lastInsertId);
     return { checklist: { ...shapeChecklist(row), items: [] } };
@@ -201,13 +272,15 @@ export const routes = {
     const next = {
       name: body.name === undefined ? row.name : wanted(body.name).slice(0, 120),
       description: body.description === undefined ? row.description : text(body.description, 500),
+      category: body.category === undefined ? row.category || '' : wantedCategory(body.category),
+      isDefault: body.isDefault === undefined ? Boolean(row.is_default) : Boolean(body.isDefault),
     };
     if (next.name !== row.name) await assertUniqueName(next.name, row.id);
-    await db.run('UPDATE checklists SET name = ?, description = ? WHERE id = ?', [
-      next.name,
-      next.description,
-      row.id,
-    ]);
+    if (next.isDefault) await claimDefault(db, next.category, row.id);
+    await db.run(
+      `UPDATE checklists SET name = ?, description = ?, category = ?, is_default = ${next.isDefault ? 'TRUE' : 'FALSE'} WHERE id = ?`,
+      [next.name, next.description, next.category, row.id]
+    );
     return { checklist: shapeChecklist(await checklistRow(row.id)) };
   },
 

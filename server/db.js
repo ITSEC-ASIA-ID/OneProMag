@@ -941,75 +941,166 @@ async function seedPropertiesIfEmpty() {
   return { seeded: inserted > 0, properties: inserted };
 }
 
+
 /**
- * The two checklists every install starts with, so a fresh engagement has
- * something to attach instead of an empty picker.
+ * The checklists every install starts with, so a fresh engagement has something
+ * to attach instead of an empty picker.
  *
- * These are ordinary rows afterwards: editable, extendable, deletable once no
- * project uses them. Seeded per template, guarded by `name`, and only when the
- * template carries no items yet — a process killed mid-seed leaves a named
- * template, and the next boot finishes it rather than inserting a second copy.
+ * `key` is the identity, not the name. A shipped template keeps its row — and so
+ * keeps every project already pointing at it — while its name and its questions
+ * change. `version` moves when a standard is republished, which is what a
+ * security checklist does: it is superseded, never edited. Only then are the
+ * items regenerated, and the answers recorded against the replaced ones go with
+ * them, because keeping the 2021 questions alive beside the 2025 ones is worse
+ * than losing a few ticks.
+ *
+ * `category` matches `projects.category` (`Web`, `Mobile`, `API`, `EDC`);
+ * `isDefault` is what a project gets attached to on its own when its category is
+ * chosen. `''` means "fits any category".
+ *
+ * Afterwards these are ordinary rows: editable, extendable, deletable once no
+ * project uses them. `seed_key = ''` marks a template an admin made, and the
+ * sync never touches one of those.
  */
 const DEFAULT_CHECKLISTS = [
   {
-    name: 'OWASP Top 10 2021',
-    description: 'The ten web application risk categories, one testable line each.',
+    key: 'owasp-web',
+    version: 1,
+    name: 'OWASP Top 10:2025',
+    description:
+      'The ten web application risk categories as published for 2025, two testable checks each.',
+    category: 'Web',
+    isDefault: true,
     items: [
       [
-        'A01 — Broken Access Control',
-        'Reach another account\'s object by changing an id, then a role-guarded action as a member.',
-        'IDOR in every endpoint that takes an id; server checks ownership, not just a session.',
+        'A01:2025 — Broken Access Control',
+        'Change an object id in a request to one that belongs to another account.',
+        'Ownership is checked server-side on every id-taking endpoint, not just a valid session.',
       ],
       [
-        'A02 — Cryptographic Failures',
-        'Inspect traffic and storage for plaintext secrets, weak hashes and missing TLS.',
-        'Passwords hashed with a real KDF, nothing sensitive in the URL or in localStorage.',
+        'A01:2025 — Broken Access Control',
+        'Call an admin-only action as a member, and a member-only one as a guest.',
+        'The server answers 403; the refusal is not a hidden button.',
       ],
       [
-        'A03 — Injection',
+        'A02:2025 — Security Misconfiguration',
+        'Read the headers, the error pages, the default accounts and the directory listing.',
+        'No debug mode, no stack trace, no default credentials, no directory listing.',
+      ],
+      [
+        'A02:2025 — Security Misconfiguration',
+        'Ask for a path the router does not own: /.git/config, /.env, /backup.sql, /phpinfo.php.',
+        '404 with no body; deploy artefacts are not in the image.',
+      ],
+      [
+        'A03:2025 — Software Supply Chain Failures',
+        'List every dependency and base image, then match the versions against advisories.',
+        'Nothing with a known critical advisory in the build; audit output triaged, not ignored.',
+      ],
+      [
+        'A03:2025 — Software Supply Chain Failures',
+        'Follow one package from manifest to running process: registry, lockfile, build step.',
+        'Lockfile committed and verified, image pulled by digest, no build from an unpinned branch.',
+      ],
+      [
+        'A04:2025 — Cryptographic Failures',
+        'Look for plaintext secrets in traffic, storage, logs and URLs.',
+        'Passwords behind a real KDF; nothing sensitive in a URL or in localStorage.',
+      ],
+      [
+        'A04:2025 — Cryptographic Failures',
+        'Scan TLS: protocols, ciphers, chain, and whether plain HTTP redirects.',
+        'TLS 1.2+, no RC4/3DES/export ciphers, valid chain, HSTS on the apex.',
+      ],
+      [
+        'A05:2025 — Injection',
         'Send quotes, unions and template syntax to every input that reaches a query, a shell or a template.',
         'Parameterised queries; no string concatenation into SQL, shell or HTML.',
       ],
       [
-        'A04 — Insecure Design',
-        'Try to skip a step the flow assumes: reorder, replay, or jump straight to the last screen.',
-        'Business rules enforced server-side, not by hiding a button.',
+        'A05:2025 — Injection',
+        'Use a filename, an upload and a header as the injection carrier.',
+        'Filenames are stored as data; headers never reach a shell command.',
       ],
       [
-        'A05 — Security Misconfiguration',
-        'Read the headers, the error pages, the default accounts and the directory listing.',
-        'No debug mode, no stack traces, no default credentials, no directory listing.',
+        'A06:2025 — Insecure Design',
+        'Skip a step the flow assumes: reorder it, replay it, jump straight to the last screen.',
+        'Business rules enforced server-side, not by the order of the screens.',
       ],
       [
-        'A06 — Vulnerable and Outdated Components',
-        'Match every library and base image version against its advisories.',
-        'Audit output triaged; nothing with a known critical advisory in the build.',
+        'A06:2025 — Insecure Design',
+        'Ask what the feature allows at ten times the intended rate.',
+        'Quotas and limits designed in, not bolted on after the abuse.',
       ],
       [
-        'A07 — Identification and Authentication Failures',
+        'A07:2025 — Authentication Failures',
         'Attack the login: weak passwords, no lockout, session fixation, a token that survives logout.',
         'Sessions invalidated on logout and password change; brute force slowed or blocked.',
       ],
       [
-        'A08 — Software and Data Integrity Failures',
+        'A07:2025 — Authentication Failures',
+        'Walk the password reset and the MFA flows looking for a way around them.',
+        'Reset tokens single-use and short-lived; MFA cannot be skipped by replaying a request.',
+      ],
+      [
+        'A08:2025 — Software or Data Integrity Failures',
         'Check what the app trusts without verifying: updates, deserialisation, third-party scripts.',
         'No unsigned update path, no unsafe deserialisation of user input.',
       ],
       [
-        'A09 — Security Logging and Monitoring Failures',
+        'A08:2025 — Software or Data Integrity Failures',
+        'Poison something the app loads: a cache entry, a CDN file, a package.',
+        'Subresource integrity or a pinned vendor copy; cache keys not attacker-chosen.',
+      ],
+      [
+        'A09:2025 — Security Logging and Alerting Failures',
         'Do something hostile, then ask whether anyone could ever find out it happened.',
         'Auth failures and privilege changes logged without secrets, and retained.',
       ],
       [
-        'A10 — Server-Side Request Forgery',
-        'Point every URL parameter at an internal address and watch what comes back.',
-        'Outbound fetch allow-listed, internal ranges refused, response not echoed.',
+        'A09:2025 — Security Logging and Alerting Failures',
+        'Check the alarm, not just the log: is anything watching?',
+        'A burst of failed logins raises an alert a person actually reads.',
+      ],
+      [
+        'A10:2025 — Mishandling of Exceptional Conditions',
+        'Feed malformed input to every parser: JSON, dates, numbers, odd encodings.',
+        'Errors handled per request; one bad request cannot fail the others.',
+      ],
+      [
+        'A10:2025 — Mishandling of Exceptional Conditions',
+        'Run out of something: disk, memory, connections, a dependency that times out.',
+        'Fails closed with a clear error, no crash loop, no half-written state.',
       ],
     ],
   },
   {
+    key: 'owasp-api',
+    version: 1,
+    name: 'OWASP API Security Top 10 2023',
+    description: 'The 2023 API risk categories, one testable check each.',
+    category: 'API',
+    isDefault: true,
+    items: [
+      ['API1:2023 — Broken Object Level Authorization', 'Change an object id in every endpoint that takes one, including nested and bulk routes.', 'Ownership checked per object, not per session and not per route.'],
+      ['API2:2023 — Broken Authentication', 'Take the token apart: where it is stored, how long it lives, whether logout kills it.', 'Short-lived tokens, rotation on login, server-side invalidation on logout.'],
+      ['API3:2023 — Broken Object Property Level Authorization', 'Compare the response body to what the screen needs, then send fields that should be read-only.', 'No extra fields in the response; the server ignores fields a client must not set.'],
+      ['API4:2023 — Unrestricted Resource Consumption', 'Ask for a million rows, an absurd page size, and an upload with no cap.', 'Pagination, size caps and rate limits enforced server-side.'],
+      ['API5:2023 — Broken Function Level Authorization', 'Call an admin endpoint with a member token, and a member endpoint as a guest.', 'Every route checks the role it needs; the 403 comes from the server.'],
+      ['API6:2023 — Unrestricted Access to Sensitive Business Flows', 'Replay a purchase, a ticket claim or a coupon — in parallel, and very fast.', 'Idempotency keys and per-account limits; automation cannot exceed a human.'],
+      ['API7:2023 — Server Side Request Forgery', 'Point every URL or webhook parameter at 169.254.169.254 and at localhost.', 'Outbound fetch allow-listed; internal ranges refused; the response is not echoed back.'],
+      ['API8:2023 — Security Misconfiguration', 'Read the headers, the CORS policy, the error bodies and the docs endpoint.', 'No wildcard CORS with credentials, no stack trace, no open documentation endpoint.'],
+      ['API9:2023 — Improper Inventory Management', 'Find versions and hosts nobody documented: /v1, /beta, /internal, staging.', 'Every deployed version inventoried, deprecated ones switched off, not merely undocumented.'],
+      ['API10:2023 — Unsafe Consumption of APIs', 'Feed a third-party response you control: a redirect, a huge body, a TLS downgrade.', 'Third-party data validated like user input; timeouts and size limits on the call.'],
+    ],
+  },
+  {
+    key: 'web-hardening',
+    version: 1,
     name: 'Web hardening basics',
     description: 'The checks that are always the same, on every engagement.',
+    category: 'Web',
+    isDefault: false,
     items: [
       ['Security headers', 'Read the response headers of the landing page and an API call.', 'CSP, HSTS, X-Content-Type-Options, Referrer-Policy, frame-ancestors.'],
       ['TLS configuration', 'Run a protocol and cipher scan against the host.', 'TLS 1.2+, no RC4/3DES/export ciphers, valid chain, HSTS on the apex.'],
@@ -1025,36 +1116,105 @@ const DEFAULT_CHECKLISTS = [
   },
 ];
 
-async function seedChecklistsIfEmpty() {
+/** Ship-then-withdraw: a template we no longer publish, dropped on boot. */
+const RETIRED_CHECKLISTS = ['OWASP Top 10 2021'];
+
+/**
+ * Seeds the shipped templates and keeps them current.
+ *
+ * Idempotent, and safe to kill halfway: the row is written before its items, so
+ * the next boot sees the version it has not reached yet and finishes the job
+ * instead of inserting a second copy.
+ */
+async function syncSeededChecklists() {
   const stamp = now();
-  let seeded = 0;
+  const live = DEFAULT_CHECKLISTS.map((template) => template.key);
+  let written = 0;
+  let retired = 0;
+
   for (const template of DEFAULT_CHECKLISTS) {
-    await db.run(
-      `INSERT INTO checklists (name, description, created_at)
-       VALUES (?, ?, ?)
-       ON CONFLICT (name) DO NOTHING`,
-      [template.name, template.description, stamp]
-    );
-    const row = await db.get('SELECT id FROM checklists WHERE name = ?', [template.name]);
-    if (!row) continue;
-    const existing = await db.get('SELECT COUNT(*) AS n FROM checklist_items WHERE checklist_id = ?', [
-      row.id,
+    let row = await db.get('SELECT id, seed_version FROM checklists WHERE seed_key = ?', [
+      template.key,
     ]);
-    if (Number(existing && existing.n) > 0) continue;
-    await db.transaction(async (tx) => {
-      for (let i = 0; i < template.items.length; i += 1) {
-        const [section, title, help] = template.items[i];
-        await tx.run(
-          `INSERT INTO checklist_items (checklist_id, section, title, help, position)
-           VALUES (?, ?, ?, ?, ?)`,
-          [row.id, section, title, help, i]
-        );
+    if (!row) {
+      // An install seeded before `seed_key` existed carries the same template
+      // under its name, with no key: adopt it rather than adding a duplicate.
+      const legacy = await db.get(
+        "SELECT id, seed_version FROM checklists WHERE name = ? AND seed_key = ''",
+        [template.name]
+      );
+      if (legacy) {
+        await db.run('UPDATE checklists SET seed_key = ? WHERE id = ?', [template.key, legacy.id]);
+        row = legacy;
       }
+    }
+
+    if (!row) {
+      const inserted = await db.run(
+        `INSERT INTO checklists (name, description, category, is_default, seed_key, seed_version, created_at)
+         VALUES (?, ?, ?, ${template.isDefault ? 'TRUE' : 'FALSE'}, ?, ?, ?) RETURNING id`,
+        [template.name, template.description, template.category, template.key, template.version, stamp]
+      );
+      await writeChecklistItems(db, inserted.lastInsertId, template.items);
+      written += 1;
+      continue;
+    }
+
+    await db.run(
+      `UPDATE checklists
+          SET name = ?, description = ?, category = ?, is_default = ${template.isDefault ? 'TRUE' : 'FALSE'}
+        WHERE id = ?`,
+      [template.name, template.description, template.category, row.id]
+    );
+    if (Number(row.seed_version || 0) >= template.version) continue;
+
+    await db.transaction(async (tx) => {
+      await tx.run('DELETE FROM checklist_items WHERE checklist_id = ?', [row.id]);
+      await writeChecklistItems(tx, row.id, template.items);
+      await tx.run('UPDATE checklists SET seed_version = ? WHERE id = ?', [
+        template.version,
+        row.id,
+      ]);
     });
-    seeded += 1;
+    written += 1;
   }
-  return { seeded: seeded > 0, checklists: seeded };
+
+  // Our own superseded templates, plus anything renamed away from a published
+  // name before `seed_key` existed. A project still pointing at one is detached
+  // first: `ON DELETE RESTRICT` would otherwise stop the boot.
+  for (const name of RETIRED_CHECKLISTS) {
+    const stale = await db.all("SELECT id FROM checklists WHERE name = ? AND seed_key = ''", [name]);
+    for (const { id } of stale) {
+      await db.transaction(async (tx) => {
+        await tx.run('DELETE FROM project_checklists WHERE checklist_id = ?', [id]);
+        await tx.run('DELETE FROM checklists WHERE id = ?', [id]);
+      });
+      retired += 1;
+    }
+  }
+  const shipped = await db.all("SELECT id, seed_key FROM checklists WHERE seed_key <> ''");
+  for (const row of shipped) {
+    if (live.includes(row.seed_key)) continue;
+    await db.transaction(async (tx) => {
+      await tx.run('DELETE FROM project_checklists WHERE checklist_id = ?', [row.id]);
+      await tx.run('DELETE FROM checklists WHERE id = ?', [row.id]);
+    });
+    retired += 1;
+  }
+
+  return { seeded: written > 0, checklists: written, retired };
 }
+
+async function writeChecklistItems(conn, checklistId, items) {
+  for (let i = 0; i < items.length; i += 1) {
+    const [section, title, help] = items[i];
+    await conn.run(
+      'INSERT INTO checklist_items (checklist_id, section, title, help, position) VALUES (?, ?, ?, ?, ?)',
+      [checklistId, section, title, help, i]
+    );
+  }
+}
+
 
 /**
  * The shape of the schema this release expects.
@@ -1066,8 +1226,9 @@ async function seedChecklistsIfEmpty() {
  *
  * 12 — retest rows in the active lists, paging, properties, documents per env.
  * 19 — project attachments and security checklists.
+ * 20 — checklist categories, one default per category, versioned seed.
  */
-export const SCHEMA_VERSION = 19;
+export const SCHEMA_VERSION = 20;
 
 let appliedSchemaVersion = 0;
 
@@ -1133,7 +1294,7 @@ export async function initDatabase() {
   // Properties before the demo seed: the seeded projects carry category/status keys
   // that must already mean something.
   const properties = await seedPropertiesIfEmpty();
-  const checklists = await seedChecklistsIfEmpty();
+  const checklists = await syncSeededChecklists();
   const result = SEED_DEMO ? await seed() : await seedBootstrapAdmin();
   // Runs after seed() on purpose: a brand-new database gets its devices from
   // seed() itself, and only an EXISTING install needs the backfill. With demo
@@ -1424,6 +1585,7 @@ async function createIndexes() {
     'CREATE INDEX IF NOT EXISTS idx_checklist_items_checklist ON checklist_items(checklist_id, position)',
     // "which projects use this template" gates the delete; "which templates does
     // this project carry" is asked on every drawer open.
+    'CREATE INDEX IF NOT EXISTS idx_checklists_category ON checklists(category, is_default)',
     'CREATE INDEX IF NOT EXISTS idx_project_checklists_project ON project_checklists(project_id)',
     'CREATE INDEX IF NOT EXISTS idx_project_checklists_checklist ON project_checklists(checklist_id)',
     // The device page filters by kind (four tabs), so kind leads the index.
@@ -1502,6 +1664,13 @@ async function migrateSqlite() {
   // The primary key is widened by migrateDocumentsKey() below, which runs only on
   // databases created before this column existed.
   await addColumnIfMissing('documents', 'env', "TEXT NOT NULL DEFAULT 'Dev'");
+  // v1.20: a checklist answers to one project category, one per category can be
+  // the default a project is attached to by itself, and a shipped template
+  // carries the key and version that let a later boot replace it.
+  await addColumnIfMissing('checklists', 'category', "TEXT NOT NULL DEFAULT ''");
+  await addColumnIfMissing('checklists', 'is_default', 'INTEGER NOT NULL DEFAULT 0');
+  await addColumnIfMissing('checklists', 'seed_key', "TEXT NOT NULL DEFAULT ''");
+  await addColumnIfMissing('checklists', 'seed_version', 'INTEGER NOT NULL DEFAULT 0');
 }
 
 async function migratePostgres() {
@@ -1554,6 +1723,11 @@ async function migratePostgres() {
   await addColumnIfMissing('devices', 'extra', "TEXT NOT NULL DEFAULT '{}'");
   // v1.10: per-environment documents (see migrateSqlite above).
   await addColumnIfMissing('documents', 'env', "TEXT NOT NULL DEFAULT 'Dev'");
+  // v1.20: checklist category, per-category default and seed identity.
+  await addColumnIfMissing('checklists', 'category', "TEXT NOT NULL DEFAULT ''");
+  await addColumnIfMissing('checklists', 'is_default', 'BOOLEAN NOT NULL DEFAULT false');
+  await addColumnIfMissing('checklists', 'seed_key', "TEXT NOT NULL DEFAULT ''");
+  await addColumnIfMissing('checklists', 'seed_version', 'INTEGER NOT NULL DEFAULT 0');
 }
 
 export { seed };

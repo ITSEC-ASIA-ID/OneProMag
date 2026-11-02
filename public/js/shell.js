@@ -1,4 +1,5 @@
 import { openAccountMenu, renderAuth } from './auth.js';
+import { mountChecklistPage } from './checklist-page.js';
 import { refreshChecklists } from './checklists.js';
 import { openRetestForm } from './drawer.js';
 import { loadDevices } from './devices.js';
@@ -196,11 +197,18 @@ export function syncUrl(mode = 'push') {
 export function finishNav(historyMode = 'push') {
   localStorage.setItem('opm-nav', state.nav);
   syncUrl(historyMode);
-  document.querySelectorAll('[data-nav]').forEach((b) => b.classList.toggle('active', b.dataset.nav === state.nav));
+  // A project's checklist belongs to the project list: keep that row lit rather
+  // than leaving the sidebar with nothing active, which reads as "lost".
+  const lit = state.nav === 'checklist' ? 'active' : state.nav;
+  document.querySelectorAll('[data-nav]').forEach((b) => b.classList.toggle('active', b.dataset.nav === lit));
 
   const onBoard = state.nav === 'team';
 
   mountContent();
+  if (state.nav === 'checklist') {
+    void mountChecklistPage();
+    return;
+  }
   // Admin pages render their own content; there is no project list to load.
   if (
     state.nav === 'clients' ||
@@ -228,6 +236,13 @@ export function finishNav(historyMode = 'push') {
     return;
   }
   loadProjects();
+}
+
+
+/** Opens a project's checklist page, the one URL that carries an id. */
+export function openChecklistPage(projectId) {
+  state.checklistProjectId = Number(projectId);
+  handleNav('checklist', { history: 'push' });
 }
 
 
@@ -480,10 +495,14 @@ export async function boot() {
     bindShell();
     syncUrl('replace');
     mountContent();
-    document.querySelectorAll('[data-nav]').forEach((b) => b.classList.toggle('active', b.dataset.nav === state.nav));
+    // A project's checklist has no nav row of its own; its project list keeps
+    // the highlight rather than leaving the sidebar blank.
+    const lit = state.nav === 'checklist' ? 'active' : state.nav;
+    document.querySelectorAll('[data-nav]').forEach((b) => b.classList.toggle('active', b.dataset.nav === lit));
 
     if (state.nav === 'clients' || state.nav === 'properties') return;
     if (state.nav === 'checklists') return void refreshChecklists();
+    if (state.nav === 'checklist') return void mountChecklistPage();
     if (state.nav === 'directory') return void loadDirectory();
     // The Users page counts each person's projects and each supervisor's owned
     // engagements, so opening it cold (a reload straight onto it) must fetch the
