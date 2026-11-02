@@ -1,6 +1,6 @@
 import { openAccountMenu, renderAuth } from './auth.js';
 import { mountChecklistPage } from './checklist-page.js';
-import { mountProjectPage } from './project-page.js';
+import { forgetProjectPage, mountProjectPage } from './project-page.js';
 import { mountChecklistEditor, refreshChecklists } from './checklists.js';
 import { openRetestForm } from './drawer.js';
 import { loadDevices } from './devices.js';
@@ -269,6 +269,8 @@ export function openChecklistPage(projectId) {
 /** Opens a project on its own page: the drawer's "open full page" target. */
 export function openProjectPage(projectId) {
   state.projectViewId = Number(projectId);
+  state.projectTab = 'overview';
+  forgetProjectPage();
   handleNav('project', { history: 'push' });
 }
 

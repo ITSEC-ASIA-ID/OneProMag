@@ -949,9 +949,16 @@ Everyone can read and write notes; the author is recorded and shown in the foote
   notes fit side by side. The drawer's footer no longer carries a duplicate Edit:
   one Edit lives in the header, where the Delete it sits beside already was. Both
   surfaces render `tabBody()` and wire it with `bindProjectActions()`, so a status
-  button cannot mean one thing in the drawer and another on the page. The URL is
-  `/project/<id>` (the checklist keeps `/project/<id>/checklist`), it survives a
-  reload, and the project list's row stays lit while you are on it
+  button cannot mean one thing in the drawer and another on the page
+- **The page keeps the tabs, and the tab is in the URL.** `/project/12` is
+  Overview, `/project/12/retests` is Retests, and so on for `attachments` and
+  `notes`. Overview is the bare path so the common case stays short; the others are
+  spelled out, because the tab you were reading is part of the address — a reload,
+  a bookmark or a link to a colleague must land on it, not on Overview. Tab
+  switches are `pushState` (Back undoes a tab click), the sidebar's project row
+  stays lit throughout, and a segment that is not a tab falls back to the list. The
+  Checklist tab leaves the page for `/project/12/checklist`, exactly as in the
+  drawer: a real list is longer than a panel.
 - Table columns: Project / Category / **SV** / Pentesters / Retests / Status. There is
   no Client column — the client is folded under the project name as
   **`Client – Application`** (e.g. `Bank Nusantara – Qitta`), so nothing is lost while

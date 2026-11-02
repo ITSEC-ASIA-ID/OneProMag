@@ -6760,11 +6760,20 @@ svg { display: block; }
   overflow-wrap: anywhere;
 }
 .pjp-meta { margin-top: 7px; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+/* The drawer's tabs, on a page: same tab, same order, same counts. The rule
+   under them is what the tabs' negative margin was always sitting on. */
+.pjp-tabs {
+  margin-top: 18px;
+  border-bottom: 1px solid var(--border);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.pjp-tabs::-webkit-scrollbar { display: none; }
+.pjp-tabs .tab { flex: 1 1 auto; white-space: nowrap; text-align: center; padding-inline: 14px; }
 .pjp-title .drawer-client { margin-top: 8px; }
 .pjp-title .cat-icon { width: 42px; height: 42px; border-radius: 12px; }
 
-/* One panel per section, each a card, so a long project reads as chapters
-   instead of one wall. */
+/* One card holds the open tab, so the panel has an edge to sit on. */
 .pjp-sec {
   background: var(--surface);
   border: 1px solid var(--border);
@@ -6781,4 +6790,5 @@ svg { display: block; }
   .pjp-title-main { flex-direction: column; gap: 8px; }
   .pjp-title-main h2 { font-size: 18px; }
   .pjp-acts .btn { flex: 1; justify-content: center; }
+  .pjp-tabs .tab { flex: 1 0 auto; font-size: 12.5px; padding-inline: 10px; }
 }

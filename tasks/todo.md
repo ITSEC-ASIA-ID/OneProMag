@@ -357,5 +357,11 @@ attaches itself.
   - Verify: `menuOf(toggle)` falls back to the portalled node via `menu._qsHome`; the toggle click now queries every `.quick-status-menu` document-wide before closing them. Probe: open → close → open reports `1 / 0 / 1` visible menus and an empty error list.
   - Files: `public/js/drawer.js`
 
+- [x] **The page keeps the drawer's tabs, and the tab is in the URL**
+  - Acceptance: `/project/<id>` shows Overview · Checklist · Files · Retests · Notes with the same counts as the drawer; each tab has an address; reloading or bookmarking it lands on that tab; Back undoes a tab click; the Checklist tab leaves for the checklist page.
+  - Reason: "which of these five things am I looking at" is the same question on a page as in a column, and the tab you were reading is part of the address — a link that always opens Overview is a link you have to re-navigate by hand.
+  - Verify: `PROJECT_PATH(projectId, tab)` keeps Overview as the bare path and appends the rest; `state.projectTab` + the `(overview|checklist|attachments|retests|notes)` group in `navForPath`; `openProjectPage()` resets the tab and clears the page cache. Probes: four tab clicks gave `/project/4`, `/project/4/attachments`, `/project/4/retests`, `/project/4/notes` with the right panel each time; a reload on `/retests` came back on retests; `history.back()` from `/notes` returned to `/retests`; `/project/4/bogus` and `/project/9999` both land on `/projects` (the second with "That project is gone — pick another one"); `bagas` opens all four tab URLs with 0 delete buttons and zero console errors.
+  - Files: `public/js/project-page.js`, `public/js/state.js`, `public/js/shell.js`, `public/css/styles.css`
+
 - [x] **Verified end to end**
-  - 56/56 tests; md5 live == local for all seven touched files; all twelve nav pages render with zero console errors; `history.back()` from `/project/4` lands on `/projects`; the checklist page at `/project/4/checklist` still renders ten items and its Back button still says "Projects".
+  - 56/56 tests; md5 live == local for all seven touched files; all twelve nav pages render with zero console errors in both themes; `history.back()` from `/project/4` lands on `/projects`; the checklist page at `/project/4/checklist` still renders ten items and its Back button still says "Projects"; 430px page and tab strip both 0 overflow (tabs 398/398).

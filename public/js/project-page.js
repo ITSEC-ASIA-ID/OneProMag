@@ -1,7 +1,7 @@
 import { api } from './api.js';
 import { bindProjectActions, tabBody } from './drawer.js';
+import { openChecklistPage, handleNav, setTitle } from './shell.js';
 import { openProjectForm } from './projects.js';
-import { handleNav, setTitle } from './shell.js';
 import { canManageCatalog, state } from './state.js';
 import { icon } from './icons.js';
 import {
@@ -18,10 +18,21 @@ import {
    does not fit in a glance, so `/project/12` is the same content with room to
    read it, a URL you can send someone, and the browser's own Back.
 
+   It keeps the drawer's tabs, because "which of these five things am I looking
+   at" is the same question on a page as in a column — and because the tab you
+   were on belongs in the address. Checklist is not a tab you can land on: it
+   has its own page (`/project/12/checklist`), so its tab is a way out, exactly
+   as in the drawer.
+
    Nothing here re-implements the drawer: `tabBody` renders the panels and
    `bindProjectActions` wires them, so a status button cannot mean one thing in
    the drawer and another here.
    ============================================================ */
+
+const TABS = ['overview', 'checklist', 'attachments', 'retests', 'notes'];
+
+let pageCache = null;
+
 
 export function projectPageHTML() {
   return `<div class="pjp" id="pjp">
@@ -39,8 +50,24 @@ export function projectPageHTML() {
 }
 
 
-function headHTML(project, retests) {
+function headHTML(project, retests, tab, extras) {
   const openRetests = retests.filter((r) => r.status === 'Incoming' || r.status === 'Ongoing').length;
+  const fails = (extras.checklists || []).reduce((n, c) => n + (Number(c.progress?.fail) || 0), 0);
+  // Same rule as the drawer: a count only where it says something. A "0" badge
+  // is noise; an absent one means "nothing waiting here".
+  const counts = {
+    checklist: fails || undefined,
+    attachments: (extras.files || []).length || undefined,
+    retests: retests.length || undefined,
+  };
+  const labels = {
+    overview: 'Overview',
+    checklist: 'Checklist',
+    attachments: 'Files',
+    retests: 'Retests',
+    notes: 'Notes',
+  };
+
   return `<header class="pjp-title">
     <div class="pjp-title-main">
       <div class="cat-icon" data-cat="${h(project.category || '')}">${catIcon(project.category, 20)}</div>
@@ -65,6 +92,16 @@ function headHTML(project, retests) {
         </div>
       </div>
     </div>
+    <div class="tabs pjp-tabs">
+      ${TABS
+        .map(
+          (id) => `<button class="tab ${id === tab ? 'active' : ''}" data-pjp-tab="${id}"
+            aria-current="${id === tab ? 'page' : 'false'}">${labels[id]}${
+              counts[id] !== undefined ? `<span class="n">${counts[id]}</span>` : ''
+            }</button>`
+        )
+        .join('')}
+    </div>
   </header>`;
 }
 
@@ -79,23 +116,34 @@ export async function mountProjectPage() {
     return;
   }
 
-  const [projectRes, linksRes, fileRes] = await Promise.all([
-    api.project(projectId).catch(() => ({ project: null })),
-    api.projectChecklists(projectId).catch(() => ({ checklists: [] })),
-    api.projectFiles(projectId).catch(() => ({ files: [] })),
-  ]);
-  const project = projectRes.project;
+  // Changing tabs must not refetch: the drawer already proved that a tab is a
+  // view of data the header needs anyway (three counts live in it). One load
+  // per project, then repaints are local.
+  if (!pageCache || pageCache.id !== projectId) {
+    const [projectRes, linksRes, fileRes] = await Promise.all([
+      api.project(projectId).catch(() => ({ project: null })),
+      api.projectChecklists(projectId).catch(() => ({ checklists: [] })),
+      api.projectFiles(projectId).catch(() => ({ files: [] })),
+    ]);
+    pageCache = {
+      id: projectId,
+      data: projectRes,
+      links: linksRes.checklists || [],
+      files: fileRes.files || [],
+    };
+  }
+
+  const project = pageCache.data.project;
   if (!project) {
+    pageCache = null;
     toast('That project is gone — pick another one', 'err');
     handleNav('active');
     return;
   }
 
-  const retests = projectRes.retests || [];
-  const extras = {
-    files: fileRes.files || [],
-    checklists: linksRes.checklists || [],
-  };
+  const retests = pageCache.data.retests || [];
+  const extras = { files: pageCache.files, checklists: pageCache.links };
+  const tab = TABS.includes(state.projectTab) ? state.projectTab : 'overview';
 
   setTitle(project.name, `${project.client || 'No client'} · ${project.category || ''}`);
   document.title = project.name;
@@ -114,21 +162,10 @@ export async function mountProjectPage() {
     }`;
 
   const body = root.querySelector('#pjp-body');
-  body.innerHTML = `${headHTML(project, retests)}
-    <section class="pjp-sec">${tabBody(project, retests, 'overview', extras)}</section>
-    <section class="pjp-sec" id="sec-retests">
-      <div class="section-head"><h3>Retests</h3><span class="badge badge-outline">${retests.length}</span>
-        <span class="spacer"></span>
-        <button class="btn btn-sm" data-add-retest>${icon.plus()} New retest</button>
-      </div>
-      ${tabBody(project, retests, 'retests', extras)}
-    </section>
-    <section class="pjp-sec" id="sec-notes">
-      <div class="section-head"><h3>Notes</h3></div>
-      ${tabBody(project, retests, 'notes', extras)}
-    </section>`;
+  body.innerHTML = `${headHTML(project, retests, tab, extras)}
+    <section class="pjp-sec" id="pjp-panel">${panelHTML(project, retests, tab, extras)}</section>`;
 
-  bindProjectActions(body, project, retests, extras, mountProjectPage);
+  bindPanel(project, retests, tab, extras);
 
   acts.querySelector('[data-pjp-edit]').addEventListener('click', () => openProjectForm(project));
   acts.querySelector('[data-pjp-del]')?.addEventListener('click', async () => {
@@ -138,6 +175,7 @@ export async function mountProjectPage() {
       confirmLabel: 'Delete project',
     });
     if (!ok) return;
+    pageCache = null;
     try {
       await api.deleteProject(project.id);
       toast('Project deleted');
@@ -148,4 +186,63 @@ export async function mountProjectPage() {
   });
 
   root.querySelector('[data-pjp-back]').addEventListener('click', () => handleNav('active'));
+}
+
+
+/** The panel for one tab. Retests keep their heading and its New button. */
+function panelHTML(project, retests, tab, extras) {
+  if (tab === 'overview') return tabBody(project, retests, 'overview', extras);
+  if (tab === 'attachments') return tabBody(project, retests, 'attachments', extras);
+  if (tab === 'retests') {
+    // The empty state carries its own "New retest"; only a populated list needs
+    // the heading's button, or the page offers the same action twice.
+    return `<div class="section-head"><h3>Client requests</h3>
+        <span class="badge badge-outline">${retests.length}</span>
+        <span class="spacer"></span>
+        ${
+          retests.length
+            ? `<button class="btn btn-sm" data-add-retest>${icon.plus()} New retest</button>`
+            : ''
+        }
+      </div>
+      ${tabBody(project, retests, 'retests', extras)}`;
+  }
+  return tabBody(project, retests, 'notes', extras);
+}
+
+
+function bindPanel(project, retests, tab, extras) {
+  // Bound on the body, not the panel: the status menu lives in the header, and
+  // `bindProjectActions` is what makes it clickable — the same call the drawer
+  // makes, which is the point.
+  const body = document.getElementById('pjp-body');
+  if (!body) return;
+
+  // Repainting the page after a change: same project, same tab, fresh data.
+  const reload = async () => {
+    pageCache = null;
+    await mountProjectPage();
+  };
+
+  bindProjectActions(body, project, retests, extras, reload);
+
+  document.querySelectorAll('[data-pjp-tab]').forEach((btn) =>
+    btn.addEventListener('click', () => {
+      const next = btn.dataset.pjpTab;
+      if (next === 'checklist') {
+        // The checklist is a page, not a panel — identical to the drawer's tab.
+        openChecklistPage(project.id);
+        return;
+      }
+      state.projectTab = next;
+      handleNav('project', { history: 'push' });
+    })
+  );
+
+}
+
+
+/** Forgets the cached project, so the next mount refetches. */
+export function forgetProjectPage() {
+  pageCache = null;
 }

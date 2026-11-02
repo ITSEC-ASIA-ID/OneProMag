@@ -151,8 +151,13 @@ export const CHECKLIST_EDIT_PATH = (id) => `/admin/checklists/${id ? Number(id) 
 /**
  * One project, as a page. The drawer answers "what is this?"; this answers
  * "show me everything", and needs its own address to be worth having.
+ *
+ * Overview is the bare path so the common case stays short; every other tab is
+ * spelled out, because the tab you were reading is part of the address — a
+ * reload, a bookmark or a link sent to a colleague must land on it.
  */
-export const PROJECT_PATH = (projectId) => `/project/${Number(projectId) || 0}`;
+export const PROJECT_PATH = (projectId, tab = 'overview') =>
+  `/project/${Number(projectId) || 0}${tab && tab !== 'overview' ? `/${tab}` : ''}`;
 
 export const DEFAULT_NAV = 'active';
 
@@ -163,7 +168,7 @@ const PATH_NAV = Object.fromEntries(Object.entries(NAV_PATHS).map(([nav, path]) 
 export function pathForNav(nav) {
   if (nav === 'checklist') return CHECKLIST_PATH(state.checklistProjectId);
   if (nav === 'checklist-edit') return CHECKLIST_EDIT_PATH(state.checklistEditId);
-  if (nav === 'project') return PROJECT_PATH(state.projectViewId);
+  if (nav === 'project') return PROJECT_PATH(state.projectViewId, state.projectTab);
   return NAV_PATHS[nav] || NAV_PATHS[DEFAULT_NAV];
 }
 
@@ -176,9 +181,10 @@ export function navForPath(pathname) {
     state.checklistProjectId = Number(scoped[1]);
     return 'checklist';
   }
-  const project = /^\/project\/(\d+)$/.exec(clean);
+  const project = /^\/project\/(\d+)(?:\/(overview|checklist|attachments|retests|notes))?$/.exec(clean);
   if (project) {
     state.projectViewId = Number(project[1]);
+    state.projectTab = project[2] || 'overview';
     return 'project';
   }
   const edit = /^\/admin\/checklists\/(new|\d+)$/.exec(clean);
@@ -275,8 +281,9 @@ export const state = {
   checklistProjectId: null,
   // Which template the editor page is pointed at; null means "a new one".
   checklistEditId: null,
-  // Which project the full-page view is showing.
+  // Which project the full-page view is showing, and which of its tabs.
   projectViewId: null,
+  projectTab: 'overview',
   drawerTab: 'overview',
   drawer: null,
 };
