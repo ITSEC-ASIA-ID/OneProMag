@@ -372,13 +372,47 @@ export function bindDrawer(el, project, retests) {
 /* ============================================================
    retest form modal
    ============================================================ */
-export function openRetestForm(projectId, retest = null, onDone) {
+export async function openRetestForm(projectId = null, retest = null, onDone) {
   const editing = Boolean(retest);
+  // Opened from the topbar there is no engagement in context, so the form asks
+  // which one this re-verification belongs to. Opened from a drawer the project is
+  // already known and no field appears — a retest is a property of one project.
+  const needsProject = !editing && !projectId;
+  let choices = [];
+  if (needsProject) {
+    try {
+      choices = (await api.projects()).projects;
+    } catch (err) {
+      return toast(err.message, 'err');
+    }
+    if (!choices.length) {
+      return toast('Add a project first — a retest re-verifies one', 'err');
+    }
+  }
+  // The drawer underneath, if any, is the likeliest answer.
+  const suggested = state.drawerProjectId;
   // The retest carries no free-text title any more: it is simply a queued
   // re-verification of THIS project, so it is named after the project. Only the
   // request date, queue status and notes are captured. requested_by is retired
   // for the same reason — the actor is recorded server-side.
   const body = `
+    ${
+      needsProject
+        ? `<div class="field">
+             <label for="r-project">Project</label>
+             <select class="input" id="r-project">
+               ${choices
+                 .map(
+                   (p) =>
+                     `<option value="${p.id}"${p.id === suggested ? ' selected' : ''}>${h(p.name)} — ${h(p.client || 'no client')} · ${h(p.status)}</option>`
+                 )
+                 .join('')}
+             </select>
+             <span class="hint">Which engagement this re-verification belongs to.</span>
+           </div>`
+        : ''
+    }
+
     <div class="callout">
       ${icon.queue()}
       <div>
@@ -436,6 +470,8 @@ export function openRetestForm(projectId, retest = null, onDone) {
       modal.querySelector('[data-cancel]').addEventListener('click', close);
 
       const save = async () => {
+        const targetId = projectId || Number(modal.querySelector('#r-project')?.value || 0);
+        if (!targetId) return toast('Choose the project this retest belongs to', 'err');
         const payload = {
           requestedAt: modal.querySelector('#r-date').value,
           status: segmentedValue(modal, 'status'),
@@ -454,12 +490,12 @@ export function openRetestForm(projectId, retest = null, onDone) {
             await api.updateRetest(retest.id, payload);
             toast('Retest request updated');
           } else {
-            await api.createRetest(projectId, payload);
+            await api.createRetest(targetId, payload);
             toast('Added to the retest queue');
           }
           close();
           await refreshAll();
-          await renderDrawer(projectId, 'retests', true);
+          if (projectId) await renderDrawer(projectId, 'retests', true);
           onDone?.();
         } catch (err) {
           toast(err.message, 'err');

@@ -1,4 +1,5 @@
 import { openAccountMenu, renderAuth } from './auth.js';
+import { openRetestForm } from './drawer.js';
 import { loadDevices } from './devices.js';
 import { loadDirectory } from './directory.js';
 import { loadInfoPage } from './info.js';
@@ -98,6 +99,7 @@ export function shellHTML() {
             <button class="btn btn-icon" id="theme-btn" aria-label="Toggle theme">
               ${currentTheme() === 'dark' ? icon.sun() : icon.moon()}
             </button>
+            <button class="btn" id="new-retest" aria-label="New retest">${icon.plus()}<span class="hide-sm">New retest</span><span class="show-sm">Retest</span></button>
             <button class="btn btn-primary" id="new-project" aria-label="New project">${icon.plus()}<span class="hide-sm">New project</span><span class="show-sm">New</span></button>
           </div>
         </header>
@@ -132,6 +134,8 @@ export function bindShell() {
   });
 
   document.getElementById('new-project').addEventListener('click', () => openProjectForm());
+  // A retest belongs to a project, so opened from here the form asks which one.
+  document.getElementById('new-retest').addEventListener('click', () => openRetestForm());
   bindPresence();
 
   document.querySelectorAll('[data-nav]').forEach((btn) => {

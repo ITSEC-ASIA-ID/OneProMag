@@ -166,3 +166,10 @@ which is not what this task asked for.
   - Verify: browser pass as admin (11 pages clicked, 11 deep links reloaded, path kept on every one) and as a member (8 pages, `/admin/properties` refused with the toast); zero console errors; `npm test` green (46).
   - Files: `public/js/state.js` (`NAV_PATHS`, `DEFAULT_NAV`, `pathForNav`, `navForPath`), `public/js/shell.js` (`syncUrl`, `handleNav(nav, opts)`, `finishNav(mode)`, popstate listener, boot resolves the nav from the path), `public/js/projects.js`
   - Fixed on the way: `NAV` keyed the accounts page `accounts` while every other place called it `users`, so `NAV[state.nav]` was undefined there and the "is this a real page?" guard bounced a reload straight off the Manage users page. Renamed the entry to `users`.
+
+## `topbar-new-retest`
+
+- [x] **A retest can be raised from the topbar**
+  - Acceptance: `+ New retest` sits beside `+ New project` on every page; it asks which project the request belongs to (the drawer underneath, if any, preselected), then captures date/status/notes exactly as the drawer's form does; the drawer's own "New retest" keeps showing no project field (the project is already known); edit still shows start/end dates and no project field; a member (no delete rights) still sees no trash on the created row.
+  - Verify: created `RT-006-02` on *Internal HRIS Web App* from `/team`, drawer showed it as Incoming with the project status untouched, deleted it again through the UI; drawer form unchanged (no project select, has date); edit form unchanged (start/end, no select); zero console errors; topbar 430px wide with no overflow; `npm test` 46.
+  - Files: `public/js/shell.js` (button + binding, imports `openRetestForm`), `public/js/drawer.js` (`openRetestForm(projectId = null, …)` fetches `api.projects()` only when it has to ask, renders `#r-project`, resolves `targetId` before saving, re-renders the drawer only when one is open)
