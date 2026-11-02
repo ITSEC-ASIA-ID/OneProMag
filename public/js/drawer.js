@@ -381,16 +381,18 @@ export async function openRetestForm(projectId = null, retest = null, onDone) {
   let choices = [];
   if (needsProject) {
     try {
-      choices = (await api.projects()).projects;
+      // Only a finished engagement can be re-verified: a project that is still
+      // being tested would not be re-tested, it would be tested twice.
+      choices = (await api.projects()).projects.filter((p) => p.status === 'Done');
     } catch (err) {
       return toast(err.message, 'err');
     }
     if (!choices.length) {
-      return toast('Add a project first — a retest re-verifies one', 'err');
+      return toast('No finished project yet — a retest re-verifies a completed engagement', 'err');
     }
   }
   // The drawer underneath, if any, is the likeliest answer.
-  const suggested = state.drawerProjectId;
+  const suggested = choices.some((p) => p.id === state.drawerProjectId) ? state.drawerProjectId : null;
   // The retest carries no free-text title any more: it is simply a queued
   // re-verification of THIS project, so it is named after the project. Only the
   // request date, queue status and notes are captured. requested_by is retired
@@ -399,16 +401,27 @@ export async function openRetestForm(projectId = null, retest = null, onDone) {
     ${
       needsProject
         ? `<div class="field">
-             <label for="r-project">Project</label>
-             <select class="input" id="r-project">
+             <div class="field-label">Project</div>
+             <div class="psearch">
+               ${icon.search()}
+               <input class="input" id="r-project-q" placeholder="Search a finished project…" autocomplete="off" />
+             </div>
+             <div class="plist" data-plist>
                ${choices
                  .map(
-                   (p) =>
-                     `<option value="${p.id}"${p.id === suggested ? ' selected' : ''}>${h(p.name)} — ${h(p.client || 'no client')} · ${h(p.status)}</option>`
+                   (p) => `<button type="button" class="plist-item${p.id === suggested ? ' on' : ''}"
+                     data-rid="${p.id}" data-name="${h(`${p.name} ${p.client || ''}`.toLowerCase())}">
+                     <span class="plist-text">
+                       <span class="plist-name">${h(p.name)}</span>
+                       <span class="plist-meta">${h(p.client || 'No client')}${p.endedAt ? ` · ended ${fmtDate(p.endedAt)}` : ''}</span>
+                     </span>
+                     <span class="plist-check">${p.id === suggested ? icon.check() : ''}</span>
+                   </button>`
                  )
                  .join('')}
-             </select>
-             <span class="hint">Which engagement this re-verification belongs to.</span>
+             </div>
+             <div class="picker-empty" hidden>${icon.search()} No finished project matches that name.</div>
+             <span class="hint">Only a finished engagement can be re-verified.</span>
            </div>`
         : ''
     }
@@ -469,8 +482,36 @@ export async function openRetestForm(projectId = null, retest = null, onDone) {
       bindSegmented(modal, 'status');
       modal.querySelector('[data-cancel]').addEventListener('click', close);
 
+      // One project is chosen, not several, so a click REPLACES the selection —
+      // the same .pick family the staff pickers use, with radio behaviour.
+      const list = modal.querySelector('[data-plist]');
+      if (list) {
+        list.addEventListener('click', (e) => {
+          const item = e.target.closest('.plist-item');
+          if (!item) return;
+          list.querySelectorAll('.plist-item').forEach((el) => {
+            const on = el === item;
+            el.classList.toggle('on', on);
+            el.querySelector('.plist-check').innerHTML = on ? icon.check() : '';
+          });
+        });
+
+        const search = modal.querySelector('#r-project-q');
+        const empty = modal.querySelector('.picker-empty');
+        search.addEventListener('input', () => {
+          const needle = search.value.trim().toLowerCase();
+          let shown = 0;
+          list.querySelectorAll('.plist-item').forEach((el) => {
+            const hit = !needle || el.dataset.name.includes(needle);
+            el.hidden = !hit;
+            if (hit) shown += 1;
+          });
+          empty.hidden = shown > 0;
+        });
+      }
+
       const save = async () => {
-        const targetId = projectId || Number(modal.querySelector('#r-project')?.value || 0);
+        const targetId = projectId || Number(modal.querySelector('.plist-item.on')?.dataset.rid || 0);
         if (!targetId) return toast('Choose the project this retest belongs to', 'err');
         const payload = {
           requestedAt: modal.querySelector('#r-date').value,
