@@ -119,7 +119,7 @@ copies.
 
 R6 from the four-axis review was "audit the `updated_at` call sites" — an audit, not a
 fix, because nobody knew yet whether anything was wrong. The audit found three defects
-and two things that only look like defects. Full reasoning in `SPEC-updated-at.md`.
+and two things that only look like defects. Full reasoning in `docs/SPEC-updated-at.md`.
 
 - [x] **The rule, named once** — `editStamp(row, next)` compares the exact columns the
   statement writes and returns `nowISO()` only when something really differs. `next` is

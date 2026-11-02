@@ -1752,8 +1752,6 @@ other sessions.
 
 ## Project structure
 
-
-
 ```
 OneProMag/
 ├── Dockerfile
@@ -1766,13 +1764,22 @@ OneProMag/
 ├── .dockerignore
 ├── .gitignore
 ├── package.json
+├── docs/                    design notes and the spec behind each change
+├── tasks/                   plan.md, todo.md — what is next and what it cost
 ├── test/api.test.js         node:test suite — permissions, transitions, schema
 ├── server/
 │   ├── index.js         HTTP server, routing, static files, boot sequence
 │   ├── cli.js           `users` / `passwd` — operations without the web server
 │   ├── db.js            engine selection, schema apply, seed data
 │   ├── auth.js          scrypt hashing, sessions, user CRUD
-│   ├── api.js           REST handlers + validation
+│   ├── api.js           assembles the route table, one file per resource
+│   ├── shared.js        helpers more than one resource needs
+│   ├── routes/
+│   │   ├── people.js    accounts, presence, directory, hierarchy, availability, stats
+│   │   ├── projects.js  project rows + retests
+│   │   ├── catalogue.js properties, clients, applications, variants
+│   │   ├── info.js      notes, sheets, search
+│   │   └── devices.js   device rows, columns, order
 │   ├── schema/
 │   │   ├── sqlite.sql
 │   │   └── postgres.sql
@@ -1784,7 +1791,20 @@ OneProMag/
 │   ├── index.html
 │   ├── css/styles.css   design tokens, components, responsive
 │   └── js/
-│       ├── app.js       views, state, interactions, admin panel
+│       ├── app.js       entry point: boot, resize, 401 reset
+│       ├── state.js     the one shared store, nav paths, form drafts
+│       ├── shared.js    small helpers every page uses
+│       ├── shell.js     sidebar, topbar, page title, navigation
+│       ├── auth.js      sign-in, register, change password
+│       ├── projects.js  project list, filters, paging, project form
+│       ├── drawer.js    the project drawer: overview, retests, notes
+│       ├── devices.js   devices sheet, columns, bulk edit
+│       ├── info.js      information center, notes and table sheets
+│       ├── team.js      team status board
+│       ├── directory.js read-only people directory
+│       ├── users.js     Manage users (Admin panel)
+│       ├── admin.js     Admin panel shell
+│       ├── properties.js categories and statuses (Admin panel)
 │       ├── api.js       fetch wrapper
 │       ├── ui.js        modal/toast/badge/segmented primitives, team + SV cell
 │       ├── props.js     categories/statuses registry (filled at boot)

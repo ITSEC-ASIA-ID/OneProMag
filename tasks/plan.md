@@ -1,6 +1,6 @@
 # Plan: `harden-api` → `split-app-js`
 
-Approved basis: `SPECS.md`, `SPEC-harden-api.md`, `SPEC-split-app-js.md`.
+Approved basis: `docs/SPECS.md`, `docs/SPEC-harden-api.md`, `docs/SPEC-split-app-js.md`.
 
 ## Decisions taken where the specs left them open
 
@@ -30,7 +30,7 @@ Then `split-app-js`, 11 commits, lowest-risk area first, browser-verified per co
 ## `updated-at` — the R6 audit
 
 R6 was queued as an audit, so the first deliverable was the finding list, not a patch.
-Audit → `SPEC-updated-at.md` → implement → verify, in that order; the spec records the two
+Audit → `docs/SPEC-updated-at.md` → implement → verify, in that order; the spec records the two
 paths that look wrong and are right, because those are the ones a future reader would
 otherwise "fix".
 
