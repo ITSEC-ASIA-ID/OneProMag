@@ -194,3 +194,35 @@ which is not what this task asked for.
 
 - [x] **Known and left alone**
   - `PATCH /api/properties/:kind/:id` with a non-numeric id compares an integer column against a string, which Postgres rejects with a 500 instead of a 404. The UI only ever sends numeric ids, and tightening it is an input-validation change, not a code move — recorded here instead of folded into this commit.
+
+## `attachments-and-checklists`
+
+- [x] **A project can hold files**
+  - Acceptance: upload, list, download byte-identical, delete; the row points at bytes on disk under `${DATA_DIR}/uploads/<projectId>/`, never at a blob column; deleting a project leaves no orphaned bytes and deleting the last file leaves no empty folder.
+  - Verify: base64 round-trip test asserts the downloaded buffer equals the uploaded one and that the handler returns `HANDLED` rather than a JSON body (a stream written twice corrupts the response); download headers pinned to `attachment` + both `filename` and `filename*=UTF-8''…` + `octet-stream` + `private, no-store` + `nosniff`; 20 MB limit refused before booking the whole body; deleting a project removes `DATA_DIR/uploads/<id>` entirely.
+  - Files: `server/routes/files.js`, `server/routes/projects.js` (`purgeProjectFiles` before the delete), `public/js/files.js`, `public/js/api.js`
+
+- [x] **Why bytes on disk and not `bytea`**
+  - 200 MB of reports would make every nightly dump 200 MB, kept for 14 days, and would hold the SQLite write lock for the length of an insert. The price is a second artefact to back up, which is why the `backup` service now writes `onepromag-<stamp>-uploads.tar.gz` beside the dump, says so loudly when the `tar` fails, and the README restore procedure gained the matching `tar -xzf` step — a backup that silently omits the files is worse than no attachments, because it *looks* complete.
+
+- [x] **Downloads are never rendered**
+  - `Content-Type: application/octet-stream` regardless of what was uploaded: serving client-supplied HTML or SVG inline from our own origin is stored XSS no matter what the CSP says. `stored_name` is a random uuid — the uploaded filename never touches the filesystem, so path separators, double extensions and 255-byte names stop being a problem instead of being filtered.
+
+- [x] **A project links a checklist, it does not copy it**
+  - Acceptance: editing a template changes what linked projects show; a template in use cannot be deleted; an item's status lives in `project_checklist_items` and an unanswered item has no row at all, so attaching a 120-item template writes nothing.
+  - Verify: `ON DELETE RESTRICT` on `project_checklists.checklist_id` surfaces as a 409 naming the number of projects; attach writes zero answer rows (asserted); re-answering the same value keeps `updated_at`; an item cannot cite another project's file (`/different project/`); the propagation was also proved in the browser — renaming a template item in the Admin panel changed the item title on the project that links it, with its progress untouched.
+  - Files: `server/routes/checklists.js`, `public/js/checklists.js`
+
+- [x] **Two seeded templates, both ordinary rows afterwards**
+  - OWASP Top 10 2021 and Web hardening basics, ten items each, inserted `ON CONFLICT (name) DO NOTHING` with items only when a template has none — so a killed seed finishes on the next boot instead of duplicating. Both are editable and deletable like anything an admin typed.
+
+- [x] **Permissions follow the rule already in force**
+  - Everyone signed in uploads, downloads, attaches and answers; only admin/lead/sub-lead delete a file, detach a checklist (which destroys answers), or create and edit templates. Checked live as a Member: no `[data-ck-detach]`, no file trash, Checklists absent from the sidebar, and `/admin/checklists` lands on `/projects`.
+
+- [x] **Bugs found while verifying**
+  - `(extras.checklists || []).reduce is not a function` — the client helpers return the envelope (`{ checklists }`, `{ files }`), not the array. Every drawer tab was dead until this was destructured.
+  - An empty `/data/uploads/<projectId>` outlived its last file; the delete route now calls `removeStored`, and the test asserts the folder is gone rather than merely empty.
+  - The paste box's two-column form (`title | help`) is genuinely ambiguous, so the hint now spells out all three shapes instead of claiming the section is optional.
+
+- [x] **Not in scope, deliberately**
+  - Template versioning or per-project snapshots of item text, object storage, resumable uploads, thumbnails, virus scanning, attachments on clients/applications/variants/retests, and any cross-project scoring. A checklist records what a pentester found; it does not certify the engagement.

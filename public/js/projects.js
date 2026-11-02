@@ -1,4 +1,5 @@
 import { adminHTML, bindAdmin } from './admin.js';
+import { checklistsPageHTML } from './checklists.js';
 import { bindDevices, devicesHTML } from './devices.js';
 import { bindDirectory, directoryHTML } from './directory.js';
 import { openProject, openTeamForm, renderDrawer } from './drawer.js';
@@ -387,6 +388,12 @@ export function mountContent() {
     content.innerHTML = propertiesHTML();
     bindProperties();
     setTitle(NAV.properties.title, NAV.properties.sub);
+    return;
+  }
+
+  if (state.nav === 'checklists') {
+    content.innerHTML = checklistsPageHTML();
+    setTitle(NAV.checklists.title, NAV.checklists.sub);
     return;
   }
 

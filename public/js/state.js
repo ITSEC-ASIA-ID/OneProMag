@@ -46,7 +46,7 @@ export function normalizeNav(id) {
  * straight into the Properties admin page — a page whose sidebar row is not even
  * rendered for them.
  */
-export const ADMIN_NAV = new Set(['clients', 'users', 'properties']);
+export const ADMIN_NAV = new Set(['clients', 'users', 'properties', 'checklists']);
 
 
 export function navAllowed(id) {
@@ -87,6 +87,10 @@ export const NAV = {
     title: 'Properties',
     sub: 'The categories and statuses a project can carry',
   },
+  checklists: {
+    title: 'Checklists',
+    sub: 'Security checklists an engagement can be measured against',
+  },
 };
 
 
@@ -111,6 +115,7 @@ export const NAV_PATHS = {
   clients: '/clients',
   users: '/admin/users',
   properties: '/admin/properties',
+  checklists: '/admin/checklists',
 };
 
 export const DEFAULT_NAV = 'active';

@@ -18,6 +18,7 @@
 import test, { before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import { Writable } from 'node:stream';
 import os from 'node:os';
 import path from 'node:path';
 
@@ -25,6 +26,7 @@ const DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'opm-test-'));
 
 let api;
 let db;
+let HANDLED;
 
 /** The shape `currentUser()` hands to every handler, built from a seed account. */
 async function asUser(username) {
@@ -60,6 +62,8 @@ before(async () => {
   process.env.ALLOW_REGISTER = '0'; // the production posture
   const dbModule = await import('../server/db.js');
   const apiModule = await import('../server/api.js');
+  const sharedModule = await import('../server/shared.js');
+  HANDLED = sharedModule.HANDLED;
   db = dbModule.db;
   api = apiModule.api;
   await dbModule.initDatabase();
@@ -1195,4 +1199,296 @@ test('pinning a note is a bookmark, not an edit', async () => {
     body: { body: 'different words' },
   });
   assert.notEqual(edited.entry.updatedAt, OLD, 'a real content change does move it');
+});
+
+/* ============================================================
+   Attachments and security checklists.
+
+   The bytes are the interesting part: everything else here is a
+   row, but a file is a row AND something on disk, and the two
+   must never disagree — no row without bytes (a broken download)
+   and no bytes without a row (garbage only a `find` finds).
+   ============================================================ */
+
+test('a file uploads, lists, downloads byte-identical, and deletes with its bytes', async () => {
+  const user = await lead();
+  const { projects } = await call('GET /api/projects', user);
+  const projectId = projects[0].id;
+  const payload = Buffer.from('scope of work — signed 2026-11-02\n', 'utf8');
+
+  const created = await call('POST /api/projects/:id/files', user, {
+    params: { id: projectId },
+    body: { name: 'Scope — Q4.pdf', mime: 'application/pdf', data: payload.toString('base64') },
+  });
+  const file = created.file;
+  assert.equal(file.name, 'Scope — Q4.pdf');
+  assert.equal(file.size, payload.length);
+  assert.equal(file.uploadedByName, user.name);
+
+  const listed = await call('GET /api/projects/:id/files', user, { params: { id: projectId } });
+  assert.ok(listed.files.some((f) => f.id === file.id), 'uploaded file is not listed');
+
+  // The download streams into `res`, so it gets a stand-in Writable that keeps
+  // the bytes and records the headers the browser would receive.
+  const chunks = [];
+  const res = new Writable({
+    write(chunk, _enc, next) {
+      chunks.push(chunk);
+      next();
+    },
+  });
+  res.writeHead = (status, headers) => {
+    res.status = status;
+    res.headers = headers;
+  };
+  const result = await api['GET /api/project-files/:id/download']({
+    user,
+    params: { id: file.id },
+    query: {},
+    body: null,
+    res,
+  });
+  assert.equal(result, HANDLED, 'a streaming handler must not return a JSON body');
+  assert.equal(res.status, 200);
+  assert.equal(res.headers['Content-Type'], 'application/octet-stream');
+  assert.match(res.headers['Content-Disposition'], /^attachment;/);
+  assert.match(res.headers['Content-Disposition'], /filename\*=UTF-8''Scope/);
+  assert.deepEqual(Buffer.concat(chunks), payload, 'download is not byte-identical');
+
+  const dir = path.join(DATA_DIR, 'uploads', String(projectId));
+  assert.equal(fs.readdirSync(dir).length, 1, 'expected exactly one stored file');
+
+  await call('DELETE /api/project-files/:id', user, { params: { id: file.id } });
+  // Bytes and the folder that held them: an empty per-project directory left
+  // behind is invisible in the UI and survives every later boot.
+  assert.equal(fs.existsSync(dir), false, 'deleting the last file must delete the bytes and the folder');
+});
+
+test('a Member may upload and read an attachment but not delete one', async () => {
+  const user = await member();
+  const { projects } = await call('GET /api/projects', user);
+  const projectId = projects[0].id;
+  const created = await call('POST /api/projects/:id/files', user, {
+    params: { id: projectId },
+    body: { name: 'asset-list.csv', mime: 'text/csv', data: Buffer.from('a,b\n1,2\n').toString('base64') },
+  });
+
+  await assert.rejects(
+    () => call('DELETE /api/project-files/:id', user, { params: { id: created.file.id } }),
+    { status: 403 }
+  );
+  await call('GET /api/projects/:id/files', user, { params: { id: projectId } });
+});
+
+test('an empty or malformed upload is refused before anything is written', async () => {
+  const user = await lead();
+  const { projects } = await call('GET /api/projects', user);
+  const id = projects[0].id;
+  await assert.rejects(
+    () => call('POST /api/projects/:id/files', user, { params: { id }, body: { name: 'x' } }),
+    { status: 400 }
+  );
+  await assert.rejects(
+    () =>
+      call('POST /api/projects/:id/files', user, {
+        params: { id },
+        body: { name: 'x', data: 'not base64!!' },
+      }),
+    { status: 400 }
+  );
+});
+
+test('a file over the 20 MB ceiling is refused', async () => {
+  const user = await lead();
+  const { projects } = await call('GET /api/projects', user);
+  const bytes = Buffer.alloc(20 * 1024 * 1024 + 1, 0x41);
+  await assert.rejects(
+    () =>
+      call('POST /api/projects/:id/files', user, {
+        params: { id: projects[0].id },
+        body: { name: 'huge.bin', data: bytes.toString('base64') },
+      }),
+    (err) => err.status === 413 && /20 MB/.test(err.message)
+  );
+});
+
+test('deleting a project takes its attachment bytes with it', async () => {
+  const user = await lead();
+  const created = await call('POST /api/projects', user, {
+    body: { name: 'Attachment purge check', clientId: 1 },
+  });
+  const projectId = created.project.id;
+  await call('POST /api/projects/:id/files', user, {
+    params: { id: projectId },
+    body: { name: 'report.pdf', data: Buffer.from('hello').toString('base64') },
+  });
+  const dir = path.join(DATA_DIR, 'uploads', String(projectId));
+  assert.equal(fs.readdirSync(dir).length, 1);
+
+  await call('DELETE /api/projects/:id', user, { params: { id: projectId } });
+  assert.ok(!fs.existsSync(dir), 'the upload directory must not outlive its project');
+});
+
+test('a fresh install arrives with OWASP Top 10 2021 and Web hardening basics', async () => {
+  const user = await member();
+  const { checklists } = await call('GET /api/checklists', user);
+  const names = checklists.map((c) => c.name);
+  assert.ok(names.includes('OWASP Top 10 2021'), `seeded: ${names.join(', ')}`);
+  assert.ok(names.includes('Web hardening basics'));
+
+  const owasp = checklists.find((c) => c.name === 'OWASP Top 10 2021');
+  assert.equal(owasp.itemCount, 10);
+  const full = await call('GET /api/checklists/:id', user, { params: { id: owasp.id } });
+  assert.equal(full.checklist.items.length, 10);
+  assert.ok(full.checklist.items.every((i) => i.section && i.title && i.help));
+});
+
+test('only a lead may create or edit a template, and a pasted list imports as items', async () => {
+  const user = await member();
+  await assert.rejects(() => call('POST /api/checklists', user, { body: { name: 'Nope' } }), {
+    status: 403,
+  });
+
+  const leadUser = await lead();
+  const { checklist } = await call('POST /api/checklists', leadUser, {
+    body: { name: 'Client hardening list', description: 'Bank Nusantara own requirements' },
+  });
+
+  const bulk = await call('POST /api/checklists/:id/items', leadUser, {
+    params: { id: checklist.id },
+    body: {
+      items: [
+        'Transport | TLS 1.3 only | Nothing below TLS 1.2 accepted',
+        'Session | Absolute timeout 8h | Token dies with the working day',
+        'No separators in this line',
+      ],
+    },
+  });
+  assert.equal(bulk.items.length, 3);
+  assert.equal(bulk.items[0].section, 'Transport');
+  assert.equal(bulk.items[0].title, 'TLS 1.3 only');
+  assert.equal(bulk.items[0].help, 'Nothing below TLS 1.2 accepted');
+  assert.equal(bulk.items[2].section, '');
+  assert.equal(bulk.items[2].title, 'No separators in this line');
+
+  const single = await call('POST /api/checklists/:id/items', leadUser, {
+    params: { id: checklist.id },
+    body: { section: 'Logging', title: 'Auth failures logged', help: 'With the source address' },
+  });
+  assert.equal(single.items[0].position, 3, 'items append in order');
+
+  await assert.rejects(
+    () => call('POST /api/checklists', leadUser, { body: { name: 'Client hardening list' } }),
+    { status: 409 }
+  );
+});
+
+test('attach, answer, progress and detach — with the in-use delete refused', async () => {
+  const leadUser = await lead();
+  const user = await member();
+  const { checklists } = await call('GET /api/checklists', user);
+  const template = checklists.find((c) => c.name === 'Web hardening basics');
+  const { projects } = await call('GET /api/projects', user);
+  const projectId = projects[0].id;
+
+  const attached = await call('POST /api/projects/:id/checklists', user, {
+    params: { id: projectId },
+    body: { checklistId: template.id },
+  });
+  const link = attached.checklists.find((c) => c.checklistId === template.id);
+  assert.equal(link.progress.total, 10);
+  assert.equal(link.progress.answered, 0, 'attaching writes no answer rows');
+  const answerRows = await db.get(
+    'SELECT COUNT(*) AS n FROM project_checklist_items WHERE project_checklist_id = ?',
+    [link.id]
+  );
+  assert.equal(Number(answerRows.n), 0);
+
+  await assert.rejects(
+    () =>
+      call('POST /api/projects/:id/checklists', user, {
+        params: { id: projectId },
+        body: { checklistId: template.id },
+      }),
+    { status: 409 }
+  );
+
+  const itemId = link.items[0].id;
+  const answered = await call('PATCH /api/project-checklists/:id/items/:itemId', user, {
+    params: { id: link.id, itemId },
+    body: { status: 'Fail', note: 'CSP missing on the legacy host' },
+  });
+  assert.equal(answered.item.status, 'Fail');
+  assert.equal(answered.progress.answered, 1);
+  assert.equal(answered.progress.fail, 1);
+
+  // A status the vocabulary does not contain is a 400, not a silent 'Open'.
+  await assert.rejects(
+    () =>
+      call('PATCH /api/project-checklists/:id/items/:itemId', user, {
+        params: { id: link.id, itemId },
+        body: { status: 'Maybe' },
+      }),
+    { status: 400 }
+  );
+
+  // Re-answering the same value must not move updated_at.
+  const again = await call('PATCH /api/project-checklists/:id/items/:itemId', user, {
+    params: { id: link.id, itemId },
+    body: { status: 'Fail', note: 'CSP missing on the legacy host' },
+  });
+  assert.equal(again.item.updatedAt, answered.item.updatedAt);
+
+  // A template in use cannot be deleted, and the message says why.
+  await assert.rejects(() => call('DELETE /api/checklists/:id', leadUser, { params: { id: template.id } }), (err) => {
+    assert.equal(err.status, 409);
+    assert.match(err.message, /used by 1 project/);
+    return true;
+  });
+
+  // Detaching destroys work, so a Member cannot; a lead can, and is told how much.
+  await assert.rejects(
+    () => call('DELETE /api/project-checklists/:id', user, { params: { id: link.id } }),
+    { status: 403 }
+  );
+  const detached = await call('DELETE /api/project-checklists/:id', leadUser, {
+    params: { id: link.id },
+  });
+  assert.equal(detached.answered, 1);
+
+  const remaining = await call('GET /api/projects/:id/checklists', user, { params: { id: projectId } });
+  assert.ok(!remaining.checklists.some((c) => c.id === link.id));
+
+  // With nothing using it, the template is deletable again.
+  const throwaway = await call('POST /api/checklists', leadUser, { body: { name: 'Disposable list' } });
+  await call('DELETE /api/checklists/:id', leadUser, { params: { id: throwaway.checklist.id } });
+});
+
+test('an answer cannot borrow a file from another project', async () => {
+  const user = await lead();
+  const first = await call('POST /api/projects', user, {
+    body: { name: 'Owner of the file', clientId: 1 },
+  });
+  const second = await call('POST /api/projects', user, {
+    body: { name: 'Borrower', clientId: 1 },
+  });
+  const file = await call('POST /api/projects/:id/files', user, {
+    params: { id: first.project.id },
+    body: { name: 'evidence.png', data: Buffer.from('png').toString('base64') },
+  });
+  const { checklists } = await call('GET /api/checklists', user);
+  const attached = await call('POST /api/projects/:id/checklists', user, {
+    params: { id: second.project.id },
+    body: { checklistId: checklists[0].id },
+  });
+  const link = attached.checklists[0];
+
+  await assert.rejects(
+    () =>
+      call('PATCH /api/project-checklists/:id/items/:itemId', user, {
+        params: { id: link.id, itemId: link.items[0].id },
+        body: { status: 'Fail', fileId: file.file.id },
+      }),
+    (err) => err.status === 400 && /different project/.test(err.message)
+  );
 });

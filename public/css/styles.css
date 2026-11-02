@@ -6281,3 +6281,190 @@ svg { display: block; }
 .retest[data-tone='rose']   { --st-color: var(--rose); }
 .retest[data-tone='cyan']   { --st-color: var(--cyan); }
 .retest[data-tone='slate']  { --st-color: var(--slate); }
+
+
+/* ============================================================
+   Project attachments (drawer → Files)
+   ============================================================ */
+.files { display: flex; flex-direction: column; gap: 12px; }
+.files-head,
+.ck-toolbar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.file-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.file-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 11px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  background: var(--surface);
+}
+.file-icon { display: inline-flex; color: var(--muted); flex: none; }
+.file-text { flex: 1; min-width: 0; }
+/* The name is what a person reads and what has to survive a 300px drawer, so it
+   ellipsises instead of pushing the download and delete buttons out of reach. */
+.file-name {
+  display: block;
+  font-size: 13.4px;
+  font-weight: 560;
+  color: var(--ink);
+  text-decoration: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.file-name:hover { text-decoration: underline; }
+.file-meta { margin-top: 1px; font-size: 12px; color: var(--faint); }
+
+
+/* ============================================================
+   Security checklists (drawer → Checklist, Admin panel → Checklists)
+   ============================================================ */
+.ck-wrap { display: flex; flex-direction: column; gap: 12px; }
+.ck {
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  overflow: hidden;
+}
+.ck-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 14px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-2);
+}
+.ck-titlebox { min-width: 0; }
+.ck-head h4 { margin: 0; font-size: 14px; letter-spacing: -0.01em; }
+.ck-prog { font-size: 12px; color: var(--faint); }
+.ck-desc {
+  margin: 0;
+  padding: 10px 14px 0;
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--muted);
+}
+.ck-items { padding: 4px 0 8px; }
+.ck-section {
+  padding: 10px 14px 2px;
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+/* The left rail is the result: a fail has to be findable by scrolling past it,
+   not only by reading four small buttons. */
+.ck-item {
+  padding: 7px 14px 7px 12px;
+  border-left: 3px solid transparent;
+}
+.ck-item[data-status="Pass"] { border-left-color: var(--green); }
+.ck-item[data-status="Fail"] { border-left-color: var(--rose); background: color-mix(in srgb, var(--rose-soft) 42%, transparent); }
+.ck-item[data-status="N/A"] { border-left-color: var(--border-strong); }
+.ck-line { display: flex; align-items: center; gap: 10px; }
+.ck-item-title { font-size: 13.4px; color: var(--ink); }
+
+/* Four states, one control. A dropdown would hide three of them behind a click,
+   and "which of these four is it?" is the whole question this tab asks. */
+.ck-seg {
+  display: inline-flex;
+  flex: none;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-full);
+  overflow: hidden;
+}
+.ck-seg-btn {
+  border: 0;
+  background: transparent;
+  font: inherit;
+  font-size: 11.5px;
+  line-height: 1;
+  padding: 5px 9px;
+  color: var(--muted);
+  cursor: pointer;
+}
+.ck-seg-btn + .ck-seg-btn { border-left: 1px solid var(--border); }
+.ck-seg-btn:hover:not([aria-pressed="true"]) { background: var(--surface-3); color: var(--ink); }
+.ck-seg-btn[aria-pressed="true"] { background: var(--slate); color: #fff; }
+.ck-seg-btn[data-status="Pass"][aria-pressed="true"] { background: var(--green); }
+.ck-seg-btn[data-status="Fail"][aria-pressed="true"] { background: var(--rose); }
+.ck-seg-btn[data-status="Open"][aria-pressed="true"] { background: var(--muted); }
+
+.btn-icon-sm { width: 24px; height: 24px; border-radius: var(--r-sm); }
+.ck-help {
+  margin: 6px 0 0;
+  padding: 8px 10px;
+  border-radius: var(--r-sm);
+  background: var(--surface-3);
+  font-size: 12.3px;
+  line-height: 1.55;
+  color: var(--muted);
+}
+.ck-note-wrap { margin-top: 8px; display: flex; flex-direction: column; gap: 6px; }
+/* `hidden` has to win over the flex display, as with `.field` above. */
+.ck-help[hidden],
+.ck-note-wrap[hidden],
+.ck-paste[hidden] { display: none; }
+.ck-note { min-height: 54px; font-size: 12.8px; }
+.ck-file { max-width: 320px; height: 32px; font-size: 12.4px; }
+.ck-stamp { font-size: 11.5px; color: var(--faint); }
+
+/* Template picker */
+.ck-pick { display: flex; flex-direction: column; gap: 6px; }
+.ck-pick-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 12px;
+  text-align: left;
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  background: var(--surface);
+  cursor: pointer;
+}
+.ck-pick-item:hover { border-color: var(--border-strong); background: var(--surface-2); }
+.ck-pick-item.on { border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-ring); }
+.ck-pick-check { display: inline-flex; color: var(--primary); opacity: 0; flex: none; }
+.ck-pick-item.on .ck-pick-check { opacity: 1; }
+.ck-pick-text { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.ck-pick-name { font-size: 13.4px; font-weight: 560; color: var(--ink); }
+.ck-pick-meta { font-size: 12px; color: var(--faint); }
+
+/* Template editor */
+.ck-sub { display: block; margin-top: 1px; font-size: 12px; font-weight: 400; color: var(--faint); }
+.ck-edit-count { font-weight: 400; color: var(--faint); }
+.ck-edit-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 42vh;
+  overflow-y: auto;
+  padding-right: 2px;
+}
+.ck-edit-row {
+  display: grid;
+  grid-template-columns: 150px minmax(0, 1.4fr) minmax(0, 1fr) auto;
+  gap: 6px;
+  align-items: center;
+}
+.ck-edit-acts { display: inline-flex; gap: 2px; }
+.ck-edit-tools { display: flex; gap: 8px; margin-top: 8px; }
+.ck-paste { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
+.ck-paste-foot { display: flex; align-items: center; gap: 8px; }
+
+@media (max-width: 720px) {
+  .ck-line { flex-wrap: wrap; }
+  .ck-line .spacer { flex-basis: 100%; }
+  .ck-edit-row { grid-template-columns: 1fr; }
+  .ck-edit-acts { justify-content: flex-end; }
+}

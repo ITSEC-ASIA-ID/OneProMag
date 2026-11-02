@@ -108,6 +108,15 @@ have shipped:
 | a member cannot create an intern | only supervisors add people |
 | an intern is on the board and knows who supervises them | the interns table |
 | a fresh database has the columns the code selects | the fresh-install path |
+| an upload round-trips byte-identical, and its download is `attachment` | attachments are not corrupted by base64 |
+| a Member uploads but cannot delete a file | the delete rule, on files |
+| an empty, malformed or oversized upload is refused | nothing half-written reaches the disk |
+| deleting a project removes its folder | attachments do not outlive their project |
+| both seeded checklists have ten items with text | the seed is usable, not empty scaffolding |
+| bulk paste splits `section \| title \| help` | the paste box produces the rows it promises |
+| attaching a checklist writes no answers | `Open` is an absence, not a row |
+| a template in use cannot be deleted | `RESTRICT`, reported as 409 |
+| an item cannot cite another project's file | evidence stays with its engagement |
 
 `.github/workflows/test.yml` runs it on every push and pull request. There is no
 browser test: the UI is verified in the container, and a screenshot is worth more
@@ -337,16 +346,30 @@ someone remembers a flag is a backup that does not exist, and the first symptom
 would be a corrupt volume with nothing to restore from. It costs one idle
 container.
 
-Every `BACKUP_INTERVAL_SECONDS` (default 86400) the container writes
-`backups/onepromag-YYYY-MM-DD-HHMM.sql.gz` and deletes dumps older than
-`BACKUP_KEEP_DAYS` (14). The dump is `--no-owner --no-privileges`, so it restores
-into any cluster:
+Every `BACKUP_INTERVAL_SECONDS` (default 86400) the container writes **two**
+artefacts and deletes pairs older than `BACKUP_KEEP_DAYS` (14):
+
+- `backups/onepromag-YYYY-MM-DD-HHMM.sql.gz` — the database, `--no-owner
+  --no-privileges`, so it restores into any cluster;
+- `backups/onepromag-YYYY-MM-DD-HHMM-uploads.tar.gz` — the attachment bytes,
+  which live on disk under `/data/uploads` and are therefore **not** in the dump.
+
+A restore needs both, in that order:
 
 ```bash
 gunzip -c backups/onepromag-2026-10-26-1355.sql.gz \
   | docker exec -i $(docker compose -f docker-compose.prod.yml ps -q db) \
       psql -U onepromag -d onepromag
+
+docker run --rm -i -v onepromag-prod_onepromag-data:/data alpine:3 \
+  tar -xzf - -C /data < backups/onepromag-2026-10-26-1355-uploads.tar.gz
 ```
+
+Restoring only the dump gives every list, note and checklist answer back while
+each attachment download answers `410 The stored file is missing` — the archive
+exists precisely so that pair cannot be forgotten. If `docker compose logs backup`
+says `UPLOADS FAILED`, the dump is still good and the bytes are simply absent from
+that run.
 
 `mkdir -p backups` first and set `HOST_UID=$(id -u)` / `HOST_GID=$(id -g)` in
 `.env`, otherwise the files land root-owned. `./backups` is git-ignored; copy it
@@ -1574,6 +1597,62 @@ cards).
 
 ---
 
+### Attachments (project drawer → Files)
+
+Every engagement can carry its own files: the signed scope, the client's asset
+list, a screenshot of the finding, the finished report. Upload from the drawer,
+download with a click, delete with a lead's account.
+
+| | |
+| --- | --- |
+| Where the bytes live | `${DATA_DIR}/uploads/<projectId>/<uuid>` — a volume, not the database |
+| Where the facts live | `project_files`: name, mime, size, who uploaded it, stored name |
+| Limit | **20 MB per file**, checked in the browser and again on the server |
+| Transport | base64 JSON POST — no multipart dependency, one code path |
+| Download | `Content-Disposition: attachment`, `application/octet-stream`, never the stored mime |
+
+**Why the filesystem and not the database.** Two hundred megabytes of reports in
+Postgres would make every nightly dump 200 MB, kept for `KEEP_DAYS`, and a big
+insert would hold the write lock while it streamed. The trade is that the files
+have to be backed up separately — which the backup service now does, with the
+matching restore step in [Backups](#backups-on-by-default). A backup that silently
+omits the files is worse than no attachments at all, because it *looks* complete.
+
+**Why the download never echoes the uploaded mime type.** Serving a client-uploaded
+`text/html` or `image/svg+xml` inline from our own origin is stored XSS — the CSP
+stops the obvious payloads, not the point. The bytes go out as
+`application/octet-stream` with `nosniff`, so the browser saves them instead of
+rendering them.
+
+Deleting a project deletes its folder; deleting one file deletes its bytes and, when
+it was the last, the empty folder. Both read the stored names *before* the rows
+cascade — the same trap that once leaked variant notes.
+
+### Security checklists (project drawer → Checklist, Admin panel → Checklists)
+
+A project links a checklist template and works through it: **Open · Pass · Fail ·
+N/A** per item, a note that explains a Fail, and optionally one of the project's
+files as evidence. Two templates are seeded — **OWASP Top 10 2021** and **Web
+hardening basics** — and both are ordinary editable rows afterwards.
+
+The Admin panel manages the templates: name, description, one row per item
+(section, what to check, how to check it), reorder, delete, plus a **Paste a list**
+box that takes `Section | What to check | How to check it` per line.
+
+| | |
+| --- | --- |
+| A project | **links** a template, it does not copy it |
+| An unanswered item | has **no row** — `Open` is the absence of an answer, not a stored one |
+| Deleting a template | refused while a project uses it, naming how many |
+| Deleting a project | takes its answers with it; the template is untouched |
+| Editing a template | changes what every linked project shows — on purpose |
+
+Linking is the reason a typo fix reaches forty engagements at once. The price is
+that editing mid-engagement moves the goalposts for a project already in flight;
+this records how an engagement was tested, it does not certify it, so the trade is
+the right way round. Attaching a 120-item template writes nothing, which is why a
+checklist can be linked to a project that has not started yet.
+
 ## Database
 
 PostgreSQL is the default because the data is inherently relational
@@ -1632,6 +1711,20 @@ returns its projects to the whole application instead of taking them with it. Th
 API rejects a sub app that belongs to a different application, so the pairing
 cannot drift (`resolveVariantId`), and a project whose application changes drops its
 sub app rather than keeping one that no longer applies.
+
+**`v1.19` — attachments and checklists.** Five tables, no changes to existing ones:
+
+- `project_files(project_id → projects CASCADE, name, mime, size, stored_name, uploaded_by → users SET NULL, created_at)`
+- `checklists(name UNIQUE, description, created_at)`
+- `checklist_items(checklist_id → checklists CASCADE, section, title, help, position)`
+- `project_checklists(project_id → projects CASCADE, checklist_id → checklists **RESTRICT**, created_at, UNIQUE(project_id, checklist_id))`
+- `project_checklist_items(project_checklist_id, item_id, status, note, file_id → project_files SET NULL, updated_by, updated_at, PRIMARY KEY(project_checklist_id, item_id))`
+
+`stored_name` is a random uuid, never the uploaded filename: the name a user typed
+can contain a path separator, a second extension, or 255 bytes of anything. The
+catalogue name is kept purely for display. `RESTRICT` on `checklist_id` is what makes
+"you cannot delete a template a project is using" a property of the database rather
+than a promise the route remembers to keep.
 
 ### Renamed in v1.13: the supervisor columns
 The **role stayed `Project Manager`**. What was renamed is the field that says who
@@ -1775,11 +1868,13 @@ OneProMag/
 │   ├── api.js           assembles the route table, one file per resource
 │   ├── shared.js        helpers more than one resource needs
 │   ├── routes/
-│   │   ├── people.js    accounts, presence, directory, hierarchy, availability, stats
-│   │   ├── projects.js  project rows + retests
-│   │   ├── catalogue.js properties, clients, applications, variants
-│   │   ├── info.js      notes, sheets, search
-│   │   └── devices.js   device rows, columns, order
+│   │   ├── people.js     accounts, presence, directory, hierarchy, availability, stats
+│   │   ├── projects.js   project rows + retests
+│   │   ├── catalogue.js  properties, clients, applications, variants
+│   │   ├── info.js       notes, sheets, search
+│   │   ├── devices.js    device rows, columns, order
+│   │   ├── files.js      project attachments, streamed downloads
+│   │   └── checklists.js checklist templates, items, answers
 │   ├── schema/
 │   │   ├── sqlite.sql
 │   │   └── postgres.sql
@@ -1805,6 +1900,8 @@ OneProMag/
 │       ├── users.js     Manage users (Admin panel)
 │       ├── admin.js     Admin panel shell
 │       ├── properties.js categories and statuses (Admin panel)
+│       ├── checklists.js security checklists: drawer tab + Admin panel
+│       ├── files.js     project attachments: upload, download, delete
 │       ├── api.js       fetch wrapper
 │       ├── ui.js        modal/toast/badge/segmented primitives, team + SV cell
 │       ├── props.js     categories/statuses registry (filled at boot)

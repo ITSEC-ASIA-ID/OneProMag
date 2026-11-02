@@ -267,3 +267,67 @@ CREATE TABLE IF NOT EXISTS schema_migrations (
   version    INTEGER PRIMARY KEY,
   applied_at TEXT NOT NULL
 );
+
+-- Files attached to an engagement: a signed scope, an asset list, the report.
+-- The bytes live on disk under DATA_DIR/uploads (see server/routes/files.js);
+-- this row is the index that makes them findable, listable and deletable.
+-- `stored_name` is a random id, never the uploaded name: a client-controlled
+-- filename is a path traversal, a double extension and a 255-byte problem at once.
+CREATE TABLE IF NOT EXISTS project_files (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  project_id  INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  name        TEXT NOT NULL,
+  mime        TEXT NOT NULL DEFAULT '',
+  size        INTEGER NOT NULL DEFAULT 0,
+  stored_name TEXT NOT NULL,
+  uploaded_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  created_at  TEXT NOT NULL
+);
+
+-- The catalogue of security checklists, owned by the Admin panel. `name` is
+-- unique because two templates called "OWASP Top 10 2021" help nobody.
+CREATE TABLE IF NOT EXISTS checklists (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  name        TEXT NOT NULL UNIQUE,
+  description TEXT NOT NULL DEFAULT '',
+  created_at  TEXT NOT NULL
+);
+
+-- One testable line of a template. `section` groups items without needing a
+-- second table; `help` is the one-line "what to test" shown behind a disclosure.
+CREATE TABLE IF NOT EXISTS checklist_items (
+  id           INTEGER PRIMARY KEY AUTOINCREMENT,
+  checklist_id INTEGER NOT NULL REFERENCES checklists(id) ON DELETE CASCADE,
+  section      TEXT NOT NULL DEFAULT '',
+  title        TEXT NOT NULL,
+  help         TEXT NOT NULL DEFAULT '',
+  position     INTEGER NOT NULL DEFAULT 0
+);
+
+-- A template attached to an engagement. The project LINKS the template instead
+-- of copying its text, so fixing a typo fixes it everywhere; the price is that
+-- editing mid-engagement changes what an old project shows, which this app
+-- accepts because it tracks engagements rather than certifying them.
+-- ON DELETE RESTRICT makes that price visible: a template in use cannot be
+-- deleted, and the Admin panel says how many projects use it.
+CREATE TABLE IF NOT EXISTS project_checklists (
+  id           INTEGER PRIMARY KEY AUTOINCREMENT,
+  project_id   INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  checklist_id INTEGER NOT NULL REFERENCES checklists(id) ON DELETE RESTRICT,
+  created_at   TEXT NOT NULL,
+  UNIQUE (project_id, checklist_id)
+);
+
+-- One row per ANSWERED item. An unanswered item has no row at all: absence is
+-- "Open", so attaching a 120-item template writes nothing and the table only
+-- grows with work actually done.
+CREATE TABLE IF NOT EXISTS project_checklist_items (
+  project_checklist_id INTEGER NOT NULL REFERENCES project_checklists(id) ON DELETE CASCADE,
+  item_id              INTEGER NOT NULL REFERENCES checklist_items(id) ON DELETE CASCADE,
+  status               TEXT NOT NULL DEFAULT 'Open',
+  note                 TEXT NOT NULL DEFAULT '',
+  file_id              INTEGER REFERENCES project_files(id) ON DELETE SET NULL,
+  updated_by           INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  updated_at           TEXT NOT NULL DEFAULT '',
+  PRIMARY KEY (project_checklist_id, item_id)
+);

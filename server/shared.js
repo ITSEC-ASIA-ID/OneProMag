@@ -5,6 +5,12 @@ import { HttpError, nowISO } from './auth.js';
    reads that most writes depend on. Anything used by a single route file
    lives in that file instead. */
 
+/**
+ * Returned by a handler that has already written the response itself — the file
+ * download streams bytes, so the JSON writer in index.js must not touch it.
+ */
+export const HANDLED = Symbol('handled');
+
 let propertyCache = null;
 
 /** Dropped by whatever changed the catalogue, so the next read rebuilds it. */

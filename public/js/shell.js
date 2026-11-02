@@ -1,4 +1,5 @@
 import { openAccountMenu, renderAuth } from './auth.js';
+import { refreshChecklists } from './checklists.js';
 import { openRetestForm } from './drawer.js';
 import { loadDevices } from './devices.js';
 import { loadDirectory } from './directory.js';
@@ -57,7 +58,8 @@ export function sidebarHTML() {
           ? `<div class="nav-label">Admin panel</div>
              ${navBtn('clients', icon.building(16), 'Clients & apps', s.clients ?? 0, 'admin')}
              ${navBtn('users', icon.userCheck(16), 'Manage users', userCount, 'admin')}
-             ${navBtn('properties', icon.tag(), 'Properties', propKeys('category').length + propKeys('status').length, 'admin')}`
+             ${navBtn('properties', icon.tag(), 'Properties', propKeys('category').length + propKeys('status').length, 'admin')}
+             ${navBtn('checklists', icon.shield(16), 'Checklists', undefined, 'admin')}`
           : ''
       }
 
@@ -204,6 +206,7 @@ export function finishNav(historyMode = 'push') {
     state.nav === 'clients' ||
     state.nav === 'users' ||
     state.nav === 'properties' ||
+    state.nav === 'checklists' ||
     state.nav === 'info' ||
     state.nav === 'devices' ||
     state.nav === 'directory'
@@ -213,6 +216,8 @@ export function finishNav(historyMode = 'push') {
     // The Users page renders from state that the project list fills in.
     if (state.nav === 'users') refreshUsers();
     if (state.nav === 'directory') loadDirectory();
+    // Checklists owns its own load: the page is a catalogue, not the project list.
+    if (state.nav === 'checklists') refreshChecklists();
     return;
   }
   if (onBoard) {
@@ -478,6 +483,7 @@ export async function boot() {
     document.querySelectorAll('[data-nav]').forEach((b) => b.classList.toggle('active', b.dataset.nav === state.nav));
 
     if (state.nav === 'clients' || state.nav === 'properties') return;
+    if (state.nav === 'checklists') return void refreshChecklists();
     if (state.nav === 'directory') return void loadDirectory();
     // The Users page counts each person's projects and each supervisor's owned
     // engagements, so opening it cold (a reload straight onto it) must fetch the

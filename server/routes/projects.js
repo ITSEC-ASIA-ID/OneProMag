@@ -9,6 +9,7 @@ import {
   retestOpen
 } from '../shared.js';
 import { db, ENUMS } from '../db.js';
+import { purgeProjectFiles } from './files.js';
 import { HttpError, nowISO } from '../auth.js';
 
 
@@ -623,8 +624,13 @@ export const routes = {
     // Notes and sheets cannot be orphaned here: `documents` and `info_entries` are
     // only ever written for the scopes 'client' and 'application' (both handlers
     // validate that), so a project owns no rows in either table.
+    //
+    // Attachment bytes are the exception, and the order is not negotiable: the
+    // rows cascade with the project, so once the DELETE returns there is no index
+    // left to learn which files to remove — they would sit on disk forever.
+    const removedFiles = await purgeProjectFiles(row.id);
     await db.run('DELETE FROM projects WHERE id = ?', [row.id]);
-    return { ok: true };
+    return { ok: true, filesRemoved: removedFiles };
   },
 
 

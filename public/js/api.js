@@ -146,4 +146,28 @@ export const api = {
   updateDevice: (id, payload) => request('PATCH', `/api/devices/${id}`, payload),
   bulkUpdateDevices: (updates) => request('PATCH', '/api/devices/bulk', { updates }),
   deleteDevice: (id) => request('DELETE', `/api/devices/${id}`),
+
+  // Attachments. The download is a plain link, not a fetch: the browser has to
+  // own the save dialog, and the server answers with Content-Disposition.
+  projectFiles: (projectId) => request('GET', `/api/projects/${projectId}/files`),
+  uploadFile: (projectId, payload) => request('POST', `/api/projects/${projectId}/files`, payload),
+  deleteFile: (id) => request('DELETE', `/api/project-files/${id}`),
+
+  // Checklists: the catalogue the Admin panel owns.
+  checklists: () => request('GET', '/api/checklists'),
+  checklist: (id) => request('GET', `/api/checklists/${id}`),
+  createChecklist: (payload) => request('POST', '/api/checklists', payload),
+  updateChecklist: (id, payload) => request('PATCH', `/api/checklists/${id}`, payload),
+  deleteChecklist: (id) => request('DELETE', `/api/checklists/${id}`),
+  createChecklistItems: (id, items) => request('POST', `/api/checklists/${id}/items`, { items }),
+  updateChecklistItem: (id, payload) => request('PATCH', `/api/checklist-items/${id}`, payload),
+  deleteChecklistItem: (id) => request('DELETE', `/api/checklist-items/${id}`),
+
+  // Checklists on an engagement.
+  projectChecklists: (projectId) => request('GET', `/api/projects/${projectId}/checklists`),
+  attachChecklist: (projectId, checklistId) =>
+    request('POST', `/api/projects/${projectId}/checklists`, { checklistId }),
+  detachChecklist: (id) => request('DELETE', `/api/project-checklists/${id}`),
+  answerChecklistItem: (linkId, itemId, payload) =>
+    request('PATCH', `/api/project-checklists/${linkId}/items/${itemId}`, payload),
 };

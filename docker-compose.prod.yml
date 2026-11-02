@@ -198,6 +198,10 @@ services:
       TZ: ${TZ:-Asia/Jakarta}
     volumes:
       - ./backups:/backups
+      # Read-only, and only for the uploads archive below. Attachments live on
+      # disk under /data/uploads, so a dump that omits them is an incomplete
+      # backup that LOOKS complete — the worst kind.
+      - onepromag-data:/data:ro
     entrypoint: ['/bin/sh', '-c']
     command:
       - |
@@ -228,7 +232,20 @@ services:
             mv -f "$$out.part" "/backups/failed-$$stamp.sql.gz" 2>/dev/null || true
             echo "backup: FAILED at $$stamp — previous dumps kept" >&2
           fi
-          find /backups -name 'onepromag-*.sql.gz' -mtime +"$$KEEP_DAYS" -delete
+          # Attachments are files, not rows: without this archive a restore gives
+          # back every list and every checklist answer while the drawer's
+          # Attachments tab 410s on each download. Same stamp, so the pair is
+          # obviously a pair. A failure here is loud and does not discard the dump.
+          if [ -d /data/uploads ]; then
+            if tar -czf "/backups/onepromag-$$stamp-uploads.tar.gz.part" -C /data uploads 2>/dev/null; then
+              mv "/backups/onepromag-$$stamp-uploads.tar.gz.part" "/backups/onepromag-$$stamp-uploads.tar.gz"
+              echo "backup: uploads $$stamp"
+            else
+              rm -f "/backups/onepromag-$$stamp-uploads.tar.gz.part"
+              echo "backup: UPLOADS FAILED at $$stamp — dump kept, attachment bytes are NOT in this backup" >&2
+            fi
+          fi
+          find /backups \( -name 'onepromag-*.sql.gz' -o -name 'onepromag-*-uploads.tar.gz' \) -mtime +"$$KEEP_DAYS" -delete
           sleep "$${BACKUP_INTERVAL_SECONDS}"
         done
     security_opt: ['no-new-privileges:true']

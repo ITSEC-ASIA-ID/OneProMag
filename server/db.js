@@ -548,6 +548,14 @@ const SEED_DEMO = DEMO_MODE;
  * Setting ADMIN_PASSWORD in .env avoids the file entirely: the password is then
  * already in the environment and can be printed from there.
  */
+/**
+ * Where attachment bytes live. On disk rather than in the database on purpose: a
+ * 200 MB library of reports must not turn every nightly dump into a 200 MB file
+ * kept for fourteen days, and a 15 MB insert must not hold the write lock.
+ * The metadata row is the index; this directory is the data.
+ */
+export const UPLOAD_DIR = path.join(DATA_DIR, 'uploads');
+
 const BOOTSTRAP_FILE = path.join(DATA_DIR, '.bootstrap-admin.json');
 
 export function rememberBootstrapAdmin(record) {
@@ -934,6 +942,121 @@ async function seedPropertiesIfEmpty() {
 }
 
 /**
+ * The two checklists every install starts with, so a fresh engagement has
+ * something to attach instead of an empty picker.
+ *
+ * These are ordinary rows afterwards: editable, extendable, deletable once no
+ * project uses them. Seeded per template, guarded by `name`, and only when the
+ * template carries no items yet — a process killed mid-seed leaves a named
+ * template, and the next boot finishes it rather than inserting a second copy.
+ */
+const DEFAULT_CHECKLISTS = [
+  {
+    name: 'OWASP Top 10 2021',
+    description: 'The ten web application risk categories, one testable line each.',
+    items: [
+      [
+        'A01 — Broken Access Control',
+        'Reach another account\'s object by changing an id, then a role-guarded action as a member.',
+        'IDOR in every endpoint that takes an id; server checks ownership, not just a session.',
+      ],
+      [
+        'A02 — Cryptographic Failures',
+        'Inspect traffic and storage for plaintext secrets, weak hashes and missing TLS.',
+        'Passwords hashed with a real KDF, nothing sensitive in the URL or in localStorage.',
+      ],
+      [
+        'A03 — Injection',
+        'Send quotes, unions and template syntax to every input that reaches a query, a shell or a template.',
+        'Parameterised queries; no string concatenation into SQL, shell or HTML.',
+      ],
+      [
+        'A04 — Insecure Design',
+        'Try to skip a step the flow assumes: reorder, replay, or jump straight to the last screen.',
+        'Business rules enforced server-side, not by hiding a button.',
+      ],
+      [
+        'A05 — Security Misconfiguration',
+        'Read the headers, the error pages, the default accounts and the directory listing.',
+        'No debug mode, no stack traces, no default credentials, no directory listing.',
+      ],
+      [
+        'A06 — Vulnerable and Outdated Components',
+        'Match every library and base image version against its advisories.',
+        'Audit output triaged; nothing with a known critical advisory in the build.',
+      ],
+      [
+        'A07 — Identification and Authentication Failures',
+        'Attack the login: weak passwords, no lockout, session fixation, a token that survives logout.',
+        'Sessions invalidated on logout and password change; brute force slowed or blocked.',
+      ],
+      [
+        'A08 — Software and Data Integrity Failures',
+        'Check what the app trusts without verifying: updates, deserialisation, third-party scripts.',
+        'No unsigned update path, no unsafe deserialisation of user input.',
+      ],
+      [
+        'A09 — Security Logging and Monitoring Failures',
+        'Do something hostile, then ask whether anyone could ever find out it happened.',
+        'Auth failures and privilege changes logged without secrets, and retained.',
+      ],
+      [
+        'A10 — Server-Side Request Forgery',
+        'Point every URL parameter at an internal address and watch what comes back.',
+        'Outbound fetch allow-listed, internal ranges refused, response not echoed.',
+      ],
+    ],
+  },
+  {
+    name: 'Web hardening basics',
+    description: 'The checks that are always the same, on every engagement.',
+    items: [
+      ['Security headers', 'Read the response headers of the landing page and an API call.', 'CSP, HSTS, X-Content-Type-Options, Referrer-Policy, frame-ancestors.'],
+      ['TLS configuration', 'Run a protocol and cipher scan against the host.', 'TLS 1.2+, no RC4/3DES/export ciphers, valid chain, HSTS on the apex.'],
+      ['Cookies and sessions', 'Read Set-Cookie on login and try to reuse a token after logout.', 'HttpOnly, Secure, SameSite; session id rotated on login and killed on logout.'],
+      ['Error handling', 'Trigger a 500 and a malformed request.', 'Generic message to the user, detail to the log only; no stack trace or SQL in the response.'],
+      ['File uploads', 'Upload an .html, an .svg and a name with ../ in it.', 'Type and size checked server-side, stored outside the web root, served as a download.'],
+      ['Rate limiting', 'Hammer the login and the search endpoint for a minute.', 'Throttled or delayed, with a 429 or a growing delay rather than silence.'],
+      ['Sensitive data in logs', 'Grep the application log for a password, a token and a PAN.', 'No secrets, no full card numbers, no session ids in any log line.'],
+      ['CORS', 'Send an Origin from an untrusted site against the API.', 'No wildcard with credentials; only the origins actually needed are allowed.'],
+      ['Exposed files', 'Request /.git/config, /.env, /backup.sql, /phpinfo.php.', 'None reachable; deploy artefacts excluded from the image.'],
+      ['Backup and restore', 'Confirm a backup exists, then read what it contains.', 'Backups taken on schedule, stored off the host, and a restore has been rehearsed.'],
+    ],
+  },
+];
+
+async function seedChecklistsIfEmpty() {
+  const stamp = now();
+  let seeded = 0;
+  for (const template of DEFAULT_CHECKLISTS) {
+    await db.run(
+      `INSERT INTO checklists (name, description, created_at)
+       VALUES (?, ?, ?)
+       ON CONFLICT (name) DO NOTHING`,
+      [template.name, template.description, stamp]
+    );
+    const row = await db.get('SELECT id FROM checklists WHERE name = ?', [template.name]);
+    if (!row) continue;
+    const existing = await db.get('SELECT COUNT(*) AS n FROM checklist_items WHERE checklist_id = ?', [
+      row.id,
+    ]);
+    if (Number(existing && existing.n) > 0) continue;
+    await db.transaction(async (tx) => {
+      for (let i = 0; i < template.items.length; i += 1) {
+        const [section, title, help] = template.items[i];
+        await tx.run(
+          `INSERT INTO checklist_items (checklist_id, section, title, help, position)
+           VALUES (?, ?, ?, ?, ?)`,
+          [row.id, section, title, help, i]
+        );
+      }
+    });
+    seeded += 1;
+  }
+  return { seeded: seeded > 0, checklists: seeded };
+}
+
+/**
  * The shape of the schema this release expects.
  *
  * Bumped by hand whenever the schema files or the boot migrations change. It is
@@ -942,8 +1065,9 @@ async function seedPropertiesIfEmpty() {
  * create-if-not-exists approach could not answer at all.
  *
  * 12 — retest rows in the active lists, paging, properties, documents per env.
+ * 19 — project attachments and security checklists.
  */
-export const SCHEMA_VERSION = 18;
+export const SCHEMA_VERSION = 19;
 
 let appliedSchemaVersion = 0;
 
@@ -1003,17 +1127,19 @@ export async function initDatabase() {
     await migrateSupervisorNames();
     await createIndexes();
   }
+  fs.mkdirSync(UPLOAD_DIR, { recursive: true });
   await pruneOrphanNotes();
   await recordSchemaVersion();
   // Properties before the demo seed: the seeded projects carry category/status keys
   // that must already mean something.
   const properties = await seedPropertiesIfEmpty();
+  const checklists = await seedChecklistsIfEmpty();
   const result = SEED_DEMO ? await seed() : await seedBootstrapAdmin();
   // Runs after seed() on purpose: a brand-new database gets its devices from
   // seed() itself, and only an EXISTING install needs the backfill. With demo
   // data off there is nothing to backfill into either.
   const devices = SEED_DEMO ? await seedDevicesIfEmpty() : { seeded: false };
-  return { engine: db.engine, ...result, devices, properties, demo: SEED_DEMO };
+  return { engine: db.engine, ...result, devices, properties, checklists, demo: SEED_DEMO };
 }
 
 /**
@@ -1292,6 +1418,14 @@ async function createIndexes() {
     // Retest codes are RT-<project>-<seq>; uniqueness stops a concurrent insert
     // from minting a duplicate. Legacy rows may already collide, hence the guard.
     'CREATE UNIQUE INDEX IF NOT EXISTS idx_retests_code ON retests(project_id, code)',
+    // Attachments are listed newest-first for one project on every drawer open.
+    'CREATE INDEX IF NOT EXISTS idx_project_files_project ON project_files(project_id, created_at DESC)',
+    // A checklist is rendered section by section, in stored order.
+    'CREATE INDEX IF NOT EXISTS idx_checklist_items_checklist ON checklist_items(checklist_id, position)',
+    // "which projects use this template" gates the delete; "which templates does
+    // this project carry" is asked on every drawer open.
+    'CREATE INDEX IF NOT EXISTS idx_project_checklists_project ON project_checklists(project_id)',
+    'CREATE INDEX IF NOT EXISTS idx_project_checklists_checklist ON project_checklists(checklist_id)',
     // The device page filters by kind (four tabs), so kind leads the index.
     'CREATE INDEX IF NOT EXISTS idx_devices_kind ON devices(kind)',
     // Column config is read once per kind on every page load.

@@ -1,3 +1,5 @@
+import { bindAttachmentsTab, attachmentsTabHTML } from './files.js';
+import { bindChecklistTab, checklistTabHTML } from './checklists.js';
 import { deleteRetestFlow, loadProjects, openProjectForm, refreshAll } from './projects.js';
 import { hideMenu, placeMenu } from './shared.js';
 import { loadStats } from './shell.js';
@@ -45,8 +47,17 @@ export async function renderDrawer(id, tab = 'overview', keepOpen = true) {
   state.drawerProjectId = id;
   state.drawerTab = tab;
   let data;
+  let extras = { files: [], checklists: [] };
   try {
-    data = await api.project(id);
+    // The tabs carry counts, so the drawer needs all three before it paints:
+    // a tab that says "3" and then shows two rows is worse than a slower open.
+    const [projectData, checklistRes, fileRes] = await Promise.all([
+      api.project(id),
+      api.projectChecklists(id).catch(() => ({ checklists: [] })),
+      api.projectFiles(id).catch(() => ({ files: [] })),
+    ]);
+    data = projectData;
+    extras = { checklists: checklistRes.checklists || [], files: fileRes.files || [] };
   } catch (err) {
     toast(err.message, 'err');
     return;
@@ -63,20 +74,25 @@ export async function renderDrawer(id, tab = 'overview', keepOpen = true) {
   el.className = 'drawer';
   el.setAttribute('role', 'dialog');
   el.setAttribute('aria-modal', 'true');
-  el.innerHTML = drawerHTML(project, retests, tab);
+  el.innerHTML = drawerHTML(project, retests, tab, extras);
 
   document.body.appendChild(backdrop);
   document.body.appendChild(el);
   if (!keepOpen) document.addEventListener('keydown', drawerKeyHandler);
-  bindDrawer(el, project, retests);
+  bindDrawer(el, project, retests, extras);
 }
 
 
-export function drawerHTML(project, retests, tab) {
+export function drawerHTML(project, retests, tab, extras = { files: [], checklists: [] }) {
   const openRetests = retests.filter((r) => r.status === 'Incoming' || r.status === 'Ongoing').length;
+  const fails = (extras.checklists || []).reduce((n, c) => n + (Number(c.progress?.fail) || 0), 0);
 
+  // A count on every tab except the two that would always read 0: a "0" badge
+  // is noise, an absent one means "nothing waiting here".
   const tabs = [
     { id: 'overview', label: 'Overview' },
+    { id: 'checklist', label: 'Checklist', count: fails || undefined },
+    { id: 'attachments', label: 'Files', count: (extras.files || []).length || undefined },
     { id: 'retests', label: 'Retests', count: retests.length },
     { id: 'notes', label: 'Notes' },
   ];
@@ -123,7 +139,7 @@ export function drawerHTML(project, retests, tab) {
           .join('')}
       </div>
     </div>
-    <div class="drawer-body">${tabBody(project, retests, tab)}</div>
+    <div class="drawer-body">${tabBody(project, retests, tab, extras)}</div>
     ${
       tab === 'retests'
         ? `<div class="drawer-foot">
@@ -140,7 +156,15 @@ export function drawerHTML(project, retests, tab) {
 }
 
 
-export function tabBody(project, retests, tab) {
+export function tabBody(project, retests, tab, extras = { files: [], checklists: [] }) {
+  if (tab === 'checklist') {
+    return checklistTabHTML(extras.checklists || [], extras.files || []);
+  }
+
+  if (tab === 'attachments') {
+    return attachmentsTabHTML(extras.files || []);
+  }
+
   if (tab === 'overview') {
     const team = project.pentesters || [];
     const bySubrole = ENUMS.subrole.map((s) => ({ subrole: s, people: team.filter((p) => (p.subrole || 'Member') === s) }));
@@ -286,8 +310,14 @@ export function retestHTML(r) {
 }
 
 
-export function bindDrawer(el, project, retests) {
+export function bindDrawer(el, project, retests, extras = { files: [], checklists: [] }) {
   el.querySelector('[data-close-drawer]').addEventListener('click', closeDrawer);
+
+  // Both tabs repaint through the drawer itself, so a change keeps the tab the
+  // user is standing on instead of dropping them back on Overview.
+  const reload = () => renderDrawer(project.id, state.drawerTab, true);
+  bindAttachmentsTab(el, project, extras.files || [], reload);
+  bindChecklistTab(el, project, extras.checklists || [], extras.files || [], reload);
 
   // Quick status inside the drawer: refresh the drawer AND the list behind it.
   el.querySelectorAll('[data-set-status]').forEach((item) => {

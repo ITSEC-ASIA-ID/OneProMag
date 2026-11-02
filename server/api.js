@@ -8,6 +8,8 @@ import { routes as projects } from './routes/projects.js';
 import { routes as catalogue } from './routes/catalogue.js';
 import { routes as info } from './routes/info.js';
 import { routes as devices } from './routes/devices.js';
+import { routes as files } from './routes/files.js';
+import { routes as checklists } from './routes/checklists.js';
 
 export const api = {
   ...people,
@@ -15,4 +17,6 @@ export const api = {
   ...catalogue,
   ...info,
   ...devices,
+  ...files,
+  ...checklists,
 };

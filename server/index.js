@@ -4,6 +4,8 @@ import fsp from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { api } from './api.js';
+import { HANDLED } from './shared.js';
+import { UPLOAD_BODY_LIMIT } from './routes/files.js';
 import { initDatabase, db, bootstrapCredentials, DEMO_MODE } from './db.js';
 import { SECURITY_HEADERS } from './security.js';
 import {
@@ -71,9 +73,18 @@ async function readBody(req, limit = 1024 * 512) {
   }
 }
 
+/**
+ * Routes whose request body is measured in megabytes instead of kilobytes.
+ *
+ * `readBody` caps everything at 512 KB, which is right for JSON forms and wrong
+ * for the one endpoint that carries a file. Keeping the exception here, next to
+ * the body reader, means a route can never raise its own limit by accident.
+ */
+const LARGE_BODIES = new Map([['POST /api/projects/:id/files', UPLOAD_BODY_LIMIT]]);
+
 function matchRoute(method, pathname) {
   const key = `${method} ${pathname}`;
-  if (api[key]) return { handler: api[key], params: {} };
+  if (api[key]) return { handler: api[key], params: {}, key };
 
   for (const route of Object.keys(api)) {
     const [rMethod, rPath] = route.split(' ');
@@ -90,7 +101,7 @@ function matchRoute(method, pathname) {
         break;
       }
     }
-    if (ok) return { handler: api[route], params };
+    if (ok) return { handler: api[route], params, key: route };
   }
   return null;
 }
@@ -277,13 +288,24 @@ const server = http.createServer(async (req, res) => {
       if (!route) return sendJSON(res, 404, { error: 'Endpoint not found' });
 
       const isMutation = method !== 'GET';
-      const body = isMutation ? await readBody(req) : null;
+      const limit = LARGE_BODIES.get(route.key);
+      if (limit && Number(req.headers['content-length'] || 0) > limit) {
+        // Refused before a byte of it is buffered, so the answer is about the file
+        // the person chose rather than an opaque "payload too large" after a wait.
+        throw new HttpError(413, 'That file is too large — the limit is 20 MB');
+      }
+      const body = isMutation ? await readBody(req, limit) : null;
       const result = await route.handler({
         user,
         params: route.params,
         query: Object.fromEntries(url.searchParams),
         body,
+        req,
+        res,
       });
+      // A handler that streamed bytes owns the response; JSON-writing over it
+      // would throw "headers already sent" on the way out.
+      if (result === HANDLED) return undefined;
       return sendJSON(res, isMutation ? 201 : 200, result);
     }
 
