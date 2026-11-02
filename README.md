@@ -943,6 +943,15 @@ Everyone can read and write notes; the author is recorded and shown in the foote
   (~576px of 1138 at 1440 wide) while the badges keep their natural size
 - **Delete sits beside Edit** in the drawer header rather than in a separate
   danger zone at the bottom of the Overview tab
+- **The drawer is a glance; `/project/<id>` is the project.** The Expand button in
+  the drawer header (and the footer, next to the updated stamp) closes the drawer
+  and opens the same panels on a full page, where the team, the retests and the
+  notes fit side by side. The drawer's footer no longer carries a duplicate Edit:
+  one Edit lives in the header, where the Delete it sits beside already was. Both
+  surfaces render `tabBody()` and wire it with `bindProjectActions()`, so a status
+  button cannot mean one thing in the drawer and another on the page. The URL is
+  `/project/<id>` (the checklist keeps `/project/<id>/checklist`), it survives a
+  reload, and the project list's row stays lit while you are on it
 - Table columns: Project / Category / **SV** / Pentesters / Retests / Status. There is
   no Client column — the client is folded under the project name as
   **`Client – Application`** (e.g. `Bank Nusantara – Qitta`), so nothing is lost while
@@ -1944,6 +1953,7 @@ OneProMag/
 │       ├── admin.js     Admin panel shell
 │       ├── properties.js categories and statuses (Admin panel)
 │       ├── checklists.js checklists: drawer launcher, item editor, Admin panel
+│       ├── project-page.js one project, on its own URL (/project/<id>)
 │       ├── checklist-page.js one project's checklist, on its own URL
 │       ├── files.js     project attachments: upload, download, delete
 │       ├── api.js       fetch wrapper

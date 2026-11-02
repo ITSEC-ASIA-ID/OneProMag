@@ -1,7 +1,7 @@
 import { bindAttachmentsTab, attachmentsTabHTML } from './files.js';
 import { deleteRetestFlow, loadProjects, openProjectForm, refreshAll } from './projects.js';
 import { hideMenu, placeMenu } from './shared.js';
-import { loadStats, openChecklistPage } from './shell.js';
+import { loadStats, openChecklistPage, openProjectPage } from './shell.js';
 import { ENUMS, canManageCatalog, state, statusTones } from './state.js';
 import { bindPicker, pentesterPickerHTML, pickerValues } from './users.js';
 import { api } from './api.js';
@@ -104,6 +104,7 @@ export function drawerHTML(project, retests, tab, extras = { files: [], checklis
         </div>
         <h2>${h(project.name)}</h2>
         <div class="actions">
+          <button class="btn btn-icon" data-expand aria-label="Open full page" title="Open full page">${icon.expand()}</button>
           <button class="btn btn-icon" data-edit aria-label="Edit project" title="Edit project">${icon.edit()}</button>
           ${
             // The server refuses with 403 anyway; not offering the button means a
@@ -149,7 +150,7 @@ export function drawerHTML(project, retests, tab, extras = { files: [], checklis
         : `<div class="drawer-foot">
              <span class="note-updated">Updated ${fmtRelative(project.updatedAt)}</span>
              <div class="spacer"></div>
-             <button class="btn" data-edit>${icon.edit()} Edit</button>
+             <button class="btn" data-expand>${icon.expand(14)} Open full page</button>
            </div>`
     }`;
 }
@@ -316,33 +317,16 @@ export function bindDrawer(el, project, retests, extras = { files: [], checklist
   // Both tabs repaint through the drawer itself, so a change keeps the tab the
   // user is standing on instead of dropping them back on Overview.
   const reload = () => renderDrawer(project.id, state.drawerTab, true);
-  bindAttachmentsTab(el, project, extras.files || [], reload);
+  bindProjectActions(el, project, retests, extras, reload);
 
-  // Quick status inside the drawer: refresh the drawer AND the list behind it.
-  el.querySelectorAll('[data-set-status]').forEach((item) => {
-    item.addEventListener('click', async (e) => {
-      e.stopPropagation();
-      hideMenu(item.closest('.quick-status-menu'));
-      try {
-        await api.updateProject(project.id, { status: item.dataset.setStatus });
-        toast(`Status changed to ${item.dataset.setStatus}`);
-        await Promise.all([loadStats(), loadProjects()]);
-        await renderDrawer(project.id, state.drawerTab, true);
-      } catch (err) {
-        toast(err.message, 'err');
-      }
-    });
-  });
-  el.querySelectorAll('[data-quick-toggle]').forEach((toggle) => {
-    toggle.addEventListener('click', (e) => {
-      e.stopPropagation();
-      const menu = toggle.closest('[data-quick-status]').querySelector('.quick-status-menu');
-      const willOpen = menu.hidden;
-      el.querySelectorAll('.quick-status-menu').forEach(hideMenu);
-      menu.hidden = !willOpen;
-      if (willOpen) placeMenu(menu, toggle);
-    });
-  });
+  // The drawer is a glance. When the project does not fit in a 520px column,
+  // this hands it to a page with a URL instead of growing the column.
+  el.querySelectorAll('[data-expand]').forEach((btn) =>
+    btn.addEventListener('click', () => {
+      closeDrawer();
+      openProjectPage(project.id);
+    })
+  );
 
   el.querySelectorAll('[data-tab]').forEach((btn) =>
     btn.addEventListener('click', () => {
@@ -359,18 +343,6 @@ export function bindDrawer(el, project, retests, extras = { files: [], checklist
   );
   el.querySelectorAll('[data-tab-jump]').forEach((btn) =>
     btn.addEventListener('click', () => renderDrawer(project.id, btn.dataset.tabJump, true))
-  );
-  el.querySelectorAll('[data-edit]').forEach((btn) => btn.addEventListener('click', () => openProjectForm(project)));
-  // Notes have their own tiny modal: opening the whole project form to change
-  // one textarea buries the field the user actually asked for.
-  el.querySelectorAll('[data-edit-notes]').forEach((btn) =>
-    btn.addEventListener('click', () => openNotesForm(project))
-  );
-  el.querySelectorAll('[data-team-edit]').forEach((btn) =>
-    btn.addEventListener('click', () => openTeamForm(project))
-  );
-  el.querySelectorAll('[data-add-retest]').forEach((btn) =>
-    btn.addEventListener('click', () => openRetestForm(project.id, null))
   );
 
   el.querySelector('[data-delete-project]')?.addEventListener('click', async () => {
@@ -389,6 +361,73 @@ export function bindDrawer(el, project, retests, extras = { files: [], checklist
       toast(err.message, 'err');
     }
   });
+}
+
+
+/** The quick-status menu belonging to a toggle, wherever `placeMenu` parked it. */
+function menuOf(toggle) {
+  const host = toggle.closest('[data-quick-status]');
+  if (!host) return null;
+  const inPlace = host.querySelector('.quick-status-menu');
+  if (inPlace) return inPlace;
+  return [...document.querySelectorAll('[data-quick-menu]')].find((m) => m._qsHome === host) || null;
+}
+
+
+/**
+ * Everything a project's content does, wherever it is rendered.
+ *
+ * The drawer and the full page paint the same panels from the same `tabBody`,
+ * so they have to answer clicks the same way too — a status button that means
+ * one thing in the drawer and another on the page is the bug this shape
+ * prevents. `reload` is the only difference: the drawer repaints itself, the
+ * page remounts itself.
+ */
+export function bindProjectActions(el, project, retests, extras = { files: [], checklists: [] }, reload) {
+  bindAttachmentsTab(el, project, extras.files || [], reload);
+
+  // Quick status: refresh whatever is behind the panel AND the panel itself.
+  el.querySelectorAll('[data-set-status]').forEach((item) => {
+    item.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      hideMenu(item.closest('.quick-status-menu'));
+      try {
+        await api.updateProject(project.id, { status: item.dataset.setStatus });
+        toast(`Status changed to ${item.dataset.setStatus}`);
+        await Promise.all([loadStats(), loadProjects()]);
+        await reload();
+      } catch (err) {
+        toast(err.message, 'err');
+      }
+    });
+  });
+  el.querySelectorAll('[data-quick-toggle]').forEach((toggle) => {
+    toggle.addEventListener('click', (e) => {
+      e.stopPropagation();
+      // `placeMenu` parks the open menu under <body> (a transformed ancestor
+      // breaks position:fixed), so the second click on the same toggle cannot
+      // find it inside its host — it has to be looked for where it went.
+      const menu = menuOf(toggle);
+      if (!menu) return;
+      const willOpen = menu.hidden;
+      document.querySelectorAll('.quick-status-menu').forEach(hideMenu);
+      menu.hidden = !willOpen;
+      if (willOpen) placeMenu(menu, toggle);
+    });
+  });
+
+  el.querySelectorAll('[data-edit]').forEach((btn) => btn.addEventListener('click', () => openProjectForm(project)));
+  // Notes have their own tiny modal: opening the whole project form to change
+  // one textarea buries the field the user actually asked for.
+  el.querySelectorAll('[data-edit-notes]').forEach((btn) =>
+    btn.addEventListener('click', () => openNotesForm(project))
+  );
+  el.querySelectorAll('[data-team-edit]').forEach((btn) =>
+    btn.addEventListener('click', () => openTeamForm(project))
+  );
+  el.querySelectorAll('[data-add-retest]').forEach((btn) =>
+    btn.addEventListener('click', () => openRetestForm(project.id, null))
+  );
 
   el.querySelectorAll('[data-retest-edit]').forEach((btn) =>
     btn.addEventListener('click', (e) => {
@@ -402,7 +441,7 @@ export function bindDrawer(el, project, retests, extras = { files: [], checklist
     btn.addEventListener('click', (e) => {
       e.stopPropagation();
       const r = retests.find((x) => x.id === Number(btn.dataset.retestDel));
-      deleteRetestFlow(r, { onDone: () => renderDrawer(project.id, 'retests', true) });
+      deleteRetestFlow(r, { onDone: reload });
     })
   );
 }

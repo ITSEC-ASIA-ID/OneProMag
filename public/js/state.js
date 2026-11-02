@@ -101,6 +101,12 @@ export const NAV = {
     title: 'Checklist',
     sub: 'One template, and every item in it',
   },
+  // Also not a sidebar row: it is one project, and the list it came from stays
+  // lit. The title is replaced with the project's own name once it loads.
+  project: {
+    title: 'Project',
+    sub: 'Everything recorded on this engagement',
+  },
 };
 
 
@@ -142,6 +148,12 @@ export const CHECKLIST_PATH = (projectId) => `/project/${Number(projectId) || 0}
  */
 export const CHECKLIST_EDIT_PATH = (id) => `/admin/checklists/${id ? Number(id) : 'new'}`;
 
+/**
+ * One project, as a page. The drawer answers "what is this?"; this answers
+ * "show me everything", and needs its own address to be worth having.
+ */
+export const PROJECT_PATH = (projectId) => `/project/${Number(projectId) || 0}`;
+
 export const DEFAULT_NAV = 'active';
 
 const PATH_NAV = Object.fromEntries(Object.entries(NAV_PATHS).map(([nav, path]) => [path, nav]));
@@ -151,6 +163,7 @@ const PATH_NAV = Object.fromEntries(Object.entries(NAV_PATHS).map(([nav, path]) 
 export function pathForNav(nav) {
   if (nav === 'checklist') return CHECKLIST_PATH(state.checklistProjectId);
   if (nav === 'checklist-edit') return CHECKLIST_EDIT_PATH(state.checklistEditId);
+  if (nav === 'project') return PROJECT_PATH(state.projectViewId);
   return NAV_PATHS[nav] || NAV_PATHS[DEFAULT_NAV];
 }
 
@@ -162,6 +175,11 @@ export function navForPath(pathname) {
   if (scoped) {
     state.checklistProjectId = Number(scoped[1]);
     return 'checklist';
+  }
+  const project = /^\/project\/(\d+)$/.exec(clean);
+  if (project) {
+    state.projectViewId = Number(project[1]);
+    return 'project';
   }
   const edit = /^\/admin\/checklists\/(new|\d+)$/.exec(clean);
   if (edit) {
@@ -257,6 +275,8 @@ export const state = {
   checklistProjectId: null,
   // Which template the editor page is pointed at; null means "a new one".
   checklistEditId: null,
+  // Which project the full-page view is showing.
+  projectViewId: null,
   drawerTab: 'overview',
   drawer: null,
 };

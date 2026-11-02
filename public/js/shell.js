@@ -1,5 +1,6 @@
 import { openAccountMenu, renderAuth } from './auth.js';
 import { mountChecklistPage } from './checklist-page.js';
+import { mountProjectPage } from './project-page.js';
 import { mountChecklistEditor, refreshChecklists } from './checklists.js';
 import { openRetestForm } from './drawer.js';
 import { loadDevices } from './devices.js';
@@ -213,6 +214,10 @@ export function finishNav(historyMode = 'push') {
     void mountChecklistEditor();
     return;
   }
+  if (state.nav === 'project') {
+    void mountProjectPage();
+    return;
+  }
   // Admin pages render their own content; there is no project list to load.
   if (
     state.nav === 'clients' ||
@@ -244,7 +249,7 @@ export function finishNav(historyMode = 'push') {
 
 
 /** Pages that are not sidebar rows: the row they belong to stays lit instead. */
-const CHECKLIST_LIT = { checklist: 'active', 'checklist-edit': 'checklists' };
+const CHECKLIST_LIT = { checklist: 'active', 'checklist-edit': 'checklists', project: 'active' };
 
 
 /** Opens a template in the editor page. `id` null means a new one. */
@@ -258,6 +263,13 @@ export function openChecklistEditor(id) {
 export function openChecklistPage(projectId) {
   state.checklistProjectId = Number(projectId);
   handleNav('checklist', { history: 'push' });
+}
+
+
+/** Opens a project on its own page: the drawer's "open full page" target. */
+export function openProjectPage(projectId) {
+  state.projectViewId = Number(projectId);
+  handleNav('project', { history: 'push' });
 }
 
 
@@ -519,6 +531,7 @@ export async function boot() {
     if (state.nav === 'checklists') return void refreshChecklists();
     if (state.nav === 'checklist') return void mountChecklistPage();
     if (state.nav === 'checklist-edit') return void mountChecklistEditor();
+    if (state.nav === 'project') return void mountProjectPage();
     if (state.nav === 'directory') return void loadDirectory();
     // The Users page counts each person's projects and each supervisor's owned
     // engagements, so opening it cold (a reload straight onto it) must fetch the

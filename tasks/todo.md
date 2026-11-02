@@ -330,3 +330,32 @@ attaches itself.
 
 - [x] **Verified end to end**
   - Created `ZZ Editor` from `/admin/checklists/new` (three pasted items), regrouped and reordered it, saved, reopened, deleted it through the page; index back to three templates. 56/56 tests, md5 live == local for all five touched files.
+
+## `project-page`
+
+- [x] **The drawer's footer Edit is gone; Expand took its place**
+  - Acceptance: the drawer's footer carries the updated stamp and a full-page button, no Edit; the header keeps Edit beside Delete.
+  - Reason: Edit was in two places and the footer is where the eye lands last; the header already had Edit next to Delete, and the footer's real estate belongs to the thing the drawer cannot do — be a page.
+  - Verify: `.drawer-foot` buttons read `["Open full page"]`, `.drawer-foot [data-edit]` count 0, `.drawer-head [data-edit]` still 1, `[data-expand]` 2 (header icon + footer button); the Retests tab keeps its own `New retest` footer button.
+  - Files: `public/js/drawer.js`, `public/js/icons.js` (new `expand` glyph)
+
+- [x] **A project has a page of its own**
+  - Acceptance: `/project/<id>` renders the project's overview, retests and notes together; reload, bookmark and Back all work; the project list row stays lit; a Member sees no Delete; an unknown or deleted id returns to the list with a toast.
+  - Reason: the drawer is 520px wide and sits on top of the list. A bench of six, four retests and a page of notes does not fit in a glance, and a glance has no URL to send anyone.
+  - Verify: `PROJECT_PATH` + `state.projectViewId` + the `/project/(\d+)` branch in `navForPath` + the `project` NAV entry in `public/js/state.js`; `openProjectPage()` + `CHECKLIST_LIT.project = 'active'` + the `mountProjectPage()` branches in `public/js/shell.js`; `projectPageHTML()`/`mountProjectPage()` in `public/js/project-page.js`; probes: `/project/4` renders title "Partner Payment API", subtitle `PayGate Indonesia · API`, three `.pjp-sec`, 11 info cells, one lit nav row (`active`), zero overflow at 430px and at 1440, zero console errors on reload; `bagas` opens it with 0 `[data-pjp-del]`.
+  - Files: `public/js/project-page.js` (new), `public/js/state.js`, `public/js/shell.js`, `public/js/projects.js`, `public/css/styles.css`
+
+- [x] **One implementation behind both surfaces**
+  - Acceptance: the page's Overview/Retests/Notes panels and every control in them behave exactly as in the drawer, without a second copy of the logic.
+  - Reason: two renderers for one panel is how a status button ends up meaning two different things — the same reason the checklist page reuses the drawer's renderer.
+  - Verify: `tabBody()` renders the panels on both; `bindProjectActions(el, project, retests, extras, reload)` holds the status menu, Edit notes, Who pentest, New retest, retest edit/delete and file handling, and `bindDrawer()` now only adds the drawer's own tab/close/delete wiring. Probe: the page's quick-status menu, notes modal ("Edit notes"), team modal ("Who pentest"), retest modal ("New retest request", no project picker because the project is known) and the project form ("Edit project") all opened from `/project/4`.
+  - Files: `public/js/drawer.js`, `public/js/project-page.js`
+
+- [x] **A latent bug the page exposed, fixed**
+  - Acceptance: opening, closing and reopening a quick-status menu never throws.
+  - Reason: `placeMenu()` portals an open menu into `<body>` (a transformed ancestor breaks `position: fixed`), so the second click on the same toggle looked for the menu inside its host and found nothing — `TypeError: Cannot read properties of null (reading 'hidden')` at `public/js/drawer.js`. It existed before this change; the new page simply made the menu easier to open twice.
+  - Verify: `menuOf(toggle)` falls back to the portalled node via `menu._qsHome`; the toggle click now queries every `.quick-status-menu` document-wide before closing them. Probe: open → close → open reports `1 / 0 / 1` visible menus and an empty error list.
+  - Files: `public/js/drawer.js`
+
+- [x] **Verified end to end**
+  - 56/56 tests; md5 live == local for all seven touched files; all twelve nav pages render with zero console errors; `history.back()` from `/project/4` lands on `/projects`; the checklist page at `/project/4/checklist` still renders ten items and its Back button still says "Projects".

@@ -6731,3 +6731,54 @@ svg { display: block; }
   .cke-field select { min-width: 0; width: 100%; }
   .cke-name { font-size: 16px; }
 }
+
+/* ============================================================
+   One project, as a page (`/project/<id>`)
+   ------------------------------------------------------------
+   The drawer is a 520px glance. This is the same content with room for it, so
+   the panels borrow the drawer's own classes (`drawer-client`, `info-grid`,
+   `team-groups`, …) rather than growing a second vocabulary for one screen.
+   ============================================================ */
+.pjp { display: flex; flex-direction: column; gap: 16px; padding-bottom: 48px; }
+
+.pjp-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding-bottom: 2px;
+}
+.pjp-acts { display: flex; align-items: center; gap: 8px; }
+
+.pjp-title { padding-bottom: 2px; }
+.pjp-title-main { display: flex; align-items: flex-start; gap: 14px; }
+.pjp-title-main h2 {
+  margin: 0;
+  font-size: 21px;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+  overflow-wrap: anywhere;
+}
+.pjp-meta { margin-top: 7px; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.pjp-title .drawer-client { margin-top: 8px; }
+.pjp-title .cat-icon { width: 42px; height: 42px; border-radius: 12px; }
+
+/* One panel per section, each a card, so a long project reads as chapters
+   instead of one wall. */
+.pjp-sec {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  padding: 18px 20px 20px;
+}
+.pjp-sec > .info-grid { margin-top: 0; }
+.pjp-sec .section-head { margin-top: 0; }
+.pjp-sec .section-head + * { margin-top: 14px; }
+.pjp-sec .empty { padding: 8px 0 4px; }
+
+@media (max-width: 720px) {
+  .pjp-sec { padding: 14px; }
+  .pjp-title-main { flex-direction: column; gap: 8px; }
+  .pjp-title-main h2 { font-size: 18px; }
+  .pjp-acts .btn { flex: 1; justify-content: center; }
+}
