@@ -1,7 +1,9 @@
 import { bindAttachmentsTab, attachmentsTabHTML } from './files.js';
+import { bindChecklistBody, checklistBodyHTML } from './checklists.js';
+import { bindPentestNotes, pentestNotesTabHTML } from './pentest-notes.js';
 import { deleteRetestFlow, loadProjects, openProjectForm, refreshAll } from './projects.js';
 import { hideMenu, placeMenu } from './shared.js';
-import { loadStats, openChecklistPage, openProjectPage } from './shell.js';
+import { loadStats, openProjectPage } from './shell.js';
 import { ENUMS, canManageCatalog, state, statusTones } from './state.js';
 import { bindPicker, pentesterPickerHTML, pickerValues } from './users.js';
 import { api } from './api.js';
@@ -46,17 +48,22 @@ export async function renderDrawer(id, tab = 'overview', keepOpen = true) {
   state.drawerProjectId = id;
   state.drawerTab = tab;
   let data;
-  let extras = { files: [], checklists: [] };
+  let extras = { files: [], checklists: [], pentestNotes: [] };
   try {
     // The tabs carry counts, so the drawer needs all three before it paints:
     // a tab that says "3" and then shows two rows is worse than a slower open.
-    const [projectData, checklistRes, fileRes] = await Promise.all([
+    const [projectData, checklistRes, fileRes, noteRes] = await Promise.all([
       api.project(id),
       api.projectChecklists(id).catch(() => ({ checklists: [] })),
       api.projectFiles(id).catch(() => ({ files: [] })),
+      api.pentestNotes(id).catch(() => ({ notes: [] })),
     ]);
     data = projectData;
-    extras = { checklists: checklistRes.checklists || [], files: fileRes.files || [] };
+    extras = {
+      checklists: checklistRes.checklists || [],
+      files: fileRes.files || [],
+      pentestNotes: noteRes.notes || [],
+    };
   } catch (err) {
     toast(err.message, 'err');
     return;
@@ -82,18 +89,22 @@ export async function renderDrawer(id, tab = 'overview', keepOpen = true) {
 }
 
 
-export function drawerHTML(project, retests, tab, extras = { files: [], checklists: [] }) {
+export function drawerHTML(project, retests, tab, extras = { files: [], checklists: [], pentestNotes: [] }) {
   const openRetests = retests.filter((r) => r.status === 'Incoming' || r.status === 'Ongoing').length;
   const fails = (extras.checklists || []).reduce((n, c) => n + (Number(c.progress?.fail) || 0), 0);
 
   // A count on every tab except the two that would always read 0: a "0" badge
   // is noise, an absent one means "nothing waiting here".
+  // The order is the order of the work: what this is, what was agreed, what
+  // came back, what the client asked for, what was checked against a standard,
+  // and finally the running log.
   const tabs = [
     { id: 'overview', label: 'Overview' },
-    { id: 'checklist', label: 'Checklist', count: fails || undefined },
-    { id: 'attachments', label: 'Files', count: (extras.files || []).length || undefined },
-    { id: 'retests', label: 'Retests', count: retests.length },
     { id: 'notes', label: 'Notes' },
+    { id: 'attachments', label: 'Files', count: (extras.files || []).length || undefined },
+    { id: 'retests', label: 'Retests', count: retests.length || undefined },
+    { id: 'checklist', label: 'Checklist', count: fails || undefined },
+    { id: 'pentest-notes', label: 'Pentest notes', count: (extras.pentestNotes || []).length || undefined },
   ];
 
   return `
@@ -156,10 +167,13 @@ export function drawerHTML(project, retests, tab, extras = { files: [], checklis
 }
 
 
-export function tabBody(project, retests, tab, extras = { files: [], checklists: [] }) {
+export function tabBody(project, retests, tab, extras = { files: [], checklists: [], pentestNotes: [] }) {
   if (tab === 'checklist') {
-    // Not reachable: the Checklist tab navigates to the project's own page.
-    return '';
+    return checklistBodyHTML(extras.checklists || [], extras.files || []);
+  }
+
+  if (tab === 'pentest-notes') {
+    return pentestNotesTabHTML(extras.pentestNotes || []);
   }
 
   if (tab === 'attachments') {
@@ -311,7 +325,7 @@ export function retestHTML(r) {
 }
 
 
-export function bindDrawer(el, project, retests, extras = { files: [], checklists: [] }) {
+export function bindDrawer(el, project, retests, extras = { files: [], checklists: [], pentestNotes: [] }) {
   el.querySelector('[data-close-drawer]').addEventListener('click', closeDrawer);
 
   // Both tabs repaint through the drawer itself, so a change keeps the tab the
@@ -329,17 +343,7 @@ export function bindDrawer(el, project, retests, extras = { files: [], checklist
   );
 
   el.querySelectorAll('[data-tab]').forEach((btn) =>
-    btn.addEventListener('click', () => {
-      // The checklist is a page, not a panel: a real list is longer than a
-      // drawer, and the seat where it is worked through should be a place you can
-      // bookmark. The tab is the way in.
-      if (btn.dataset.tab === 'checklist') {
-        closeDrawer();
-        openChecklistPage(project.id);
-        return;
-      }
-      renderDrawer(project.id, btn.dataset.tab, true);
-    })
+    btn.addEventListener('click', () => renderDrawer(project.id, btn.dataset.tab, true))
   );
   el.querySelectorAll('[data-tab-jump]').forEach((btn) =>
     btn.addEventListener('click', () => renderDrawer(project.id, btn.dataset.tabJump, true))
@@ -383,8 +387,13 @@ function menuOf(toggle) {
  * prevents. `reload` is the only difference: the drawer repaints itself, the
  * page remounts itself.
  */
-export function bindProjectActions(el, project, retests, extras = { files: [], checklists: [] }, reload) {
+export function bindProjectActions(el, project, retests, extras = { files: [], checklists: [], pentestNotes: [] }, reload) {
+  // Each binder looks for its own markup and does nothing when the tab on
+  // screen is someone else's, so all three can be called every time: a tab
+  // cannot end up rendered but unbound because a branch forgot it.
   bindAttachmentsTab(el, project, extras.files || [], reload);
+  bindChecklistBody(el, project, extras.checklists || [], extras.files || [], reload);
+  bindPentestNotes(el, project.id, extras.pentestNotes || [], reload);
 
   // Quick status: refresh whatever is behind the panel AND the panel itself.
   el.querySelectorAll('[data-set-status]').forEach((item) => {

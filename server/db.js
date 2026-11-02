@@ -1228,8 +1228,9 @@ async function writeChecklistItems(conn, checklistId, items) {
  * 19 — project attachments and security checklists.
  * 20 — checklist categories, one default per category, versioned seed.
  * 21 — one checklist per project: a unique index on project_checklists(project_id).
+ * 22 — working notes per project, read newest-first as a timeline.
  */
-export const SCHEMA_VERSION = 21;
+export const SCHEMA_VERSION = 22;
 
 let appliedSchemaVersion = 0;
 
@@ -1620,6 +1621,9 @@ async function createIndexes() {
     'CREATE INDEX IF NOT EXISTS idx_project_checklists_checklist ON project_checklists(checklist_id)',
     // The device page filters by kind (four tabs), so kind leads the index.
     'CREATE INDEX IF NOT EXISTS idx_devices_kind ON devices(kind)',
+    // Pentest notes are listed newest-first for one project, which is the only
+    // way they are ever read.
+    'CREATE INDEX IF NOT EXISTS idx_pentest_notes_project ON project_pentest_notes(project_id, entry_date DESC, id DESC)',
     // Column config is read once per kind on every page load.
     'CREATE INDEX IF NOT EXISTS idx_device_columns_kind ON device_columns(kind)',
     // Login accepts a username OR an email, so the email lookup must not scan the

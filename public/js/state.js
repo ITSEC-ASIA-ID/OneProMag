@@ -91,12 +91,7 @@ export const NAV = {
     title: 'Checklists',
     sub: 'Security checklists an engagement can be measured against',
   },
-  // Not in the sidebar: a project's checklist lives at /project/<id>/checklist,
-  // and this entry exists so the shell can title and highlight that page.
-  checklist: {
-    title: 'Checklist',
-    sub: 'Security checklist for this engagement',
-  },
+  // Not in the sidebar: it is the editor for one template.
   'checklist-edit': {
     title: 'Checklist',
     sub: 'One template, and every item in it',
@@ -135,13 +130,6 @@ export const NAV_PATHS = {
 };
 
 /**
- * The one page whose URL carries an id: a project's checklist. It is not a nav
- * row, so it cannot live in `NAV_PATHS`; `pathForNav` builds it from
- * `state.checklistProjectId` and `navForPath` reads the id back out.
- */
-export const CHECKLIST_PATH = (projectId) => `/project/${Number(projectId) || 0}/checklist`;
-
-/**
  * The checklist template editor. `new` is a page too, so "create a checklist" is a
  * URL rather than a dialog — the same editor serves both, and a half-written list
  * survives a reload.
@@ -156,6 +144,8 @@ export const CHECKLIST_EDIT_PATH = (id) => `/admin/checklists/${id ? Number(id) 
  * spelled out, because the tab you were reading is part of the address — a
  * reload, a bookmark or a link sent to a colleague must land on it.
  */
+export const PROJECT_TABS = ['overview', 'notes', 'attachments', 'retests', 'checklist', 'pentest-notes'];
+
 export const PROJECT_PATH = (projectId, tab = 'overview') =>
   `/project/${Number(projectId) || 0}${tab && tab !== 'overview' ? `/${tab}` : ''}`;
 
@@ -166,7 +156,6 @@ const PATH_NAV = Object.fromEntries(Object.entries(NAV_PATHS).map(([nav, path]) 
 
 /** The URL a nav id lives at. Anything unknown falls back to the default page. */
 export function pathForNav(nav) {
-  if (nav === 'checklist') return CHECKLIST_PATH(state.checklistProjectId);
   if (nav === 'checklist-edit') return CHECKLIST_EDIT_PATH(state.checklistEditId);
   if (nav === 'project') return PROJECT_PATH(state.projectViewId, state.projectTab);
   return NAV_PATHS[nav] || NAV_PATHS[DEFAULT_NAV];
@@ -176,13 +165,11 @@ export function pathForNav(nav) {
 /** The nav id a path stands for, or null when the path belongs to no page. */
 export function navForPath(pathname) {
   const clean = `/${String(pathname || '').replace(/^\/+/, '')}`.replace(/\/+$/, '');
-  const scoped = /^\/project\/(\d+)\/checklist$/.exec(clean);
-  if (scoped) {
-    state.checklistProjectId = Number(scoped[1]);
-    return 'checklist';
-  }
-  const project = /^\/project\/(\d+)(?:\/(overview|checklist|attachments|retests|notes))?$/.exec(clean);
+  const project = /^\/project\/(\d+)(?:\/([a-z-]+))?$/.exec(clean);
   if (project) {
+    // A segment that is not a tab is a URL this app does not have: fall back to
+    // the list rather than show Overview under a path that claims a page.
+    if (project[2] && !PROJECT_TABS.includes(project[2])) return null;
     state.projectViewId = Number(project[1]);
     state.projectTab = project[2] || 'overview';
     return 'project';
@@ -277,8 +264,6 @@ export const state = {
   filters: { q: '', status: '', category: '', env: '', method: '', clientId: '', applicationId: '' },
   filtersOpen: false,
   drawerProjectId: null,
-  // Which project's checklist the (id-carrying) checklist page is showing.
-  checklistProjectId: null,
   // Which template the editor page is pointed at; null means "a new one".
   checklistEditId: null,
   // Which project the full-page view is showing, and which of its tabs.

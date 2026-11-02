@@ -2,7 +2,7 @@ import { api } from './api.js';
 import { icon } from './icons.js';
 import { canManageCatalog, state } from './state.js';
 import { closeDrawer } from './drawer.js';
-import { handleNav, openChecklistEditor, openChecklistPage } from './shell.js';
+import { handleNav, openChecklistEditor } from './shell.js';
 import { confirmDialog, escapeHtml as h, fmtRelative, openModal, toast } from './ui.js';
 
 
@@ -176,7 +176,7 @@ export function checklistBodyHTML(links = [], files = []) {
  * the project, which is exactly the number they are watching.
  */
 function syncTabBadge(links) {
-  const btn = document.querySelector('.drawer [data-tab="checklist"]');
+  const btn = document.querySelector('[data-tab="checklist"], [data-pjp-tab="checklist"]');
   if (!btn) return;
   const fails = links.reduce((n, l) => n + (Number(l.progress?.fail) || 0), 0);
   let badge = btn.querySelector('.n');

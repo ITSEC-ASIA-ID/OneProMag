@@ -1,6 +1,6 @@
 import { api } from './api.js';
 import { bindProjectActions, tabBody } from './drawer.js';
-import { openChecklistPage, handleNav, setTitle } from './shell.js';
+import { handleNav, setTitle } from './shell.js';
 import { openProjectForm } from './projects.js';
 import { canManageCatalog, state } from './state.js';
 import { icon } from './icons.js';
@@ -18,18 +18,16 @@ import {
    does not fit in a glance, so `/project/12` is the same content with room to
    read it, a URL you can send someone, and the browser's own Back.
 
-   It keeps the drawer's tabs, because "which of these five things am I looking
-   at" is the same question on a page as in a column — and because the tab you
-   were on belongs in the address. Checklist is not a tab you can land on: it
-   has its own page (`/project/12/checklist`), so its tab is a way out, exactly
-   as in the drawer.
+   It keeps the drawer's tabs, because "which of these things am I looking at" is
+   the same question on a page as in a column — and because the tab you were on
+   belongs in the address.
 
    Nothing here re-implements the drawer: `tabBody` renders the panels and
    `bindProjectActions` wires them, so a status button cannot mean one thing in
    the drawer and another here.
    ============================================================ */
 
-const TABS = ['overview', 'checklist', 'attachments', 'retests', 'notes'];
+const TABS = ['overview', 'notes', 'attachments', 'retests', 'checklist', 'pentest-notes'];
 
 let pageCache = null;
 
@@ -56,16 +54,18 @@ function headHTML(project, retests, tab, extras) {
   // Same rule as the drawer: a count only where it says something. A "0" badge
   // is noise; an absent one means "nothing waiting here".
   const counts = {
-    checklist: fails || undefined,
     attachments: (extras.files || []).length || undefined,
     retests: retests.length || undefined,
+    checklist: fails || undefined,
+    'pentest-notes': (extras.pentestNotes || []).length || undefined,
   };
   const labels = {
     overview: 'Overview',
-    checklist: 'Checklist',
+    notes: 'Notes',
     attachments: 'Files',
     retests: 'Retests',
-    notes: 'Notes',
+    checklist: 'Checklist',
+    'pentest-notes': 'Pentest notes',
   };
 
   return `<header class="pjp-title">
@@ -120,16 +120,18 @@ export async function mountProjectPage() {
   // view of data the header needs anyway (three counts live in it). One load
   // per project, then repaints are local.
   if (!pageCache || pageCache.id !== projectId) {
-    const [projectRes, linksRes, fileRes] = await Promise.all([
+    const [projectRes, linksRes, fileRes, noteRes] = await Promise.all([
       api.project(projectId).catch(() => ({ project: null })),
       api.projectChecklists(projectId).catch(() => ({ checklists: [] })),
       api.projectFiles(projectId).catch(() => ({ files: [] })),
+      api.pentestNotes(projectId).catch(() => ({ notes: [] })),
     ]);
     pageCache = {
       id: projectId,
       data: projectRes,
       links: linksRes.checklists || [],
       files: fileRes.files || [],
+      notes: noteRes.notes || [],
     };
   }
 
@@ -142,7 +144,7 @@ export async function mountProjectPage() {
   }
 
   const retests = pageCache.data.retests || [];
-  const extras = { files: pageCache.files, checklists: pageCache.links };
+  const extras = { files: pageCache.files, checklists: pageCache.links, pentestNotes: pageCache.notes };
   const tab = TABS.includes(state.projectTab) ? state.projectTab : 'overview';
 
   setTitle(project.name, `${project.client || 'No client'} · ${project.category || ''}`);
@@ -193,6 +195,8 @@ export async function mountProjectPage() {
 function panelHTML(project, retests, tab, extras) {
   if (tab === 'overview') return tabBody(project, retests, 'overview', extras);
   if (tab === 'attachments') return tabBody(project, retests, 'attachments', extras);
+  if (tab === 'checklist') return tabBody(project, retests, 'checklist', extras);
+  if (tab === 'pentest-notes') return tabBody(project, retests, 'pentest-notes', extras);
   if (tab === 'retests') {
     // The empty state carries its own "New retest"; only a populated list needs
     // the heading's button, or the page offers the same action twice.
@@ -228,13 +232,7 @@ function bindPanel(project, retests, tab, extras) {
 
   document.querySelectorAll('[data-pjp-tab]').forEach((btn) =>
     btn.addEventListener('click', () => {
-      const next = btn.dataset.pjpTab;
-      if (next === 'checklist') {
-        // The checklist is a page, not a panel — identical to the drawer's tab.
-        openChecklistPage(project.id);
-        return;
-      }
-      state.projectTab = next;
+      state.projectTab = btn.dataset.pjpTab;
       handleNav('project', { history: 'push' });
     })
   );

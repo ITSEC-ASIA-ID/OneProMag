@@ -1,5 +1,4 @@
 import { openAccountMenu, renderAuth } from './auth.js';
-import { mountChecklistPage } from './checklist-page.js';
 import { forgetProjectPage, mountProjectPage } from './project-page.js';
 import { mountChecklistEditor, refreshChecklists } from './checklists.js';
 import { openRetestForm } from './drawer.js';
@@ -198,7 +197,7 @@ export function syncUrl(mode = 'push') {
 export function finishNav(historyMode = 'push') {
   localStorage.setItem('opm-nav', state.nav);
   syncUrl(historyMode);
-  // A project's checklist belongs to the project list: keep that row lit rather
+  // A page that is not a sidebar row keeps the row it belongs to lit, rather
   // than leaving the sidebar with nothing active, which reads as "lost".
   const lit = CHECKLIST_LIT[state.nav] || state.nav;
   document.querySelectorAll('[data-nav]').forEach((b) => b.classList.toggle('active', b.dataset.nav === lit));
@@ -206,10 +205,6 @@ export function finishNav(historyMode = 'push') {
   const onBoard = state.nav === 'team';
 
   mountContent();
-  if (state.nav === 'checklist') {
-    void mountChecklistPage();
-    return;
-  }
   if (state.nav === 'checklist-edit') {
     void mountChecklistEditor();
     return;
@@ -249,20 +244,13 @@ export function finishNav(historyMode = 'push') {
 
 
 /** Pages that are not sidebar rows: the row they belong to stays lit instead. */
-const CHECKLIST_LIT = { checklist: 'active', 'checklist-edit': 'checklists', project: 'active' };
+const CHECKLIST_LIT = { 'checklist-edit': 'checklists', project: 'active' };
 
 
 /** Opens a template in the editor page. `id` null means a new one. */
 export function openChecklistEditor(id) {
   state.checklistEditId = id ? Number(id) : null;
   handleNav('checklist-edit', { history: 'push' });
-}
-
-
-/** Opens a project's checklist page, the one URL that carries an id. */
-export function openChecklistPage(projectId) {
-  state.checklistProjectId = Number(projectId);
-  handleNav('checklist', { history: 'push' });
 }
 
 
@@ -524,14 +512,13 @@ export async function boot() {
     bindShell();
     syncUrl('replace');
     mountContent();
-    // A project's checklist has no nav row of its own; its project list keeps
+    // A page without a sidebar row of its own keeps its parent row lit.
     // the highlight rather than leaving the sidebar blank.
     const lit = CHECKLIST_LIT[state.nav] || state.nav;
     document.querySelectorAll('[data-nav]').forEach((b) => b.classList.toggle('active', b.dataset.nav === lit));
 
     if (state.nav === 'clients' || state.nav === 'properties') return;
     if (state.nav === 'checklists') return void refreshChecklists();
-    if (state.nav === 'checklist') return void mountChecklistPage();
     if (state.nav === 'checklist-edit') return void mountChecklistEditor();
     if (state.nav === 'project') return void mountProjectPage();
     if (state.nav === 'directory') return void loadDirectory();

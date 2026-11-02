@@ -1,5 +1,4 @@
 import { adminHTML, bindAdmin } from './admin.js';
-import { checklistPageHTML } from './checklist-page.js';
 import { projectPageHTML } from './project-page.js';
 import { checklistEditorHTML, checklistsPageHTML } from './checklists.js';
 import { bindDevices, devicesHTML } from './devices.js';
@@ -404,13 +403,6 @@ export function mountContent() {
     return;
   }
 
-  if (state.nav === 'checklist') {
-    // Skeleton now, data in mountChecklistPage(): the page fetches the project,
-    // its attached lists and its files together.
-    content.innerHTML = checklistPageHTML();
-    setTitle(NAV.checklist.title, NAV.checklist.sub);
-    return;
-  }
 
   if (state.nav === 'project') {
     // Same deal: skeleton, then mountProjectPage() fills it. The title becomes

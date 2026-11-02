@@ -1553,3 +1553,70 @@ test('an answer cannot borrow a file from another project', async () => {
     (err) => err.status === 400 && /different project/.test(err.message)
   );
 });
+
+test('pentest notes: newest day first, and a no-op save does not touch the stamp', async () => {
+  const admin = await asUser('admin');
+  const projects = await call('GET /api/projects', admin);
+  const project = projects.projects[0];
+
+  const first = await call('POST /api/projects/:id/pentest-notes', admin, {
+    params: { id: project.id },
+    body: { entryDate: '2026-10-05', body: 'Replayed a session cookie after logout; the API accepted it.' },
+  });
+  assert.equal(first.note.entryDate, '2026-10-05');
+  assert.equal(first.note.authorName, admin.name);
+
+  const second = await call('POST /api/projects/:id/pentest-notes', admin, {
+    params: { id: project.id },
+    body: { entryDate: '2026-10-09', body: 'Walked the object-id space on /api/invoices.' },
+  });
+  assert.deepEqual(
+    second.notes.map((n) => n.entryDate),
+    ['2026-10-09', '2026-10-05'],
+    'the later day sorts first whatever order they were written in'
+  );
+
+  // Pinned first, so a pass cannot come from two writes landing in the same
+  // millisecond.
+  await db.run(`UPDATE project_pentest_notes SET updated_at = '2020-01-01T00:00:00.000Z' WHERE id = ?`, [
+    first.note.id,
+  ]);
+  const same = await call('PATCH /api/pentest-notes/:id', admin, {
+    params: { id: first.note.id },
+    body: { body: first.note.body },
+  });
+  assert.equal(same.note.updatedAt, '2020-01-01T00:00:00.000Z', 'a no-op save is not an edit');
+
+  const edited = await call('PATCH /api/pentest-notes/:id', admin, {
+    params: { id: first.note.id },
+    body: { body: 'Replayed a session cookie after logout; the API accepted it. Fixed in the retest.' },
+  });
+  assert.notEqual(edited.note.updatedAt, '2020-01-01T00:00:00.000Z');
+  assert.match(edited.note.body, /Fixed in the retest/);
+
+  await assert.rejects(
+    () => call('POST /api/projects/:id/pentest-notes', admin, { params: { id: project.id }, body: { body: '   ' } }),
+    (err) => err.status === 400 && /needs some text/.test(err.message)
+  );
+  await assert.rejects(
+    () =>
+      call('POST /api/projects/:id/pentest-notes', admin, {
+        params: { id: project.id },
+        body: { body: 'x', entryDate: 'last tuesday' },
+      }),
+    (err) => err.status === 400 && /Not a date/.test(err.message)
+  );
+
+  await call('DELETE /api/pentest-notes/:id', admin, { params: { id: first.note.id } });
+  const left = await call('GET /api/projects/:id/pentest-notes', admin, { params: { id: project.id } });
+  assert.equal(left.notes.length, 1);
+
+  // A Member writes notes — that is the job — but deleting someone's log is a
+  // delete like any other.
+  const member = await asUser('bagas');
+  await assert.rejects(
+    () => call('DELETE /api/pentest-notes/:id', member, { params: { id: second.notes[0].id } }),
+    (err) => err.status === 403
+  );
+  await call('DELETE /api/pentest-notes/:id', admin, { params: { id: second.notes[0].id } });
+});

@@ -170,4 +170,11 @@ export const api = {
   detachChecklist: (id) => request('DELETE', `/api/project-checklists/${id}`),
   answerChecklistItem: (linkId, itemId, payload) =>
     request('PATCH', `/api/project-checklists/${linkId}/items/${itemId}`, payload),
+
+  // Pentest notes: the working log of an engagement.
+  pentestNotes: (projectId) => request('GET', `/api/projects/${projectId}/pentest-notes`),
+  addPentestNote: (projectId, payload) =>
+    request('POST', `/api/projects/${projectId}/pentest-notes`, payload),
+  updatePentestNote: (id, payload) => request('PATCH', `/api/pentest-notes/${id}`, payload),
+  deletePentestNote: (id) => request('DELETE', `/api/pentest-notes/${id}`),
 };

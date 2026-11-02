@@ -10,6 +10,7 @@ import { routes as info } from './routes/info.js';
 import { routes as devices } from './routes/devices.js';
 import { routes as files } from './routes/files.js';
 import { routes as checklists } from './routes/checklists.js';
+import { routes as pentestNotes } from './routes/pentest-notes.js';
 
 export const api = {
   ...people,
@@ -19,4 +20,5 @@ export const api = {
   ...devices,
   ...files,
   ...checklists,
+  ...pentestNotes,
 };

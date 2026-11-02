@@ -118,6 +118,8 @@ have shipped:
 | a project's category attaches its default, once | auto-attach is additive and idempotent |
 | a template in use cannot be deleted | `RESTRICT`, reported as 409 |
 | an item cannot cite another project's file | evidence stays with its engagement |
+| pentest notes read newest-day-first, and a no-op save keeps the stamp | the log is a timeline, not a list of writes |
+| a Member cannot delete a pentest note | the delete rule, on the log |
 
 `.github/workflows/test.yml` runs it on every push and pull request. There is no
 browser test: the UI is verified in the container, and a screenshot is worth more
@@ -1646,7 +1648,7 @@ Deleting a project deletes its folder; deleting one file deletes its bytes and, 
 it was the last, the empty folder. Both read the stored names *before* the rows
 cascade — the same trap that once leaked variant notes.
 
-### Security checklists (project drawer → Checklist, `/project/<id>/checklist`, Admin panel → Checklists)
+### Security checklists (project → Checklist tab, Admin panel → Checklists)
 
 A project works through **one** checklist: **Open · Pass · Fail ·
 N/A** per item, a note that explains a Fail, and optionally one of the project's
@@ -1664,12 +1666,12 @@ which is why a Web project arrives with the 2025 list already waiting. A list
 chosen by hand is never overwritten by that rule; changing it is the page's
 **Change** button, and a template can always be swapped for another one.
 
-The Checklist tab opens `/project/<id>/checklist` rather than a panel — a real
-list is longer than a drawer. There the items get the room they need: filter by
-status, search the text, group by section, and answer without the drawer
-scrolling under you. The URL is the page, so a checklist can be bookmarked or
-sent to a colleague. Swapping the checklist underneath answered work is a delete:
-a lead or sub-lead, with the answer count named in the dialog.
+The Checklist tab is an ordinary tab — the items sit in the panel, grouped by
+section, answered in place, and the badge counts the failures. The same panel is
+painted on the drawer and on `/project/<id>/checklist`, which is what keeps a
+status button from meaning one thing in the drawer and another on the page.
+Swapping the checklist underneath answered work is a delete: a lead or sub-lead,
+with the answer count named in the dialog.
 
 The Admin panel manages the templates, and one template is edited on its own page
 (`/admin/checklists/<id>`, or `/admin/checklists/new`) rather than in a dialog — a
@@ -1778,12 +1780,36 @@ on Postgres and `INTEGER` on SQLite, so every statement that touches it uses the
 `seed_version` is what lets a release replace a shipped list's items in place
 instead of adding a second copy beside it.
 
+**`v1.22` — pentest notes, one row per entry.** `project_pentest_notes`
+(`project_id → projects CASCADE`, `entry_date`, `body`, `author_id → users SET
+NULL`, `created_at`, `updated_at`, index on `(project_id, entry_date DESC, id
+DESC)`). The project already had a `notes` field and this is deliberately not
+that: scope notes say what was agreed and rarely change, while these are written
+while testing and are many. One text field would have to be rewritten to add a
+single line, and two testers writing at once would silently overwrite each other.
+`entry_date` is the day the work belongs to, which need not be the day it was
+typed — the list orders by it, and `created_at` answers the other question.
+
 **`v1.21` — one checklist per project.** `CREATE UNIQUE INDEX
 idx_project_checklists_one ON project_checklists(project_id)`. A database that
 predates the rule can hold duplicates, so `dedupeProjectChecklists()` runs before
 `createIndexes()` on both engines: it keeps the newest link for each project (and
 drops the answers on the others) and logs how many it removed. The invariant then
 lives in the engine, not in every route that might forget it.
+
+### Pentest notes (project → Pentest notes tab)
+The working log of an engagement: many short entries, each stamped with a day.
+It is not the project's `notes` field. Scope notes say what was agreed and change
+rarely; these are written as the work happens, and one text field would have to be
+rewritten to append a line — two testers saving at once would lose one of them.
+
+The day is the one the tester picks, defaulting to today, and it need not be the
+day they type it: writing up Monday's work on Friday should still read in
+Monday's place. The list orders by that day, newest first, and prints `created_at`
+as a relative stamp ("Arif Wicaksono · just now") with "edited …" appended when
+the entry was touched after it was written. Saving an entry unchanged does not
+move that stamp, the same rule the project drawer follows. Deleting an entry is a
+`requireDeleter` action: admin, lead or sub-lead.
 
 ### Renamed in v1.13: the supervisor columns
 The **role stayed `Project Manager`**. What was renamed is the field that says who
@@ -1959,9 +1985,9 @@ OneProMag/
 │       ├── users.js     Manage users (Admin panel)
 │       ├── admin.js     Admin panel shell
 │       ├── properties.js categories and statuses (Admin panel)
-│       ├── checklists.js checklists: drawer launcher, item editor, Admin panel
-│       ├── project-page.js one project, on its own URL (/project/<id>)
-│       ├── checklist-page.js one project's checklist, on its own URL
+│       ├── checklists.js checklists: item editor (drawer + page), Admin panel
+│       ├── project-page.js one project, on its own URL (/project/<id>/<tab>)
+│       ├── pentest-notes.js the engagement's working log, one entry per day
 │       ├── files.js     project attachments: upload, download, delete
 │       ├── api.js       fetch wrapper
 │       ├── ui.js        modal/toast/badge/segmented primitives, team + SV cell

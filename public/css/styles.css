@@ -6453,291 +6453,13 @@ svg { display: block; }
 
 
 /* ============================================================
-   A project's checklist, on its own page
+   The project page
    ------------------------------------------------------------
-   The drawer tab lists what is attached and links here; the work
-   happens at full width because an OWASP list is long. The filter
-   chips carry their own counts so "3 fail" is one click away
-   instead of a scroll through answered items.
-   ============================================================ */
-.ckp { display: flex; flex-direction: column; gap: 14px; padding-bottom: 40px; }
-.ckp-head {
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
-  flex-wrap: wrap;
-  padding-bottom: 2px;
-}
-.ckp-title { min-width: 0; }
-.ckp-title h2 {
-  margin: 0;
-  font-size: 19px;
-  font-weight: 650;
-  letter-spacing: -0.02em;
-  overflow-wrap: anywhere;
-}
-.ckp-meta { margin: 3px 0 0; font-size: 12.5px; color: var(--muted); }
-.ckp-tools { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-.ckp-sum { font-size: 12.5px; color: var(--muted); white-space: nowrap; }
-.ckp-search { display: flex; }
-.ckp-search .input { width: 220px; height: 34px; }
-.ckp-filters { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
-.ckp-filters:empty { display: none; }
-.ckp-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  height: 30px;
-  padding: 0 11px;
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  background: var(--surface);
-  color: var(--muted);
-  font-size: 12.5px;
-  font-weight: 550;
-  cursor: pointer;
-}
-.ckp-chip:hover { border-color: var(--border-strong); color: var(--text); }
-.ckp-chip[aria-pressed="true"] {
-  background: var(--text);
-  border-color: var(--text);
-  color: var(--surface);
-}
-.ckp-chip-count {
-  font-size: 11px;
-  font-variant-numeric: tabular-nums;
-  opacity: 0.72;
-}
-.ckp-body { display: flex; flex-direction: column; gap: 14px; }
-.ckp-body .ck-item[hidden] { display: none; }
-.ckp-body .ck-section[hidden] { display: none; }
-.ckp-none { margin: 0; padding: 18px 2px; font-size: 13px; }
-
-/* The drawer's way into the page: one clickable summary per attached list. */
-.ck-sum {
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-  width: 100%;
-  padding: 12px 14px;
-  border: 1px solid var(--border);
-  border-radius: var(--r-md);
-  background: var(--surface);
-  text-align: left;
-  cursor: pointer;
-}
-.ck-sum:hover { border-color: var(--border-strong); background: var(--surface-2); }
-.ck-sum-top { display: flex; align-items: center; gap: 8px; min-width: 0; }
-.ck-sum-name {
-  font-size: 13.5px;
-  font-weight: 600;
-  color: var(--text);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.ck-sum-meta { font-size: 12px; color: var(--faint); }
-.ck-sum-go {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--accent);
-}
-.ck-marks { display: inline-flex; align-items: center; gap: 6px; margin-left: 8px; }
-
-/* Admin panel: the two fields that decide where a template attaches itself. */
-.field-row { display: flex; gap: 14px; flex-wrap: wrap; }
-.field-row > .field { flex: 1 1 220px; }
-.switch-row {
-  display: flex;
-  align-items: flex-start;
-  gap: 8px;
-  font-size: 12.5px;
-  line-height: 1.5;
-  color: var(--muted);
-  cursor: pointer;
-}
-.switch-row input { margin-top: 2px; }
-
-@media (max-width: 720px) {
-  .ckp-tools { width: 100%; }
-  .ckp-search { flex: 1 1 100%; }
-  .ckp-search .input { width: 100%; }
-  .ckp-title h2 { font-size: 17px; }
-}
-
-/* ---- attachments: drag and drop ---------------------------------------- */
-.files-hint {
-  font-size: 11.5px;
-  color: var(--faint);
-  margin-right: 2px;
-}
-/* The whole panel is the drop target, so this is a state, not a box. */
-.files.is-over {
-  outline: 2px dashed var(--accent);
-  outline-offset: -6px;
-  border-radius: 12px;
-  background: var(--cat-soft, rgba(91, 124, 250, 0.06));
-}
-.files.is-over .files-hint {
-  color: var(--accent);
-}
-
-/* ---- checklist picker -------------------------------------------------- */
-.ck-pick-now {
-  font-size: 11px;
-  font-weight: 500;
-  color: var(--muted);
-  text-transform: none;
-  letter-spacing: 0;
-}
-
-
-/* ============================================================
-   One checklist template, on its own page
-   ------------------------------------------------------------
-   A real list is a hundred rows: it needs the whole width, a
-   sticky save button and section headings you can read at a
-   glance. Rows are grouped by section, and the section of an
-   item is a compact select on its right — so "which category is
-   this item in" is answerable without opening anything.
-   ============================================================ */
-.cke { display: flex; flex-direction: column; gap: 14px; max-width: 1080px; padding-bottom: 48px; }
-
-.cke-bar {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 0 10px;
-  border-bottom: 1px solid var(--border);
-}
-.cke-state { font-size: 12.2px; color: var(--faint); }
-
-.cke-head {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  padding: 16px 18px;
-  border: 1px solid var(--border);
-  border-radius: var(--r-lg);
-  background: var(--surface);
-  box-shadow: var(--shadow-md);
-}
-.cke-name {
-  font-size: 18px;
-  font-weight: 600;
-  letter-spacing: -0.01em;
-  border-color: transparent;
-  background: transparent;
-  padding-left: 8px;
-  padding-right: 8px;
-}
-.cke-name:hover, .cke-name:focus { border-color: var(--border); background: var(--surface-2); }
-.cke-meta { display: flex; align-items: flex-end; gap: 16px; flex-wrap: wrap; }
-.cke-field { display: flex; flex-direction: column; gap: 5px; }
-.cke-field select { min-width: 148px; }
-.cke-default { align-self: center; max-width: 380px; }
-.cke-default span { font-size: 12.4px; color: var(--muted); line-height: 1.45; }
-.btn-danger-ghost { color: var(--rose-ink); }
-.btn-danger-ghost:hover { background: var(--rose-soft); border-color: transparent; }
-
-.cke-tools { display: flex; align-items: center; gap: 8px; }
-.cke-total { font-size: 12.2px; color: var(--faint); }
-
-.cke-list { display: flex; flex-direction: column; gap: 14px; }
-
-.cke-sec {
-  border: 1px solid var(--border);
-  border-radius: var(--r-lg);
-  background: var(--surface);
-  overflow: hidden;
-}
-.cke-sec-head {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 9px 12px 9px 14px;
-  background: var(--surface-2);
-  border-bottom: 1px solid var(--border);
-}
-.cke-sec-name {
-  margin: 0;
-  font-size: 12.6px;
-  font-weight: 620;
-  letter-spacing: 0.01em;
-  color: var(--ink);
-}
-
-.cke-item {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 7px 10px 7px 14px;
-  border-top: 1px solid var(--border);
-}
-.cke-item:first-of-type { border-top: none; }
-.cke-item:hover { background: var(--surface-2); }
-.cke-item-main { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0; }
-.cke-title { flex: 1.15; min-width: 0; font-weight: 520; }
-.cke-help { flex: 1.6; min-width: 0; color: var(--muted); font-size: 12.8px; }
-.cke-item-side { display: flex; align-items: center; gap: 6px; flex: none; }
-.cke-sec-pick {
-  width: 168px;
-  font-size: 12.4px;
-  color: var(--muted);
-  flex: none;
-}
-.cke-acts { display: inline-flex; gap: 2px; opacity: 0.42; transition: opacity 0.12s ease; }
-.cke-item:hover .cke-acts, .cke-item:focus-within .cke-acts { opacity: 1; }
-
-.cke-empty {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 6px;
-  padding: 44px 20px;
-  text-align: center;
-  border: 1px dashed var(--border);
-  border-radius: var(--r-lg);
-  color: var(--muted);
-}
-.cke-empty .icon { color: var(--faint); }
-.cke-empty h3 { margin: 2px 0 0; font-size: 14px; color: var(--ink); }
-.cke-empty p { margin: 0; font-size: 12.8px; max-width: 460px; line-height: 1.55; }
-
-/* The template name in the index table reads as a link, because it is one. */
-.ck-open {
-  display: block;
-  padding: 0;
-  border: none;
-  background: none;
-  font: inherit;
-  font-weight: 580;
-  color: inherit;
-  text-align: left;
-  cursor: pointer;
-}
-.ck-open:hover { color: var(--primary); text-decoration: underline; text-underline-offset: 2px; }
-
-@media (max-width: 780px) {
-  .cke-item { flex-direction: column; align-items: stretch; gap: 6px; }
-  .cke-item-main { flex-direction: column; align-items: stretch; }
-  .cke-item-side { justify-content: space-between; }
-  .cke-sec-pick { width: auto; flex: 1; }
-  .cke-acts { opacity: 1; }
-  .cke-meta { align-items: stretch; }
-  .cke-field select { min-width: 0; width: 100%; }
-  .cke-name { font-size: 16px; }
-}
-
-/* ============================================================
-   One project, as a page (`/project/<id>`)
-   ------------------------------------------------------------
-   The drawer is a 520px glance. This is the same content with room for it, so
-   the panels borrow the drawer's own classes (`drawer-client`, `info-grid`,
-   `team-groups`, …) rather than growing a second vocabulary for one screen.
+   The drawer is a 520px glance; this is the same project with room
+   to read, at its own URL. It keeps the drawer's tabs (the order is
+   the order of the work: what this is, what was agreed, what came
+   back, what the client asked for, what was checked against a
+   standard, and the running log), and the tab is in the address.
    ============================================================ */
 .pjp { display: flex; flex-direction: column; gap: 16px; padding-bottom: 48px; }
 
@@ -6791,4 +6513,48 @@ svg { display: block; }
   .pjp-title-main h2 { font-size: 18px; }
   .pjp-acts .btn { flex: 1; justify-content: center; }
   .pjp-tabs .tab { flex: 1 0 auto; font-size: 12.5px; padding-inline: 10px; }
+}
+
+/* ============================================================
+   Pentest notes
+   ------------------------------------------------------------
+   A timeline, not a text field. Each entry is one day's work, so the day is
+   the heading and everything else is subordinate to it.
+   ============================================================ */
+.pn { display: flex; flex-direction: column; gap: 14px; }
+.pn-head { display: flex; align-items: center; gap: 10px; }
+.pn-list { display: flex; flex-direction: column; gap: 12px; }
+.pn-item {
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--surface-2);
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.pn-day {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.pn-day svg { color: var(--faint); }
+.pn-body {
+  font-size: 13.5px;
+  line-height: 1.62;
+  color: var(--ink);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.pn-foot { display: flex; align-items: center; gap: 6px; }
+.pn-by { font-size: 11.8px; color: var(--faint); }
+.pn-item .btn-icon-sm, .pn-foot .btn-icon { opacity: .55; transition: opacity .12s ease; }
+.pn-item:hover .btn-icon { opacity: 1; }
+@media (max-width: 720px) {
+  .pn-head { flex-wrap: wrap; }
 }
