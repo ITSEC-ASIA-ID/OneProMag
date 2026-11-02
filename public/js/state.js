@@ -46,7 +46,7 @@ export function normalizeNav(id) {
  * straight into the Properties admin page — a page whose sidebar row is not even
  * rendered for them.
  */
-export const ADMIN_NAV = new Set(['clients', 'users', 'properties', 'checklists']);
+export const ADMIN_NAV = new Set(['clients', 'users', 'properties', 'checklists', 'checklist-edit']);
 
 
 export function navAllowed(id) {
@@ -97,6 +97,10 @@ export const NAV = {
     title: 'Checklist',
     sub: 'Security checklist for this engagement',
   },
+  'checklist-edit': {
+    title: 'Checklist',
+    sub: 'One template, and every item in it',
+  },
 };
 
 
@@ -131,6 +135,13 @@ export const NAV_PATHS = {
  */
 export const CHECKLIST_PATH = (projectId) => `/project/${Number(projectId) || 0}/checklist`;
 
+/**
+ * The checklist template editor. `new` is a page too, so "create a checklist" is a
+ * URL rather than a dialog — the same editor serves both, and a half-written list
+ * survives a reload.
+ */
+export const CHECKLIST_EDIT_PATH = (id) => `/admin/checklists/${id ? Number(id) : 'new'}`;
+
 export const DEFAULT_NAV = 'active';
 
 const PATH_NAV = Object.fromEntries(Object.entries(NAV_PATHS).map(([nav, path]) => [path, nav]));
@@ -139,6 +150,7 @@ const PATH_NAV = Object.fromEntries(Object.entries(NAV_PATHS).map(([nav, path]) 
 /** The URL a nav id lives at. Anything unknown falls back to the default page. */
 export function pathForNav(nav) {
   if (nav === 'checklist') return CHECKLIST_PATH(state.checklistProjectId);
+  if (nav === 'checklist-edit') return CHECKLIST_EDIT_PATH(state.checklistEditId);
   return NAV_PATHS[nav] || NAV_PATHS[DEFAULT_NAV];
 }
 
@@ -150,6 +162,11 @@ export function navForPath(pathname) {
   if (scoped) {
     state.checklistProjectId = Number(scoped[1]);
     return 'checklist';
+  }
+  const edit = /^\/admin\/checklists\/(new|\d+)$/.exec(clean);
+  if (edit) {
+    state.checklistEditId = edit[1] === 'new' ? null : Number(edit[1]);
+    return 'checklist-edit';
   }
   return PATH_NAV[clean || '/'] || null;
 }
@@ -238,6 +255,8 @@ export const state = {
   drawerProjectId: null,
   // Which project's checklist the (id-carrying) checklist page is showing.
   checklistProjectId: null,
+  // Which template the editor page is pointed at; null means "a new one".
+  checklistEditId: null,
   drawerTab: 'overview',
   drawer: null,
 };

@@ -1,6 +1,6 @@
 import { openAccountMenu, renderAuth } from './auth.js';
 import { mountChecklistPage } from './checklist-page.js';
-import { refreshChecklists } from './checklists.js';
+import { mountChecklistEditor, refreshChecklists } from './checklists.js';
 import { openRetestForm } from './drawer.js';
 import { loadDevices } from './devices.js';
 import { loadDirectory } from './directory.js';
@@ -199,7 +199,7 @@ export function finishNav(historyMode = 'push') {
   syncUrl(historyMode);
   // A project's checklist belongs to the project list: keep that row lit rather
   // than leaving the sidebar with nothing active, which reads as "lost".
-  const lit = state.nav === 'checklist' ? 'active' : state.nav;
+  const lit = CHECKLIST_LIT[state.nav] || state.nav;
   document.querySelectorAll('[data-nav]').forEach((b) => b.classList.toggle('active', b.dataset.nav === lit));
 
   const onBoard = state.nav === 'team';
@@ -207,6 +207,10 @@ export function finishNav(historyMode = 'push') {
   mountContent();
   if (state.nav === 'checklist') {
     void mountChecklistPage();
+    return;
+  }
+  if (state.nav === 'checklist-edit') {
+    void mountChecklistEditor();
     return;
   }
   // Admin pages render their own content; there is no project list to load.
@@ -236,6 +240,17 @@ export function finishNav(historyMode = 'push') {
     return;
   }
   loadProjects();
+}
+
+
+/** Pages that are not sidebar rows: the row they belong to stays lit instead. */
+const CHECKLIST_LIT = { checklist: 'active', 'checklist-edit': 'checklists' };
+
+
+/** Opens a template in the editor page. `id` null means a new one. */
+export function openChecklistEditor(id) {
+  state.checklistEditId = id ? Number(id) : null;
+  handleNav('checklist-edit', { history: 'push' });
 }
 
 
@@ -497,12 +512,13 @@ export async function boot() {
     mountContent();
     // A project's checklist has no nav row of its own; its project list keeps
     // the highlight rather than leaving the sidebar blank.
-    const lit = state.nav === 'checklist' ? 'active' : state.nav;
+    const lit = CHECKLIST_LIT[state.nav] || state.nav;
     document.querySelectorAll('[data-nav]').forEach((b) => b.classList.toggle('active', b.dataset.nav === lit));
 
     if (state.nav === 'clients' || state.nav === 'properties') return;
     if (state.nav === 'checklists') return void refreshChecklists();
     if (state.nav === 'checklist') return void mountChecklistPage();
+    if (state.nav === 'checklist-edit') return void mountChecklistEditor();
     if (state.nav === 'directory') return void loadDirectory();
     // The Users page counts each person's projects and each supervisor's owned
     // engagements, so opening it cold (a reload straight onto it) must fetch the

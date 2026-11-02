@@ -296,3 +296,37 @@ attaches itself.
 - [x] **Verified end to end on the dev stack**
   - 56/56 tests, md5 live == local for every touched file, `schema_migrations` at 21, `project_checklists` / `project_checklist_items` / `project_files` back to 0 and `/data/uploads` empty afterwards.
   - Chips read `All 10 / Open 8 / Pass 0 / Fail 0 / N/A 2` on a real attached list; the detach dialog named "2 answers and their notes".
+
+## `checklist-admin-page`
+
+- [x] **The index stops reporting what it cannot act on**
+  - Acceptance: Admin panel → Checklists shows the checklist, its item count and its actions — no **In use** column; a template a project links still cannot be deleted, and the button says why.
+  - Reason: the count was a column of numbers nobody came to the page to read, and the one fact it carried (is this deletable) is already in the disabled state and its title.
+  - Verify: `<thead>` reads `CHECKLIST · ITEMS · ACTIONS`; `document.body.innerText.indexOf('In use') === -1`; the delete button on the linked OWASP API template is `disabled` with "Attached to a project — detach it first".
+  - Files: `public/js/checklists.js`
+
+- [x] **One template is edited on its own page**
+  - Acceptance: the pencil (or the name) opens `/admin/checklists/<id>`; "new" is `/admin/checklists/new`; reloading either keeps you there; Back returns to the index; a Member typing the URL is sent to the project list with the usual toast.
+  - Reason: a real list is a hundred rows, and a modal that long is a page with worse scrolling and no URL.
+  - Verify: `CHECKLIST_EDIT_PATH` + `state.checklistEditId` in `public/js/state.js`, the `/admin/checklists/(new|\d+)` branch in `navForPath`, `checklist-edit` in `ADMIN_NAV`, `CHECKLIST_LIT` keeping the Checklists row lit, `mountChecklistEditor()` from `finishNav` and `boot()`; probes: `/admin/checklists/9` renders ten sections, `/admin/checklists/new` says "Not saved yet", `bagas` lands on `/projects`.
+  - Files: `public/js/state.js`, `public/js/shell.js`, `public/js/projects.js`, `public/js/checklists.js`
+
+- [x] **Every item shows its section**
+  - Acceptance: items are grouped under a section heading, each row carries a section select, and changing it re-groups the list immediately.
+  - Reason: "which category is this item in" has to be answerable from the row, not from the position it happens to sit in.
+  - Verify: ten `.cke-sec-name` headings and ten `.cke-sec-pick` selects on the OWASP API template; moving the first item to another section regrouped the headings to `Beta 2 / Alpha 1` and the save persisted it.
+  - Files: `public/js/checklists.js`, `public/css/styles.css`
+
+- [x] **The order on screen is the order saved**
+  - Acceptance: up/down move an item among the ones in its section; saving rewrites `position` from array order, and a freshly created item ends up where the list says.
+  - Reason: `POST /api/checklists/:id/items` appends (it ignores a supplied position), so a new row inserted mid-list would otherwise land at the bottom.
+  - Verify: after moving a row and editing its help, reopening the template read `Check three / Check one / Check two` with the edited help in place; `PATCH /api/checklist-items/:id` is called with `position` for moved rows and again for each created item.
+  - Files: `public/js/checklists.js`
+
+- [x] **The panel looks like the rest of the app**
+  - Acceptance: no inline `style=` (CSP), the same tokens and radii as other pages, rows legible at 430px, hover reveals the row actions.
+  - Verify: `.cke-*` block appended to `public/css/styles.css` (dead `.ck-edit-*` rules removed), editor scrolled to 0 overflow at 430px with 396×102 stacked rows, zero console errors on desktop and mobile.
+  - Files: `public/css/styles.css`
+
+- [x] **Verified end to end**
+  - Created `ZZ Editor` from `/admin/checklists/new` (three pasted items), regrouped and reordered it, saved, reopened, deleted it through the page; index back to three templates. 56/56 tests, md5 live == local for all five touched files.

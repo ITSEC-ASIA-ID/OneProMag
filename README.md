@@ -1655,9 +1655,15 @@ scrolling under you. The URL is the page, so a checklist can be bookmarked or
 sent to a colleague. Swapping the checklist underneath answered work is a delete:
 a lead or sub-lead, with the answer count named in the dialog.
 
-The Admin panel manages the templates: name, description, one row per item
-(section, what to check, how to check it), reorder, delete, plus a **Paste a list**
-box that takes `Section | What to check | How to check it` per line.
+The Admin panel manages the templates, and one template is edited on its own page
+(`/admin/checklists/<id>`, or `/admin/checklists/new`) rather than in a dialog — a
+real list is a hundred rows tall, and a modal is the wrong shape for it. The index
+is three columns: the checklist (with its category and a `default` badge), its item
+count, and the actions; the name itself opens the editor. On that page the items are
+grouped by section, each row carries its section as a select (`No section` is a
+legal section: a flat list is a checklist too), and **Paste a list** still takes
+`Section | What to check | How to check it` per line. Saving rewrites positions from
+the order on screen, so moving a row with the arrows is a real reorder.
 
 | | |
 | --- | --- |

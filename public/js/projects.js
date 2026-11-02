@@ -1,6 +1,6 @@
 import { adminHTML, bindAdmin } from './admin.js';
 import { checklistPageHTML } from './checklist-page.js';
-import { checklistsPageHTML } from './checklists.js';
+import { checklistEditorHTML, checklistsPageHTML } from './checklists.js';
 import { bindDevices, devicesHTML } from './devices.js';
 import { bindDirectory, directoryHTML } from './directory.js';
 import { openProject, openTeamForm, renderDrawer } from './drawer.js';
@@ -392,6 +392,11 @@ export function mountContent() {
     return;
   }
 
+  if (state.nav === 'checklist-edit') {
+    content.innerHTML = checklistEditorHTML();
+    setTitle(NAV['checklist-edit'].title, NAV['checklist-edit'].sub);
+    return;
+  }
   if (state.nav === 'checklists') {
     content.innerHTML = checklistsPageHTML();
     setTitle(NAV.checklists.title, NAV.checklists.sub);
