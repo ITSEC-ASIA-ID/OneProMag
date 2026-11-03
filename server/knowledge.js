@@ -597,6 +597,19 @@ export const TEST_GUIDES = [
 ];
 
 
+/**
+ * Which seeded checklist each guide belongs to, by the title it prints.
+ *
+ * `seed_key` is the checklist's identity: the admin panel is allowed to rename
+ * "OWASP Top 10:2025", and when it does the guide must follow the new name instead
+ * of repeating a string frozen into this file. Both lengths are long enough that a
+ * typo here would be caught by the missing checklist, not by a silent mismatch.
+ */
+export const GUIDE_CHECKLISTS = {
+  'OWASP Top 10:2025': 'owasp-web',
+  'OWASP API Security Top 10 2023': 'owasp-api',
+};
+
 /* ============================================================
    Common findings
    ------------------------------------------------------------

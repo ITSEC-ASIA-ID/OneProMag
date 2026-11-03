@@ -245,7 +245,7 @@ export const state = {
   // not remembered between sessions — a library that opens pre-filtered hides the
   // half you did not search for.
   testQuery: '',
-  testArea: '',
+  testCategory: '',
   testId: '',
   findingQuery: '',
   findingSeverity: '',

@@ -1656,10 +1656,23 @@ test('the reference libraries are readable by anyone signed in, and complete', a
   for (const g of guides) {
     assert.ok(g.id && g.code && g.area && g.title, `guide is missing its identity: ${JSON.stringify(g.id)}`);
     assert.ok(g.what && g.what.length > 40, `${g.id} has no explanation`);
+    // The reference line under the title comes from the checklist row, not from a
+    // string in knowledge.js: an admin renaming a template must rename the guide's
+    // citation too, and a guide whose category disagrees with its checklist would
+    // group itself somewhere the project screen never is.
+    assert.ok(g.checklistName, `${g.id} does not name the checklist it teaches`);
+    assert.ok(g.category, `${g.id} has no category to be grouped under`);
     assert.ok(Array.isArray(g.steps) && g.steps.length >= 5, `${g.id} has too few steps to be a guide`);
     assert.ok(g.passes?.length, `${g.id} does not say what a pass looks like`);
     assert.ok(g.watch?.length, `${g.id} does not warn about the false positives`);
   }
+
+  // The category a guide groups itself under is the category of the checklist it
+  // names, not a second field someone has to keep in step by hand.
+  const { checklists } = await call('GET /api/checklists', who);
+  const categoryOf = new Map(checklists.map((c) => [c.name, c.category]));
+  const drifted = guides.filter((g) => categoryOf.get(g.checklistName) !== g.category).map((g) => g.id);
+  assert.deepEqual(drifted, [], 'guides disagree with the category of their checklist');
 
   const { findings } = await call('GET /api/findings', who);
   assert.ok(findings.length >= 15, `expected the seeded findings, got ${findings?.length}`);

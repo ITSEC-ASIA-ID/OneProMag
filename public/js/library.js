@@ -109,13 +109,13 @@ function categoryChipsHTML(rows = [], field = 'area', attr, active = '') {
 
 /** Every string in a guide, so search does not stop at the title. */
 function guideText(g) {
-  return [g.code, g.area, g.title, g.checklist, g.what, g.tools?.join(' '), ...(g.steps || []), ...(g.passes || []), ...(g.watch || [])]
+  return [g.code, g.area, g.category, g.title, g.checklistName, g.what, g.tools?.join(' '), ...(g.steps || []), ...(g.passes || []), ...(g.watch || [])]
     .join(' ')
     .toLowerCase();
 }
 
 function testMatches(g) {
-  if (state.testArea && g.area !== state.testArea) return false;
+  if (state.testCategory && g.category !== state.testCategory) return false;
   const q = lower(state.testQuery).trim();
   if (!q) return true;
   return guideText(g).includes(q);
@@ -138,7 +138,7 @@ function guideItemHTML(g) {
       <span class="lib-code">${h(g.code.split(':')[0])}</span>
       <span class="lib-item-body">
         <span class="lib-item-title">${h(g.title)}</span>
-        <span class="lib-item-sub">${h(g.area)} · ${h(g.code.split(':')[1] || '')}</span>
+        <span class="lib-item-sub">${h(propLabel('category', g.category))} · ${h(g.code.split(':')[1] || '')}</span>
       </span>
     </button>`;
 }
@@ -178,8 +178,8 @@ function guideDetailHTML(g) {
         <div class="guide-code">${h(g.code)}</div>
         <h2 class="guide-title">${h(g.title)}</h2>
         <div class="guide-meta">
-          <span class="badge" data-tone="slate">${h(g.area)}</span>
-          <span class="guide-from">${icon.shield(13)} ${h(g.checklist)}</span>
+          <span class="badge" data-tone="slate">${h(propLabel('category', g.category))}</span>
+          <span class="guide-from">${icon.shield(13)} ${h(g.checklistName || g.checklist)}</span>
         </div>
       </header>
 
@@ -209,9 +209,9 @@ function guideDetailHTML(g) {
     </article>`;
 }
 
-/** The category chips: the project categories, with the empty ones disabled. */
-function testAreaChipsHTML() {
-  return categoryChipsHTML(state.tests || [], 'area', 'data-test-area', state.testArea || '');
+/** The category chips, taken from the checklist each guide belongs to. */
+function testCategoryChipsHTML() {
+  return categoryChipsHTML(state.tests || [], 'category', 'data-test-cat', state.testCategory || '');
 }
 
 /** The list, the count and the open guide — everything but the shell. */
@@ -221,14 +221,14 @@ function paintTests() {
   const count = document.getElementById('test-count');
   const areas = document.getElementById('test-areas');
   if (!list || !detail || !count) return;
-  if (areas) areas.innerHTML = testAreaChipsHTML();
+  if (areas) areas.innerHTML = testCategoryChipsHTML();
 
   const rows = visibleGuides();
   const open = openGuide();
   if (open && state.testId !== open.id) state.testId = open.id;
 
   count.innerHTML = `<b>${rows.length}</b> of ${(state.tests || []).length} guides`;
-  list.innerHTML = groupedHTML(rows, 'area', guideItemHTML);
+  list.innerHTML = groupedHTML(rows, 'category', guideItemHTML);
   list.querySelectorAll('[data-test]').forEach((b) => {
     b.classList.toggle('is-open', b.dataset.test === state.testId);
     b.setAttribute('aria-pressed', String(b.dataset.test === state.testId));
@@ -275,10 +275,10 @@ export function bindTests(root) {
   }
 
   root.querySelector('#test-areas')?.addEventListener('click', (event) => {
-    const chip = event.target.closest('[data-test-area]');
+    const chip = event.target.closest('[data-test-cat]');
     if (!chip) return;
-    state.testArea = chip.dataset.testArea;
-    root.querySelectorAll('[data-test-area]').forEach((b) => b.classList.toggle('active', b === chip));
+    state.testCategory = chip.dataset.testCat;
+    root.querySelectorAll('[data-test-cat]').forEach((b) => b.classList.toggle('active', b === chip));
     paintTests();
   });
 
@@ -517,7 +517,7 @@ export function showGuide(guideId) {
   // Clear a filter that would hide the guide we were asked to show.
   const guide = (state.tests || []).find((g) => g.id === guideId);
   if (guide) {
-    if (state.testArea && state.testArea !== guide.area) state.testArea = '';
+    if (state.testCategory && state.testCategory !== guide.category) state.testCategory = '';
     if (state.testQuery && !testMatches(guide)) state.testQuery = '';
   }
   handleNav('tests');
