@@ -1,5 +1,6 @@
 import { api } from './api.js';
 import { icon } from './icons.js';
+import { propLabel, propOptions } from './props.js';
 import { handleNav } from './shell.js';
 import { state } from './state.js';
 import { escapeHtml as h } from './ui.js';
@@ -38,7 +39,28 @@ function categoriesOf(rows, field) {
   return [...new Set(rows.map((r) => r[field]).filter(Boolean))];
 }
 
-/** Rows bucketed by one field, keeping the library's own order. */
+/**
+ * The category vocabulary of the whole app, not of this one page: the live
+ * project categories an admin maintains in Properties, plus any value the
+ * library names that the list does not. A library that invented its own two
+ * categories disagreed with every project screen, and a category the properties
+ * list lost would have hidden its rows silently.
+ */
+function categoryOptions(rows = [], field = 'area') {
+  const opts = propOptions('category').map((o) => ({ key: o.value, label: o.label }));
+  const known = new Set(opts.map((o) => o.key));
+  for (const key of categoriesOf(rows, field)) if (!known.has(key)) opts.push({ key, label: key });
+  return opts.length ? opts : categoriesOf(rows, field).map((key) => ({ key, label: key }));
+}
+
+/** The order groups and chips are drawn in: the property list's order first. */
+function categoryOrder(rows, field) {
+  const order = categoryOptions(rows, field).map((o) => o.key);
+  for (const key of categoriesOf(rows, field)) if (!order.includes(key)) order.push(key);
+  return order;
+}
+
+/** Rows bucketed by one field, in category order. */
 function groupRows(rows, field) {
   const groups = new Map();
   for (const row of rows) {
@@ -46,7 +68,10 @@ function groupRows(rows, field) {
     if (!groups.has(key)) groups.set(key, []);
     groups.get(key).push(row);
   }
-  return [...groups.entries()];
+  const order = categoryOrder(rows, field);
+  return [...groups.entries()].sort(
+    (a, b) => (order.indexOf(a[0]) + 1 || 1e6) - (order.indexOf(b[0]) + 1 || 1e6)
+  );
 }
 
 /** A grouped index: the category, how many rows it holds, then the rows. */
@@ -54,12 +79,27 @@ function groupedHTML(rows, field, itemHTML) {
   if (!rows.length) return `<div class="lib-none">Nothing matches.</div>`;
   return groupRows(rows, field)
     .map(
-      ([name, group]) => `<div class="lib-group" role="group" aria-label="${h(name)}">
-          <div class="lib-group-head">${h(name)}<span class="n">${group.length}</span></div>
+      ([name, group]) => `<div class="lib-group" role="group" aria-label="${h(propLabel('category', name))}">
+          <div class="lib-group-head">${h(propLabel('category', name))}<span class="n">${group.length}</span></div>
           ${group.map(itemHTML).join('')}
         </div>`
     )
     .join('');
+}
+
+/**
+ * The category chips, from the same list the projects use. A category this library
+ * cannot fill yet still gets a chip — greyed and disabled — because hiding it would
+ * read as "this category does not exist", when the truth is "no entries yet".
+ */
+function categoryChipsHTML(rows = [], field = 'area', attr, active = '') {
+  const counts = new Map();
+  for (const row of rows) counts.set(row[field], (counts.get(row[field]) || 0) + 1);
+  const chip = (key, label, count) =>
+    `<button class="chip${active === key ? ' active' : ''}" type="button" ${attr}="${h(key)}"${
+      count ? '' : ` disabled title="No entries in ${h(label)} yet"`
+    }>${h(label)}<span class="n">${count}</span></button>`;
+  return [chip('', 'All', rows.length), ...categoryOptions(rows, field).map((o) => chip(o.key, o.label, counts.get(o.key) || 0))].join('');
 }
 
 
@@ -169,12 +209,19 @@ function guideDetailHTML(g) {
     </article>`;
 }
 
+/** The category chips: the project categories, with the empty ones disabled. */
+function testAreaChipsHTML() {
+  return categoryChipsHTML(state.tests || [], 'area', 'data-test-area', state.testArea || '');
+}
+
 /** The list, the count and the open guide — everything but the shell. */
 function paintTests() {
   const list = document.getElementById('test-list');
   const detail = document.getElementById('test-detail');
   const count = document.getElementById('test-count');
+  const areas = document.getElementById('test-areas');
   if (!list || !detail || !count) return;
+  if (areas) areas.innerHTML = testAreaChipsHTML();
 
   const rows = visibleGuides();
   const open = openGuide();
@@ -198,14 +245,7 @@ export function testsPageHTML() {
                  placeholder="Search guides — a risk, a tool, a word from a step"
                  value="${h(state.testQuery)}" aria-label="Search testing guides">
         </label>
-        <div class="chips" id="test-areas" role="group" aria-label="Filter by area">
-          ${['', 'Web', 'API']
-            .map(
-              (a) =>
-                `<button class="chip${(state.testArea || '') === a ? ' active' : ''}" type="button" data-test-area="${a}">${a || 'All'}</button>`
-            )
-            .join('')}
-        </div>
+        <div class="chips" id="test-areas" role="group" aria-label="Filter by category"></div>
       </div>
       <div class="lib-count" id="test-count"></div>
       <div class="lib-split">
@@ -288,7 +328,7 @@ function findingText(f) {
 }
 
 function findingMatches(f) {
-  if (state.findingArea && f.area !== state.findingArea) return false;
+  if (state.findingCategory && f.category !== state.findingCategory) return false;
   if (state.findingSeverity && f.severity !== state.findingSeverity) return false;
   const q = lower(state.findingQuery).trim();
   if (!q) return true;
@@ -355,28 +395,27 @@ function findingDetailHTML(f) {
     </article>`;
 }
 
-/** The area chips are data-driven: the library decides what categories exist. */
-function findingAreaChipsHTML() {
-  return ['', ...categoriesOf(state.findings || [], 'area')]
-    .map(
-      (a) =>
-        `<button class="chip${(state.findingArea || '') === a ? ' active' : ''}" type="button" data-find-area="${h(a)}">${a || 'All'}</button>`
-    )
-    .join('');
+/**
+ * The category chips: every project category, empty ones greyed out. Findings take
+ * their category from the guide that proves them, so this list matches the project
+ * list rather than inventing one.
+ */
+function findingCategoryChipsHTML() {
+  return categoryChipsHTML(state.findings || [], 'category', 'data-find-cat', state.findingCategory || '');
 }
 
 function paintFindings() {
   const list = document.getElementById('find-list');
   const detail = document.getElementById('find-detail');
   const count = document.getElementById('find-count');
-  const areas = document.getElementById('find-areas');
+  const areas = document.getElementById('find-categories');
   if (!list || !detail || !count) return;
-  if (areas) areas.innerHTML = findingAreaChipsHTML();
+  if (areas) areas.innerHTML = findingCategoryChipsHTML();
   const rows = visibleFindings();
   const open = openFinding();
   if (open && state.findingId !== open.id) state.findingId = open.id;
   count.innerHTML = `<b>${rows.length}</b> of ${(state.findings || []).length} findings`;
-  list.innerHTML = groupedHTML(rows, 'area', findingItemHTML);
+  list.innerHTML = groupedHTML(rows, 'category', findingItemHTML);
   list.querySelectorAll('[data-find-row]').forEach((b) => {
     b.classList.toggle('is-open', b.dataset.findRow === state.findingId);
     b.setAttribute('aria-pressed', String(b.dataset.findRow === state.findingId));
@@ -401,7 +440,7 @@ export function findingsPageHTML() {
             )
             .join('')}
         </div>
-        <div class="chips" id="find-areas" role="group" aria-label="Filter by area"></div>
+        <div class="chips" id="find-categories" role="group" aria-label="Filter by category"></div>
       </div>
       <div class="lib-count" id="find-count"></div>
       <div class="lib-split">
@@ -435,9 +474,9 @@ export function bindFindings(root) {
   });
 
   root.addEventListener('click', (event) => {
-    const area = event.target.closest('[data-find-area]');
-    if (area) {
-      state.findingArea = area.dataset.findArea;
+    const cat = event.target.closest('[data-find-cat]');
+    if (cat) {
+      state.findingCategory = cat.dataset.findCat;
       paintFindings();
       return;
     }
@@ -489,7 +528,7 @@ export function showFinding(findingId) {
   if (!findingId) return;
   const finding = (state.findings || []).find((f) => f.id === findingId);
   if (finding) {
-    if (state.findingArea && state.findingArea !== finding.area) state.findingArea = '';
+    if (state.findingCategory && state.findingCategory !== finding.category) state.findingCategory = '';
     if (state.findingSeverity && state.findingSeverity !== finding.severity) state.findingSeverity = '';
     if (state.findingQuery && !findingMatches(finding)) state.findingQuery = '';
   }

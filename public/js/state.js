@@ -249,7 +249,7 @@ export const state = {
   testId: '',
   findingQuery: '',
   findingSeverity: '',
-  findingArea: '',
+  findingCategory: '',
   findingId: '',
   // The finding a cross-link asked for, scrolled to once the page has painted.
   findingFocus: '',

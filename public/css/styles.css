@@ -822,6 +822,10 @@ svg { display: block; }
   transition: all 0.15s;
 }
 .chip:hover { border-color: var(--faint); color: var(--ink-2); }
+/* A category this library cannot fill yet: shown, because it is part of the
+   app's vocabulary, and disabled, because picking it would only say "0 of N". */
+.chip[disabled] { opacity: 0.45; cursor: not-allowed; }
+.chip[disabled]:hover { border-color: var(--border); color: var(--muted); }
 .chip.active {
   background: var(--ink);
   border-color: var(--ink);

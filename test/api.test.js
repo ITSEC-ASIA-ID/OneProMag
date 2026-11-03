@@ -1681,4 +1681,11 @@ test('the reference libraries are readable by anyone signed in, and complete', a
 
   const findingIds = new Set(findings.map((f) => f.id));
   assert.equal(findingIds.size, findings.length, 'duplicate finding ids make the scroll link ambiguous');
+
+  // A finding is filed under the category of the test that proves it, and the
+  // Findings page groups by that category. A finding without one would land in
+  // an "Other" bucket nobody can pick from the chips.
+  const areas = new Map(guides.map((g) => [g.id, g.area]));
+  const uncategorised = findings.filter((f) => !f.category || f.category !== areas.get(f.guide)).map((f) => f.id);
+  assert.deepEqual(uncategorised, [], 'findings do not carry the category of their guide');
 });
