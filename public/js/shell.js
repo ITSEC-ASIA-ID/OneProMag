@@ -281,7 +281,16 @@ export function setTitle(title, sub) {
    ============================================================ */
 export const PRESENCE_POLL_MS = 45_000;
 
-export let presenceTimer = null;
+/**
+ * The polling timer.
+ *
+ * It used to be exported as a live binding so the sign-out handler could stop
+ * it — but an imported binding is read-only in ESM, so that assignment threw
+ * `TypeError: Assignment to constant variable` BEFORE the logout request was
+ * sent, and signing out silently did nothing. The timer is this module's own
+ * business: `stopPresence()` is the way out.
+ */
+let presenceTimer = null;
 
 
 export async function loadPresence() {
@@ -399,6 +408,19 @@ export function bindPresence() {
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') loadPresence();
   });
+}
+
+
+/**
+ * Stops the presence poll.
+ *
+ * Called on sign-out: a poll that keeps running after the session is gone is a
+ * 401 every 45 seconds, which renders the login screen again over whatever the
+ * person is doing.
+ */
+export function stopPresence() {
+  clearInterval(presenceTimer);
+  presenceTimer = null;
 }
 
 

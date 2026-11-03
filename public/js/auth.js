@@ -1,4 +1,4 @@
-import { boot, presenceTimer } from './shell.js';
+import { boot, stopPresence } from './shell.js';
 import { canManageCatalog, root, state } from './state.js';
 import { api } from './api.js';
 import { icon } from './icons.js';
@@ -210,12 +210,25 @@ export function openAccountMenu() {
           toast(`Switched to ${b.dataset.themeSet} theme`);
         })
       );
-      modal.querySelector('[data-logout]').addEventListener('click', async () => {
+      modal.querySelector('[data-logout]').addEventListener('click', async (e) => {
+        const btn = e.currentTarget;
+        btn.disabled = true;
         close();
-        clearInterval(presenceTimer);
-        presenceTimer = null;
-        await api.logout();
+        // Stop the poll first: its next tick would answer 401 and repaint the
+        // login screen underneath the person while the request is in flight.
+        stopPresence();
+        try {
+          await api.logout();
+        } catch (err) {
+          // A session that is already gone is the outcome we wanted. Any other
+          // failure has to be said out loud, or the button looks dead.
+          if (err.status !== 401) toast(`Could not sign out: ${err.message}`, 'err');
+        }
         state.user = null;
+        // The address bar is part of being signed out: leaving `/projects` there
+        // while showing a login form tells the next person this tab is a project
+        // they can come back to. It is not — the session is gone.
+        history.replaceState(null, '', '/');
         renderAuth('login');
       });
     },
