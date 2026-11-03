@@ -119,6 +119,7 @@ have shipped:
 | a template in use cannot be deleted | `RESTRICT`, reported as 409 |
 | an item cannot cite another project's file | evidence stays with its engagement |
 | pentest notes: one field per project, and a no-op save keeps the stamp | saving twice saves once; the two note fields do not overwrite each other |
+| a note saved in the same millisecond as the last one still persists | a save is judged by its text, never by whether the clock moved |
 | a Member cannot delete a pentest note | the delete rule, on the log |
 
 `.github/workflows/test.yml` runs it on every push and pull request. There is no
