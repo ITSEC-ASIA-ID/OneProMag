@@ -534,11 +534,20 @@ export async function boot() {
     bindShell();
     syncUrl('replace');
     mountContent();
-    // A page without a sidebar row of its own keeps its parent row lit.
-    // the highlight rather than leaving the sidebar blank.
+    // A page without a sidebar row of its own keeps its parent row lit,
+    // rather than leaving the sidebar with nothing active.
     const lit = CHECKLIST_LIT[state.nav] || state.nav;
     document.querySelectorAll('[data-nav]').forEach((b) => b.classList.toggle('active', b.dataset.nav === lit));
 
+    // The board is the one page whose data is not the project list, so a cold
+    // load of /team must fetch it here: without this branch the table paints
+    // empty and the project fetch below is the only request made, leaving
+    // "No pentesters yet" over a full roster.
+    if (state.nav === 'team') {
+      await loadBoard();
+      if (state.nav === 'team') mountContent();
+      return;
+    }
     if (state.nav === 'clients' || state.nav === 'properties') return;
     if (state.nav === 'checklists') return void refreshChecklists();
     if (state.nav === 'checklist-edit') return void mountChecklistEditor();

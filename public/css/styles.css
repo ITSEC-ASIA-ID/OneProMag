@@ -2216,14 +2216,10 @@ svg { display: block; }
 }
 
 .th-actions { display: flex; align-items: center; gap: 5px; flex: 0 0 auto; }
-/* The tree's action buttons belong at the far right, like every other row action in
-   the app. Every one of these rows carries a `<span class="spacer">` for exactly that
-   purpose, but `.spacer` only grows where a rule says so and these three headers had
-   none — so "Sub lead / edit / delete" crowded the name and left the row's right half
-   empty. */
-.tree-head .spacer,
-.ts-head .spacer,
-.member-row .spacer { margin-left: auto; }
+/* `.spacer` means "push everything after me to the far end". It is the same intent in
+   every row of the app, so it gets a base rule instead of being re-declared per parent
+   — three headers once forgot, and every bar written since had to remember. */
+.spacer { margin-left: auto; }
 
 /* Contact details belong on the person's row, not only inside the edit dialog: a field
    nobody can see from the list reads as a field that does not exist. A row has one line
@@ -6449,6 +6445,173 @@ svg { display: block; }
 @media (max-width: 720px) {
   .ck-line { flex-wrap: wrap; }
   .ck-line .spacer { flex-basis: 100%; }
+}
+
+
+/* ============================================================
+   The checklist, in the drawer tab and on the Admin page
+   ------------------------------------------------------------
+   The drawer tab lists what is attached; the answering happens in
+   the tab itself. The template editor is a page of its own, because
+   a real list is a hundred rows and needs section headings you can
+   read at a glance.
+   ============================================================ */
+.ck-marks { display: inline-flex; align-items: center; gap: 6px; margin-left: 8px; }
+.switch-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--muted);
+  cursor: pointer;
+}
+.switch-row input { margin-top: 2px; }
+.files-hint {
+  font-size: 11.5px;
+  color: var(--faint);
+  margin-right: 2px;
+}
+.files.is-over {
+  outline: 2px dashed var(--accent);
+  outline-offset: -6px;
+  border-radius: 12px;
+  background: var(--cat-soft, rgba(91, 124, 250, 0.06));
+}
+.files.is-over .files-hint {
+  color: var(--accent);
+}
+.ck-pick-now {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--muted);
+  text-transform: none;
+  letter-spacing: 0;
+}
+   One checklist template, on its own page
+   ------------------------------------------------------------
+   A real list is a hundred rows: it needs the whole width, a
+   sticky save button and section headings you can read at a
+   glance. Rows are grouped by section, and the section of an
+   item is a compact select on its right — so "which category is
+   this item in" is answerable without opening anything.
+   ============================================================ */
+.cke { display: flex; flex-direction: column; gap: 14px; max-width: 1080px; padding-bottom: 48px; }
+.cke-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 0 10px;
+  border-bottom: 1px solid var(--border);
+}
+.cke-state { font-size: 12.2px; color: var(--faint); }
+.cke-head {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px 18px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow-md);
+}
+.cke-name {
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  border-color: transparent;
+  background: transparent;
+  padding-left: 8px;
+  padding-right: 8px;
+}
+.cke-name:hover, .cke-name:focus { border-color: var(--border); background: var(--surface-2); }
+.cke-meta { display: flex; align-items: flex-end; gap: 16px; flex-wrap: wrap; }
+.cke-field { display: flex; flex-direction: column; gap: 5px; }
+.cke-field select { min-width: 148px; }
+.cke-default { align-self: center; max-width: 380px; }
+.cke-default span { font-size: 12.4px; color: var(--muted); line-height: 1.45; }
+.btn-danger-ghost { color: var(--rose-ink); }
+.btn-danger-ghost:hover { background: var(--rose-soft); border-color: transparent; }
+.cke-tools { display: flex; align-items: center; gap: 8px; }
+.cke-total { font-size: 12.2px; color: var(--faint); }
+.cke-list { display: flex; flex-direction: column; gap: 14px; }
+.cke-sec {
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  overflow: hidden;
+}
+.cke-sec-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 12px 9px 14px;
+  background: var(--surface-2);
+  border-bottom: 1px solid var(--border);
+}
+.cke-sec-name {
+  margin: 0;
+  font-size: 12.6px;
+  font-weight: 620;
+  letter-spacing: 0.01em;
+  color: var(--ink);
+}
+.cke-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 10px 7px 14px;
+  border-top: 1px solid var(--border);
+}
+.cke-item:first-of-type { border-top: none; }
+.cke-item:hover { background: var(--surface-2); }
+.cke-item-main { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0; }
+.cke-title { flex: 1.15; min-width: 0; font-weight: 520; }
+.cke-help { flex: 1.6; min-width: 0; color: var(--muted); font-size: 12.8px; }
+.cke-item-side { display: flex; align-items: center; gap: 6px; flex: none; }
+.cke-sec-pick {
+  width: 168px;
+  font-size: 12.4px;
+  color: var(--muted);
+  flex: none;
+}
+.cke-acts { display: inline-flex; gap: 2px; opacity: 0.42; transition: opacity 0.12s ease; }
+.cke-item:hover .cke-acts, .cke-item:focus-within .cke-acts { opacity: 1; }
+.cke-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 44px 20px;
+  text-align: center;
+  border: 1px dashed var(--border);
+  border-radius: var(--r-lg);
+  color: var(--muted);
+}
+.cke-empty .icon { color: var(--faint); }
+.cke-empty h3 { margin: 2px 0 0; font-size: 14px; color: var(--ink); }
+.cke-empty p { margin: 0; font-size: 12.8px; max-width: 460px; line-height: 1.55; }
+.ck-open {
+  display: block;
+  padding: 0;
+  border: none;
+  background: none;
+  font: inherit;
+  font-weight: 580;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.ck-open:hover { color: var(--primary); text-decoration: underline; text-underline-offset: 2px; }
+@media (max-width: 780px) {
+  .cke-item { flex-direction: column; align-items: stretch; gap: 6px; }
+  .cke-item-main { flex-direction: column; align-items: stretch; }
+  .cke-item-side { justify-content: space-between; }
+  .cke-sec-pick { width: auto; flex: 1; }
+  .cke-acts { opacity: 1; }
+  .cke-meta { align-items: stretch; }
+  .cke-field select { min-width: 0; width: 100%; }
+  .cke-name { font-size: 16px; }
 }
 
 
