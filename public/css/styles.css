@@ -6814,6 +6814,41 @@ svg { display: block; }
 .lib-item-sub { font-size: 11px; color: var(--faint); }
 .lib-detail { min-width: 0; }
 .lib-none { padding: 18px 14px; font-size: 13px; color: var(--faint); }
+/* Category groups: the index is divided by area, so the reader picks a category
+   first and browses inside it. The heading sticks to the top of the scroll box
+   so the category you are in stays named while its rows pass. */
+.lib-group { display: flex; flex-direction: column; gap: 4px; }
+.lib-group + .lib-group {
+  margin-top: 4px;
+  padding-top: 4px;
+  border-top: 1px solid var(--border);
+}
+.lib-group-head {
+  position: sticky;
+  top: -6px;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 -6px;
+  padding: 7px 12px 5px;
+  background: var(--surface);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+.lib-group-head .n {
+  padding: 0 5px;
+  border-radius: var(--r-full);
+  background: var(--surface-3);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
 .lib-empty {
   padding: 40px 24px;
   text-align: center;
@@ -6949,6 +6984,16 @@ svg { display: block; }
   }
   .lib-item { flex: 0 0 auto; width: auto; }
   .lib-item-sub { display: none; }
+  /* The grouped index turns into one horizontal strip per category. */
+  .lib-group { flex-direction: row; align-items: center; gap: 4px; }
+  .lib-group + .lib-group {
+    margin-top: 0;
+    padding-top: 0;
+    border-top: 0;
+    border-left: 1px solid var(--border);
+    padding-left: 8px;
+  }
+  .lib-group-head { position: static; margin: 0; padding: 0 4px; white-space: nowrap; }
   .guide { padding: 18px; }
 }
 @media (max-width: 620px) {

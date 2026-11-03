@@ -29,6 +29,39 @@ const SEVERITIES = ['Critical', 'High', 'Medium', 'Low'];
 
 const lower = (v) => String(v ?? '').toLowerCase();
 
+/**
+ * One field's values, in the order the library lists them. Both pages divide by
+ * category rather than showing one undifferentiated column, because a reader
+ * arrives looking for "the injection ones", not for item 14 of 20.
+ */
+function categoriesOf(rows, field) {
+  return [...new Set(rows.map((r) => r[field]).filter(Boolean))];
+}
+
+/** Rows bucketed by one field, keeping the library's own order. */
+function groupRows(rows, field) {
+  const groups = new Map();
+  for (const row of rows) {
+    const key = row[field] || 'Other';
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(row);
+  }
+  return [...groups.entries()];
+}
+
+/** A grouped index: the category, how many rows it holds, then the rows. */
+function groupedHTML(rows, field, itemHTML) {
+  if (!rows.length) return `<div class="lib-none">Nothing matches.</div>`;
+  return groupRows(rows, field)
+    .map(
+      ([name, group]) => `<div class="lib-group" role="group" aria-label="${h(name)}">
+          <div class="lib-group-head">${h(name)}<span class="n">${group.length}</span></div>
+          ${group.map(itemHTML).join('')}
+        </div>`
+    )
+    .join('');
+}
+
 
 /* ------------------------------------------------------------
    Tests
@@ -148,9 +181,7 @@ function paintTests() {
   if (open && state.testId !== open.id) state.testId = open.id;
 
   count.innerHTML = `<b>${rows.length}</b> of ${(state.tests || []).length} guides`;
-  list.innerHTML = rows.length
-    ? rows.map(guideItemHTML).join('')
-    : `<div class="lib-none">Nothing matches.</div>`;
+  list.innerHTML = groupedHTML(rows, 'area', guideItemHTML);
   list.querySelectorAll('[data-test]').forEach((b) => {
     b.classList.toggle('is-open', b.dataset.test === state.testId);
     b.setAttribute('aria-pressed', String(b.dataset.test === state.testId));
@@ -257,6 +288,7 @@ function findingText(f) {
 }
 
 function findingMatches(f) {
+  if (state.findingArea && f.area !== state.findingArea) return false;
   if (state.findingSeverity && f.severity !== state.findingSeverity) return false;
   const q = lower(state.findingQuery).trim();
   if (!q) return true;
@@ -323,18 +355,28 @@ function findingDetailHTML(f) {
     </article>`;
 }
 
+/** The area chips are data-driven: the library decides what categories exist. */
+function findingAreaChipsHTML() {
+  return ['', ...categoriesOf(state.findings || [], 'area')]
+    .map(
+      (a) =>
+        `<button class="chip${(state.findingArea || '') === a ? ' active' : ''}" type="button" data-find-area="${h(a)}">${a || 'All'}</button>`
+    )
+    .join('');
+}
+
 function paintFindings() {
   const list = document.getElementById('find-list');
   const detail = document.getElementById('find-detail');
   const count = document.getElementById('find-count');
+  const areas = document.getElementById('find-areas');
   if (!list || !detail || !count) return;
+  if (areas) areas.innerHTML = findingAreaChipsHTML();
   const rows = visibleFindings();
   const open = openFinding();
   if (open && state.findingId !== open.id) state.findingId = open.id;
   count.innerHTML = `<b>${rows.length}</b> of ${(state.findings || []).length} findings`;
-  list.innerHTML = rows.length
-    ? rows.map(findingItemHTML).join('')
-    : `<div class="lib-none">Nothing matches.</div>`;
+  list.innerHTML = groupedHTML(rows, 'area', findingItemHTML);
   list.querySelectorAll('[data-find-row]').forEach((b) => {
     b.classList.toggle('is-open', b.dataset.findRow === state.findingId);
     b.setAttribute('aria-pressed', String(b.dataset.findRow === state.findingId));
@@ -359,6 +401,7 @@ export function findingsPageHTML() {
             )
             .join('')}
         </div>
+        <div class="chips" id="find-areas" role="group" aria-label="Filter by area"></div>
       </div>
       <div class="lib-count" id="find-count"></div>
       <div class="lib-split">
@@ -392,6 +435,12 @@ export function bindFindings(root) {
   });
 
   root.addEventListener('click', (event) => {
+    const area = event.target.closest('[data-find-area]');
+    if (area) {
+      state.findingArea = area.dataset.findArea;
+      paintFindings();
+      return;
+    }
     const row = event.target.closest('[data-find-row]');
     if (row) {
       state.findingId = row.dataset.findRow;
@@ -440,6 +489,7 @@ export function showFinding(findingId) {
   if (!findingId) return;
   const finding = (state.findings || []).find((f) => f.id === findingId);
   if (finding) {
+    if (state.findingArea && state.findingArea !== finding.area) state.findingArea = '';
     if (state.findingSeverity && state.findingSeverity !== finding.severity) state.findingSeverity = '';
     if (state.findingQuery && !findingMatches(finding)) state.findingQuery = '';
   }
