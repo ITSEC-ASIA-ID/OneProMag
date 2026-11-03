@@ -1643,3 +1643,42 @@ test('a working note saved in the same millisecond as the last one still persist
     assert.equal(read.project.pentestNotes, text, `save ${i} was dropped`);
   }
 });
+
+test('the reference libraries are readable by anyone signed in, and complete', async () => {
+  // A Member opens the pages the newest person on the team reads first — the
+  // method behind the checklists and what a failure looks like. Gating these
+  // behind the admin panel would be the wrong trade: knowing how to test is not
+  // a privilege, and an empty library is how a page ships broken.
+  const who = await member();
+
+  const { guides } = await call('GET /api/tests', who);
+  assert.ok(guides.length >= 20, `expected the seeded guides, got ${guides?.length}`);
+  for (const g of guides) {
+    assert.ok(g.id && g.code && g.area && g.title, `guide is missing its identity: ${JSON.stringify(g.id)}`);
+    assert.ok(g.what && g.what.length > 40, `${g.id} has no explanation`);
+    assert.ok(Array.isArray(g.steps) && g.steps.length >= 5, `${g.id} has too few steps to be a guide`);
+    assert.ok(g.passes?.length, `${g.id} does not say what a pass looks like`);
+    assert.ok(g.watch?.length, `${g.id} does not warn about the false positives`);
+  }
+
+  const { findings } = await call('GET /api/findings', who);
+  assert.ok(findings.length >= 15, `expected the seeded findings, got ${findings?.length}`);
+  for (const f of findings) {
+    assert.ok(f.id && f.title && f.area, `finding is missing its identity: ${JSON.stringify(f.id)}`);
+    // The three parts the page prints. A finding without an impact is a
+    // complaint; without a mitigation it is not a deliverable.
+    assert.ok(f.description, `${f.id} has no description`);
+    assert.ok(f.impact, `${f.id} has no impact`);
+    assert.ok(Array.isArray(f.mitigation) && f.mitigation.length, `${f.id} has no mitigation`);
+    assert.ok(['Critical', 'High', 'Medium', 'Low'].includes(f.severity), `${f.id} has a severity the page cannot colour: ${f.severity}`);
+  }
+
+  // Every cross-link resolves, in both directions: a finding that points at a
+  // guide nobody wrote is a dead button, and the page renders it as one.
+  const ids = new Set(guides.map((g) => g.id));
+  const dangling = findings.filter((f) => f.guide && !ids.has(f.guide)).map((f) => f.id);
+  assert.deepEqual(dangling, [], 'findings point at guides that do not exist');
+
+  const findingIds = new Set(findings.map((f) => f.id));
+  assert.equal(findingIds.size, findings.length, 'duplicate finding ids make the scroll link ambiguous');
+});

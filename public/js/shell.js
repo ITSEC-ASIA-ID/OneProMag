@@ -5,6 +5,7 @@ import { openRetestForm } from './drawer.js';
 import { loadDevices } from './devices.js';
 import { loadDirectory } from './directory.js';
 import { loadInfoPage } from './info.js';
+import { loadFindings, loadTests } from './library.js';
 import { loadProjects, mountContent, openProjectForm } from './projects.js';
 import { openPerson } from './shared.js';
 import { ADMIN_NAV, DEFAULT_NAV, NAV, canManageCatalog, navAllowed, navForPath, pathForNav, root, state } from './state.js';
@@ -48,6 +49,9 @@ export function sidebarHTML() {
       ${navBtn('directory', icon.contact(16), 'Users')}
       ${navBtn('info', icon.book(16), 'Information center')}
       ${navBtn('devices', icon.phone(), 'Devices', s.devices ?? 0)}
+      <div class="nav-divider"></div>
+      ${navBtn('tests', icon.shield(16), 'Tests')}
+      ${navBtn('findings', icon.flag(), 'Findings')}
       <div class="nav-divider"></div>
       ${navBtn('active', icon.play(), 'Active projects', s.active ?? 0)}
       ${navBtn('all', icon.grid(), 'All projects')}
@@ -221,7 +225,9 @@ export function finishNav(historyMode = 'push') {
     state.nav === 'checklists' ||
     state.nav === 'info' ||
     state.nav === 'devices' ||
-    state.nav === 'directory'
+    state.nav === 'directory' ||
+    state.nav === 'tests' ||
+    state.nav === 'findings'
   ) {
     if (state.nav === 'info') loadInfoPage();
     if (state.nav === 'devices') loadDevices();
@@ -230,6 +236,9 @@ export function finishNav(historyMode = 'push') {
     if (state.nav === 'directory') loadDirectory();
     // Checklists owns its own load: the page is a catalogue, not the project list.
     if (state.nav === 'checklists') refreshChecklists();
+    // The two libraries paint a skeleton, then fill it from one fetch.
+    if (state.nav === 'tests') void loadTests();
+    if (state.nav === 'findings') void loadFindings();
     return;
   }
   if (onBoard) {
@@ -563,6 +572,10 @@ export async function boot() {
     // Devices restores its last-viewed type tab, so it loads itself rather than
     // the project list.
     if (state.nav === 'devices') return void loadDevices();
+    // The two libraries are cold-loadable too: /tests or /findings must arrive
+    // with its content, not with an empty shell waiting for a second click.
+    if (state.nav === 'tests') return void loadTests();
+    if (state.nav === 'findings') return void loadFindings();
     await loadProjects();
   } catch (err) {
     console.error('[boot] failed:', err);

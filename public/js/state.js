@@ -91,6 +91,17 @@ export const NAV = {
     title: 'Checklists',
     sub: 'Security checklists an engagement can be measured against',
   },
+  // Reference, not workspace data: the method behind the checklists, and what a
+  // failure looks like once you have one. Readable by anyone signed in, because
+  // knowing how to test something is not a privilege.
+  tests: {
+    title: 'Tests',
+    sub: 'How to test each area of a checklist, step by step',
+  },
+  findings: {
+    title: 'Findings',
+    sub: 'Common findings with their impact and how to fix them',
+  },
   // Not in the sidebar: it is the editor for one template.
   'checklist-edit': {
     title: 'Checklist',
@@ -127,6 +138,8 @@ export const NAV_PATHS = {
   users: '/admin/users',
   properties: '/admin/properties',
   checklists: '/admin/checklists',
+  tests: '/tests',
+  findings: '/findings',
 };
 
 /**
@@ -224,6 +237,20 @@ export const state = {
   boardQuery: '',
   // Rows-per-page for the wide EDC sheet; 0 means "show everything".
   deviceLimit: 50,
+  // Reference libraries. `null` means "not fetched yet", so the page can show a
+  // skeleton instead of "nothing found" before the first answer arrives.
+  tests: null,
+  findings: null,
+  // View state: the filter text, the chip, and which guide is open. Deliberately
+  // not remembered between sessions — a library that opens pre-filtered hides the
+  // half you did not search for.
+  testQuery: '',
+  testArea: '',
+  testId: '',
+  findingQuery: '',
+  findingSeverity: '',
+  // The finding a cross-link asked for, scrolled to once the page has painted.
+  findingFocus: '',
   // Paging for the four project lists. 50 is the default; the choice is
   // remembered per browser because a team that wants 100 should not say so daily.
   pageSize: Number(localStorage.getItem('opm-page-size') || 50) || 50,

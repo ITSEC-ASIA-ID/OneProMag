@@ -1,6 +1,7 @@
 import { adminHTML, bindAdmin } from './admin.js';
 import { projectPageHTML } from './project-page.js';
 import { checklistEditorHTML, checklistsPageHTML } from './checklists.js';
+import { bindFindings, bindTests, findingsPageHTML, testsPageHTML } from './library.js';
 import { bindDevices, devicesHTML } from './devices.js';
 import { bindDirectory, directoryHTML } from './directory.js';
 import { openProject, openTeamForm, renderDrawer } from './drawer.js';
@@ -403,6 +404,19 @@ export function mountContent() {
     return;
   }
 
+
+  if (state.nav === 'tests') {
+    content.innerHTML = testsPageHTML();
+    bindTests(content);
+    setTitle(NAV.tests.title, NAV.tests.sub);
+    return;
+  }
+  if (state.nav === 'findings') {
+    content.innerHTML = findingsPageHTML();
+    bindFindings(content);
+    setTitle(NAV.findings.title, NAV.findings.sub);
+    return;
+  }
 
   if (state.nav === 'project') {
     // Same deal: skeleton, then mountProjectPage() fills it. The title becomes

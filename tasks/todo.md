@@ -387,3 +387,31 @@ only 1 notes"*.
 - [x] **Verified end to end**
   - 57/57 tests; md5 live == local for every touched file except `test/api.test.js` (not copied into the image); both note fields open, save, cancel and clear in place on the project page *and* in the drawer; empty-state button reads "Add notes"; 430px page and editor both 0 overflow (textarea 368px); `bagas` gets an Edit button on both tabs with zero console errors; no modal opens anywhere in either flow; the seeded scope notes were restored to their original text and every working note is empty after testing.
   - Not in scope (unchanged): no authorship or "edited" stamp on the working note now that it is one field — the project's own `updated_at` is the only record that it changed.
+
+## library-pages
+
+Operator request (m05227): *"Add New Feature at Navbar : - Tests -> Explaination
+about how to test checklist very detail and clear - Findings -> Common Findings
+Findings -> Simple Description, Impact, Mitigation"*.
+
+- [x] **Tests — how to test each area, in the order you would work**
+  - Acceptance: one guide per risk category of both default templates (A01–A10 Web, API1–API10 API), each with what the category means, numbered steps, what a pass looks like, the tools, and the classic over-calls; searchable by any word in any section, filterable by area; `showing N of M` counts the whole library.
+  - Reason: the checklist tells you *what* to check and stops there. The gap between a list of twenty items and a done engagement is the method — whether to test access control before or after authentication, and which tool answers the question. Putting that beside the checklist it belongs to is the point of the page; keeping it out of the checklist itself keeps the item list short enough to work through.
+  - Verify: `GET /api/tests` → `{ guides }` from `server/knowledge.js`; `/tests` cold-loads 20 guides with the first one open; `API` chip → 10; searching `ssrf` → 1, opening `API7:2023`; Escape clears the box but keeps the chip; zero console errors.
+  - Files: `server/knowledge.js` (new), `server/routes/knowledge.js` (new), `public/js/library.js` (new), `public/js/state.js`, `public/js/shell.js`, `public/js/projects.js`, `public/js/api.js`, `public/css/styles.css`
+
+- [x] **Findings — description, impact, mitigation, and a way to prove it**
+  - Acceptance: twenty common findings, each with a plain description, an impact, and a mitigation list, a severity the page can colour, a CWE where one fits, and a link to the guide that tests for it; filterable by severity and searchable; a guide lists the findings it produces.
+  - Reason: a report is written under time pressure, and the expensive part is not finding the bug but saying what it costs and how to close it. Twenty written-up findings turn that into editing. Linking the two libraries both ways is what stops either from being an orphan page.
+  - Verify: `GET /api/findings` → `{ findings }`; `/findings` renders 20 cards, 4 columns at 1920 and 1 at 430; a guide's finding link lands on `/findings` with that card ringed (`.is-focus`) and the severity chip cleared; the card's "How to test this" lands back on the guide; 0 dangling links, 0 duplicate ids.
+  - Files: `server/knowledge.js`, `server/routes/knowledge.js`, `public/js/library.js`, `public/js/state.js`, `public/css/styles.css`
+
+- [x] **Content is code, not rows**
+  - Acceptance: fixing a sentence ships with the release; no schema bump, no seed version, no Admin editor; both routes read arrays.
+  - Reason: the checklists are rows because an admin owns them. These are reference pages the team reads — a table would make a typo a migration and invite edits that then need preserving across releases. Shipping them in `server/knowledge.js` keeps `SCHEMA_VERSION` at 23 and makes the text reviewable in a diff, which is the only review that matters for prose.
+  - Verify: `server/knowledge.js` exports `TEST_GUIDES` and `COMMON_FINDINGS`; the routes are two lines each; no schema change in the commit.
+  - Files: `server/knowledge.js`, `server/routes/knowledge.js`, `server/api.js`
+
+- [x] **Verified end to end**
+  - 59/59 tests; md5 live == local for all seven touched files; `/tests` and `/findings` load cold as admin and read as `bagas` over HTTP (anonymous → 401); deep links answer `200 text/html`; desktop `lib-split` = `300px 1294px`, findings `4 × 393.5px`; 430px both pages 0 overflow with the index as a horizontal strip; zero console errors in both flows.
+  - Not in scope: no editing, no "copy for report" button, and no per-project notes on a finding — this is a reference, not a second note store.

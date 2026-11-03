@@ -6704,3 +6704,277 @@ svg { display: block; }
   .nfield-foot { align-items: stretch; }
   .nfield-foot .spacer { display: none; }
 }
+
+/* ============================================================
+   Reference libraries — Tests and Findings
+   ------------------------------------------------------------
+   Two read-only pages that answer the two halves of one question: how do I test
+   this, and what do I write when it fails? Same shell on both (a search bar, a
+   filter, a count), because they are the same kind of page.
+
+   The count matters here more than elsewhere: "3 of 20 guides" tells you the
+   filter did something. A library that silently narrows to nothing reads as a
+   broken page, not as an empty result.
+   ============================================================ */
+.lib-page { display: flex; flex-direction: column; gap: 14px; }
+.lib-bar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.lib-search {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1 1 280px;
+  min-width: 0;
+  max-width: 520px;
+  padding: 0 12px;
+  height: 38px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  color: var(--faint);
+}
+.lib-search:focus-within { border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-ring); }
+.lib-search svg { flex: 0 0 auto; }
+.lib-search input {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 100%;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  font: inherit;
+  font-size: 13.5px;
+  color: var(--ink);
+}
+.lib-count {
+  font-size: 12.5px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.lib-count b { color: var(--ink-2); font-weight: 650; }
+
+/* Master and detail. The list is its own scroll box so the guide you are
+   reading keeps its place while you scan the index — a single long page would
+   lose your position every time you looked something else up. */
+.lib-split {
+  display: grid;
+  grid-template-columns: minmax(220px, 300px) minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+.lib-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-xs);
+  max-height: calc(100vh - 260px);
+  overflow: auto;
+}
+.lib-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 9px 10px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  color: var(--ink-2);
+}
+.lib-item:hover { background: var(--surface-3); }
+.lib-item.is-open {
+  background: var(--primary-soft);
+  border-color: color-mix(in srgb, var(--primary) 26%, transparent);
+  color: var(--primary-fg);
+}
+.lib-code {
+  flex: 0 0 auto;
+  min-width: 38px;
+  padding: 3px 6px;
+  border-radius: 7px;
+  background: var(--surface-3);
+  font-size: 11px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+  color: var(--muted);
+}
+.lib-item.is-open .lib-code { background: color-mix(in srgb, var(--primary) 14%, transparent); color: var(--primary-fg); }
+.lib-item-body { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.lib-item-title { font-size: 13px; font-weight: 560; line-height: 1.3; }
+.lib-item-sub { font-size: 11px; color: var(--faint); }
+.lib-detail { min-width: 0; }
+.lib-none { padding: 18px 14px; font-size: 13px; color: var(--faint); }
+.lib-empty {
+  padding: 40px 24px;
+  text-align: center;
+  background: var(--surface);
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--r-lg);
+}
+.lib-empty-title { font-size: 14px; font-weight: 600; color: var(--ink-2); }
+.lib-empty p { margin: 6px 0 0; font-size: 12.5px; color: var(--muted); }
+
+/* One guide: what it is, how to test it, what passes, with what, and the
+   classic over-calls. The numbered list is the point of the page, so it gets the
+   room; the rest is support. */
+.guide {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding: 22px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-xs);
+}
+.guide-head { display: flex; flex-direction: column; gap: 6px; }
+.guide-code {
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--primary-fg);
+  font-variant-numeric: tabular-nums;
+}
+.guide-title { margin: 0; font-size: 20px; line-height: 1.25; letter-spacing: -0.01em; }
+.guide-meta { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.guide-from {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11.5px;
+  color: var(--faint);
+}
+.guide-what {
+  margin: 0;
+  font-size: 13.5px;
+  line-height: 1.65;
+  color: var(--ink-2);
+}
+.guide-section { display: flex; flex-direction: column; gap: 8px; }
+.lib-h {
+  margin: 0;
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+.guide-steps, .lib-bullets { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 7px; }
+.guide-steps li, .lib-bullets li { font-size: 13px; line-height: 1.6; color: var(--ink-2); }
+.guide-steps li::marker { color: var(--primary-fg); font-weight: 700; font-variant-numeric: tabular-nums; }
+.lib-bullets.is-watch li::marker { color: var(--amber); }
+.lib-bullets.is-tight { gap: 5px; }
+.lib-bullets.is-tight li { font-size: 12.5px; line-height: 1.55; }
+.guide-tools { display: flex; flex-wrap: wrap; gap: 6px; }
+.guide-tool {
+  padding: 3px 9px;
+  border-radius: var(--r-full);
+  background: var(--surface-3);
+  border: 1px solid var(--border);
+  font-size: 11.5px;
+  color: var(--ink-2);
+}
+.lib-links { display: flex; flex-direction: column; gap: 6px; }
+.lib-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  width: fit-content;
+  max-width: 100%;
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface-2);
+  font: inherit;
+  font-size: 12.5px;
+  color: var(--ink-2);
+  text-align: left;
+  cursor: pointer;
+}
+.lib-link:hover { border-color: var(--border-strong); background: var(--surface); }
+.lib-sev {
+  flex: 0 0 auto;
+  padding: 1px 6px;
+  border-radius: var(--r-full);
+  font-size: 10.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+.lib-sev[data-tone='rose']  { background: var(--rose-soft);  color: var(--rose-ink); }
+.lib-sev[data-tone='amber'] { background: var(--amber-soft); color: var(--amber-ink); }
+.lib-sev[data-tone='blue']  { background: var(--blue-soft);  color: var(--blue); }
+.lib-sev[data-tone='slate'] { background: var(--slate-soft); color: var(--slate); }
+
+/* Findings: cards in a grid, because they are meant to be skimmed and compared
+   rather than read in order. Description, impact and mitigation keep the same
+   three positions on every card so the eye does not re-learn the layout. */
+.find-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+  gap: 12px;
+  align-items: start;
+}
+.find-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  box-shadow: var(--shadow-xs);
+  scroll-margin: 90px;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+.find-card.is-focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px var(--primary-ring);
+}
+.find-top { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.find-area { font-size: 11.5px; font-weight: 600; color: var(--muted); }
+.find-cwe {
+  font-size: 10.5px;
+  color: var(--faint);
+  font-variant-numeric: tabular-nums;
+}
+.find-title { margin: 0; font-size: 14.5px; line-height: 1.35; letter-spacing: -0.005em; }
+.find-desc { margin: 0; font-size: 12.5px; line-height: 1.6; color: var(--ink-2); }
+.find-block { display: flex; flex-direction: column; gap: 4px; }
+.find-label {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+.find-text { margin: 0; font-size: 12.5px; line-height: 1.6; color: var(--muted); }
+.find-guide { margin-top: 2px; }
+
+@media (max-width: 1000px) {
+  .lib-split { grid-template-columns: minmax(0, 1fr); }
+  /* The index becomes a horizontal strip so the guide starts near the top of
+     the page instead of below a 20-row list. */
+  .lib-list {
+    flex-direction: row;
+    max-height: none;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: thin;
+  }
+  .lib-item { flex: 0 0 auto; width: auto; }
+  .lib-item-sub { display: none; }
+  .guide { padding: 18px; }
+}
+@media (max-width: 620px) {
+  .guide-title { font-size: 17px; }
+  .find-grid { grid-template-columns: minmax(0, 1fr); }
+  .lib-search { max-width: none; }
+}

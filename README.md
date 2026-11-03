@@ -86,8 +86,8 @@ client, no fixtures file. It sets `DATA_DIR` to a temp directory, `DB=sqlite` an
 (`api['DELETE /api/projects/:id']({ user, params })`), which is possible because
 `api` is a plain map and the demo seed is the fixture.
 
-Nineteen cases, chosen because each one is a bug this app has actually had or could
-have shipped:
+Fifty-nine cases. The table lists the ones worth reading — each is a bug this app
+has actually had or could have shipped:
 
 | case | what it protects |
 | --- | --- |
@@ -120,6 +120,7 @@ have shipped:
 | an item cannot cite another project's file | evidence stays with its engagement |
 | pentest notes: one field per project, and a no-op save keeps the stamp | saving twice saves once; the two note fields do not overwrite each other |
 | a note saved in the same millisecond as the last one still persists | a save is judged by its text, never by whether the clock moved |
+| the Tests and Findings libraries are readable by a Member, and complete | reference text nobody can edit is text nobody can fix |
 | a Member cannot delete a pentest note | the delete rule, on the log |
 
 `.github/workflows/test.yml` runs it on every push and pull request. There is no
@@ -1699,6 +1700,36 @@ this records how an engagement was tested, it does not certify it, so the trade 
 the right way round. Attaching a 120-item template writes nothing, which is why a
 checklist can be linked to a project that has not started yet.
 
+### Tests and Findings (the two reference libraries)
+
+Two read-only pages in the sidebar's workspace group, both open to anyone signed
+in:
+
+- **Tests** (`/tests`) — how to test each area of the checklist, in the order you
+  would actually work: what the category means, the steps, what a pass looks like,
+  the tools, and where people over-call it. One guide per risk category in the two
+  default templates: `A01`–`A10` for OWASP Top 10:2025 and `API1`–`API10` for the
+  API list.
+- **Findings** (`/findings`) — twenty common findings, each a **description, an
+  impact and a mitigation**, with a severity and a CWE. Written to be pasted into
+  a report and then edited, not to be read once.
+
+They are one body of knowledge read two ways, so they link to each other: a guide
+lists the findings it produces, and a finding's **How to test this** opens the
+guide that proves it. Both jumps go through the nav so the address bar keeps
+telling the truth, and both clear a filter that would hide the thing you asked
+for.
+
+The content ships in `server/knowledge.js` rather than in a table. This is fixed
+reference text, not something a user creates: a table would mean a schema bump to
+fix a sentence and a seed-version dance so a reworded guide does not overwrite an
+edit nobody can make. The checklists are rows because an admin owns them; these
+are pages, so the route is a two-line read of an array.
+
+The whole library is fetched once and filtered in the browser, and the count
+always reads `showing N of M` over the whole library — a filter that hides
+material says so, the same rule the Team board follows.
+
 ## Database
 
 PostgreSQL is the default because the data is inherently relational
@@ -1969,6 +2000,7 @@ OneProMag/
 │   ├── auth.js          scrypt hashing, sessions, user CRUD
 │   ├── api.js           assembles the route table, one file per resource
 │   ├── shared.js        helpers more than one resource needs
+│   ├── knowledge.js     the guides and common findings, as content not rows
 │   ├── routes/
 │   │   ├── people.js     accounts, presence, directory, hierarchy, availability, stats
 │   │   ├── projects.js   project rows + retests
@@ -1976,7 +2008,9 @@ OneProMag/
 │   │   ├── info.js       notes, sheets, search
 │   │   ├── devices.js    device rows, columns, order
 │   │   ├── files.js      project attachments, streamed downloads
-│   │   └── checklists.js checklist templates, items, answers
+│   │   ├── checklists.js checklist templates, items, answers
+│   │   ├── pentest-notes.js  the one working note per project
+│   │   └── knowledge.js  the Tests and Findings libraries (read-only)
 │   ├── schema/
 │   │   ├── sqlite.sql
 │   │   └── postgres.sql
@@ -2005,6 +2039,7 @@ OneProMag/
 │       ├── checklists.js checklists: item editor (drawer + page), Admin panel
 │       ├── project-page.js one project, on its own URL (/project/<id>/<tab>)
 │       ├── notes-editor.js the two long-text fields, edited in place
+│       ├── library.js   the Tests and Findings pages
 │       ├── files.js     project attachments: upload, download, delete
 │       ├── api.js       fetch wrapper
 │       ├── ui.js        modal/toast/badge/segmented primitives, team + SV cell

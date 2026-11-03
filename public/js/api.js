@@ -176,4 +176,9 @@ export const api = {
   // which is also what makes a retried save safe.
   savePentestNotes: (projectId, body) =>
     request('PUT', `/api/projects/${projectId}/pentest-notes`, { body }),
+
+  // The reference libraries. Read-only, and small enough to hold: the pages
+  // filter locally, so a search never waits on the network.
+  tests: () => request('GET', '/api/tests'),
+  findings: () => request('GET', '/api/findings'),
 };
