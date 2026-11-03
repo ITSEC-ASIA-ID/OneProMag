@@ -50,13 +50,13 @@ export function sidebarHTML() {
       ${navBtn('info', icon.book(16), 'Information center')}
       ${navBtn('devices', icon.phone(), 'Devices', s.devices ?? 0)}
       <div class="nav-divider"></div>
-      ${navBtn('tests', icon.shield(16), 'Tests')}
-      ${navBtn('findings', icon.flag(), 'Findings')}
-      <div class="nav-divider"></div>
       ${navBtn('active', icon.play(), 'Active projects', s.active ?? 0)}
       ${navBtn('all', icon.grid(), 'All projects')}
       ${navBtn('mineActive', icon.user(), 'My active projects', s.mineActive ?? 0)}
       ${navBtn('mineAll', icon.layers(16), 'My all projects')}
+      <div class="nav-divider"></div>
+      ${navBtn('tests', icon.shield(16), 'Tests')}
+      ${navBtn('findings', icon.flag(), 'Findings')}
 
       ${
         canManageCatalog()

@@ -249,6 +249,7 @@ export const state = {
   testId: '',
   findingQuery: '',
   findingSeverity: '',
+  findingId: '',
   // The finding a cross-link asked for, scrolled to once the page has painted.
   findingFocus: '',
   // Paging for the four project lists. 50 is the default; the choice is

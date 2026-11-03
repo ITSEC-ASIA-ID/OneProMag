@@ -16,14 +16,14 @@
  */
 import { api } from './api.js';
 import { icon } from './icons.js';
-import { escapeHtml as h, toast } from './ui.js';
+import { escapeHtml as h, renderMarkdown, toast } from './ui.js';
 
 
 const FIELDS = {
   notes: {
     save: (projectId, text) => api.updateProject(projectId, { notes: text }),
     title: 'Notes',
-    hint: 'Scope, credentials location, out-of-scope items. Only the notes change — name, client, SV and status stay as they are.',
+    hint: 'Markdown supported. Scope, credentials location, out-of-scope items — only the notes change, name, client, SV and status stay as they are.',
     emptyTitle: 'No notes',
     emptyBody: 'Add scope details, credentials location, or out-of-scope items.',
     placeholder: 'Scope, credentials location, out-of-scope items…',
@@ -31,7 +31,7 @@ const FIELDS = {
   'pentest-notes': {
     save: (projectId, text) => api.savePentestNotes(projectId, text),
     title: 'Pentest notes',
-    hint: 'What you tested and what you found. Kept apart from the scope notes, which say what was agreed.',
+    hint: 'Markdown supported. What you tested and what you found, kept apart from the scope notes, which say what was agreed.',
     emptyTitle: 'No pentest notes',
     emptyBody: 'Write down what you tried and what it showed, while it is still fresh.',
     placeholder: 'Replayed a session cookie after logout; the API still accepted it…',
@@ -53,7 +53,10 @@ export function notesFieldHTML(kind, value) {
     <div class="nfield-view">
       ${
         text
-          ? `<div class="notes-block" data-nfield-text>${h(text)}</div>`
+          // Notes are written in Markdown and read as Markdown: the same text a
+          // user typed as `**bold**` or `- item` renders here, while the editor
+          // below still shows the raw source it has to save.
+          ? `<div class="notes-block doc-md" data-nfield-text>${renderMarkdown(text)}</div>`
           : `<div class="empty empty-bare">
                <div class="icon">${icon.note()}</div>
                <h3>${h(field.emptyTitle)}</h3>

@@ -1292,6 +1292,9 @@ svg { display: block; }
   white-space: pre-wrap;
   line-height: 1.6;
 }
+/* Rendered Markdown supplies its own block structure, so the pre-wrap that kept
+   plain line breaks must not also double every newline. */
+.notes-block.doc-md { white-space: normal; }
 
 .section-head {
   display: flex;
@@ -6913,49 +6916,24 @@ svg { display: block; }
 .lib-sev[data-tone='blue']  { background: var(--blue-soft);  color: var(--blue); }
 .lib-sev[data-tone='slate'] { background: var(--slate-soft); color: var(--slate); }
 
-/* Findings: cards in a grid, because they are meant to be skimmed and compared
-   rather than read in order. Description, impact and mitigation keep the same
-   three positions on every card so the eye does not re-learn the layout. */
-.find-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
-  gap: 12px;
-  align-items: start;
-}
-.find-card {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  padding: 16px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--r-md);
-  box-shadow: var(--shadow-xs);
-  scroll-margin: 90px;
-  transition: border-color 0.2s ease, box-shadow 0.2s ease;
-}
-.find-card.is-focus {
+/* Findings: an index on the left and the one finding you opened on the right.
+   They are read one at a time, so a grid of equal cards made every finding
+   compete for attention with the twelve around it. The list rows keep the
+   severity where the eye can scan it, and the detail reuses the guide panel so
+   both libraries read as one body of knowledge. */
+.find-item { align-items: flex-start; }
+.find-item .lib-sev { margin-top: 1px; }
+.find-item.is-focus {
   border-color: var(--primary);
   box-shadow: 0 0 0 3px var(--primary-ring);
 }
-.find-top { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .find-area { font-size: 11.5px; font-weight: 600; color: var(--muted); }
 .find-cwe {
   font-size: 10.5px;
   color: var(--faint);
   font-variant-numeric: tabular-nums;
 }
-.find-title { margin: 0; font-size: 14.5px; line-height: 1.35; letter-spacing: -0.005em; }
-.find-desc { margin: 0; font-size: 12.5px; line-height: 1.6; color: var(--ink-2); }
-.find-block { display: flex; flex-direction: column; gap: 4px; }
-.find-label {
-  font-size: 10.5px;
-  font-weight: 700;
-  letter-spacing: 0.07em;
-  text-transform: uppercase;
-  color: var(--faint);
-}
-.find-text { margin: 0; font-size: 12.5px; line-height: 1.6; color: var(--muted); }
+.find-text { margin: 0; font-size: 13px; line-height: 1.65; color: var(--ink-2); }
 .find-guide { margin-top: 2px; }
 
 @media (max-width: 1000px) {
@@ -6975,6 +6953,5 @@ svg { display: block; }
 }
 @media (max-width: 620px) {
   .guide-title { font-size: 17px; }
-  .find-grid { grid-template-columns: minmax(0, 1fr); }
   .lib-search { max-width: none; }
 }

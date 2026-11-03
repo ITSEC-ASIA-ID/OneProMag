@@ -267,24 +267,54 @@ export function visibleFindings() {
   return (state.findings || []).filter(findingMatches);
 }
 
-function findingCardHTML(f) {
+function findingItemHTML(f) {
   const tone = SEVERITY_TONE[f.severity] || 'slate';
-  return `<article class="find-card" data-find-card="${h(f.id)}">
-      <div class="find-top">
-        <span class="badge" data-tone="${tone}">${h(f.severity)}</span>
-        <span class="find-area">${h(f.area)}</span>
-        ${f.cwe ? `<span class="find-cwe">${h(f.cwe)}</span>` : ''}
-      </div>
-      <h3 class="find-title">${h(f.title)}</h3>
-      <p class="find-desc">${h(f.description)}</p>
-      <div class="find-block">
-        <div class="find-label">Impact</div>
+  return `<button class="lib-item find-item" type="button" data-find-row="${h(f.id)}">
+      <span class="lib-sev" data-tone="${tone}">${h(f.severity)}</span>
+      <span class="lib-item-body">
+        <span class="lib-item-title">${h(f.title)}</span>
+        <span class="lib-item-sub">${h(f.area)}${f.cwe ? ` · ${h(f.cwe)}` : ''}</span>
+      </span>
+    </button>`;
+}
+
+/** The open finding: the remembered one if it survived the filter, else the first. */
+export function openFinding() {
+  const rows = visibleFindings();
+  return rows.find((f) => f.id === state.findingId) || rows[0] || null;
+}
+
+/** One finding, in full — the same shape as a guide, because it is read the same way. */
+function findingDetailHTML(f) {
+  if (!f) {
+    return `<div class="lib-empty">
+        <div class="lib-empty-title">No finding matches that search</div>
+        <p>Try a stack ("sql"), an area ("access control") or clear the box.</p>
+      </div>`;
+  }
+  const tone = SEVERITY_TONE[f.severity] || 'slate';
+  return `<article class="guide find-detail" data-find-card="${h(f.id)}">
+      <header class="guide-head">
+        <div class="guide-meta">
+          <span class="badge" data-tone="${tone}">${h(f.severity)}</span>
+          <span class="find-area">${h(f.area)}</span>
+          ${f.cwe ? `<span class="find-cwe">${h(f.cwe)}</span>` : ''}
+        </div>
+        <h2 class="guide-title">${h(f.title)}</h2>
+      </header>
+
+      <p class="guide-what">${h(f.description)}</p>
+
+      <section class="guide-section">
+        <h3 class="lib-h">Impact</h3>
         <p class="find-text">${h(f.impact)}</p>
-      </div>
-      <div class="find-block">
-        <div class="find-label">Mitigation</div>
+      </section>
+
+      <section class="guide-section">
+        <h3 class="lib-h">Mitigation</h3>
         ${bulletList(f.mitigation, 'is-tight')}
-      </div>
+      </section>
+
       ${
         f.guide
           ? `<button class="lib-link find-guide" type="button" data-test-jump="${h(f.guide)}">${icon.shield(13)} How to test this</button>`
@@ -295,16 +325,21 @@ function findingCardHTML(f) {
 
 function paintFindings() {
   const list = document.getElementById('find-list');
+  const detail = document.getElementById('find-detail');
   const count = document.getElementById('find-count');
-  if (!list || !count) return;
+  if (!list || !detail || !count) return;
   const rows = visibleFindings();
+  const open = openFinding();
+  if (open && state.findingId !== open.id) state.findingId = open.id;
   count.innerHTML = `<b>${rows.length}</b> of ${(state.findings || []).length} findings`;
   list.innerHTML = rows.length
-    ? rows.map(findingCardHTML).join('')
-    : `<div class="lib-empty">
-         <div class="lib-empty-title">No finding matches that search</div>
-         <p>Try a stack ("sql"), an area ("access control") or clear the box.</p>
-       </div>`;
+    ? rows.map(findingItemHTML).join('')
+    : `<div class="lib-none">Nothing matches.</div>`;
+  list.querySelectorAll('[data-find-row]').forEach((b) => {
+    b.classList.toggle('is-open', b.dataset.findRow === state.findingId);
+    b.setAttribute('aria-pressed', String(b.dataset.findRow === state.findingId));
+  });
+  detail.innerHTML = findingDetailHTML(open);
 }
 
 export function findingsPageHTML() {
@@ -326,7 +361,10 @@ export function findingsPageHTML() {
         </div>
       </div>
       <div class="lib-count" id="find-count"></div>
-      <div class="find-grid" id="find-list"></div>
+      <div class="lib-split">
+        <div class="lib-list" id="find-list" aria-label="Findings"></div>
+        <div class="lib-detail" id="find-detail"></div>
+      </div>
     </div>`;
 }
 
@@ -354,6 +392,13 @@ export function bindFindings(root) {
   });
 
   root.addEventListener('click', (event) => {
+    const row = event.target.closest('[data-find-row]');
+    if (row) {
+      state.findingId = row.dataset.findRow;
+      paintFindings();
+      document.getElementById('find-detail')?.scrollIntoView({ block: 'nearest' });
+      return;
+    }
     const jump = event.target.closest('[data-test-jump]');
     if (jump) showGuide(jump.dataset.testJump);
   });
@@ -399,16 +444,17 @@ export function showFinding(findingId) {
     if (state.findingQuery && !findingMatches(finding)) state.findingQuery = '';
   }
   state.findingFocus = findingId;
+  state.findingId = findingId;
   handleNav('findings');
 }
 
-/** Once the Findings page has painted, bring the focused card into view. */
+/** Once the Findings page has painted, bring the focused row into view. */
 export function focusFinding(id) {
   if (!id) return;
-  const card = document.querySelector(`[data-find-card="${h(id)}"]`);
+  const row = document.querySelector(`[data-find-row="${h(id)}"]`);
   state.findingFocus = '';
-  if (!card) return;
-  card.scrollIntoView({ block: 'center' });
-  card.classList.add('is-focus');
-  setTimeout(() => card.classList.remove('is-focus'), 1600);
+  if (!row) return;
+  row.scrollIntoView({ block: 'center' });
+  row.classList.add('is-focus');
+  setTimeout(() => row.classList.remove('is-focus'), 1600);
 }
