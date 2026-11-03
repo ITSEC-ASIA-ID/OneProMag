@@ -172,9 +172,8 @@ export const api = {
     request('PATCH', `/api/project-checklists/${linkId}/items/${itemId}`, payload),
 
   // Pentest notes: the working log of an engagement.
-  pentestNotes: (projectId) => request('GET', `/api/projects/${projectId}/pentest-notes`),
-  addPentestNote: (projectId, payload) =>
-    request('POST', `/api/projects/${projectId}/pentest-notes`, payload),
-  updatePentestNote: (id, payload) => request('PATCH', `/api/pentest-notes/${id}`, payload),
-  deletePentestNote: (id) => request('DELETE', `/api/pentest-notes/${id}`),
+  // One working note per project: saving it twice saves it once, so PUT —
+  // which is also what makes a retried save safe.
+  savePentestNotes: (projectId, body) =>
+    request('PUT', `/api/projects/${projectId}/pentest-notes`, { body }),
 };

@@ -1,6 +1,6 @@
 import { bindAttachmentsTab, attachmentsTabHTML } from './files.js';
 import { bindChecklistBody, checklistBodyHTML } from './checklists.js';
-import { bindPentestNotes, pentestNotesTabHTML } from './pentest-notes.js';
+import { bindNotesField, notesFieldHTML } from './notes-editor.js';
 import { deleteRetestFlow, loadProjects, openProjectForm, refreshAll } from './projects.js';
 import { hideMenu, placeMenu } from './shared.js';
 import { loadStats, openProjectPage } from './shell.js';
@@ -17,7 +17,6 @@ import {
   subroleBadge, toast, todayISO,
 } from './ui.js';
 
-
 /* ============================================================
    project drawer
    ============================================================ */
@@ -28,18 +27,15 @@ export function closeDrawer() {
   document.removeEventListener('keydown', drawerKeyHandler);
 }
 
-
 export function drawerKeyHandler(e) {
   if (e.key === 'Escape' && document.querySelector('.modal-backdrop') === null) closeDrawer();
 }
-
 
 export async function openProject(id, tab = 'overview') {
   state.drawerProjectId = id;
   state.drawerTab = tab;
   await renderDrawer(id, tab, false);
 }
-
 
 export async function renderDrawer(id, tab = 'overview', keepOpen = true) {
   // Remember where the user is. Tab switches call renderDrawer directly, so
@@ -48,21 +44,19 @@ export async function renderDrawer(id, tab = 'overview', keepOpen = true) {
   state.drawerProjectId = id;
   state.drawerTab = tab;
   let data;
-  let extras = { files: [], checklists: [], pentestNotes: [] };
+  let extras = { files: [], checklists: [] };
   try {
     // The tabs carry counts, so the drawer needs all three before it paints:
     // a tab that says "3" and then shows two rows is worse than a slower open.
-    const [projectData, checklistRes, fileRes, noteRes] = await Promise.all([
+    const [projectData, checklistRes, fileRes] = await Promise.all([
       api.project(id),
       api.projectChecklists(id).catch(() => ({ checklists: [] })),
       api.projectFiles(id).catch(() => ({ files: [] })),
-      api.pentestNotes(id).catch(() => ({ notes: [] })),
     ]);
     data = projectData;
     extras = {
       checklists: checklistRes.checklists || [],
       files: fileRes.files || [],
-      pentestNotes: noteRes.notes || [],
     };
   } catch (err) {
     toast(err.message, 'err');
@@ -88,8 +82,7 @@ export async function renderDrawer(id, tab = 'overview', keepOpen = true) {
   bindDrawer(el, project, retests, extras);
 }
 
-
-export function drawerHTML(project, retests, tab, extras = { files: [], checklists: [], pentestNotes: [] }) {
+export function drawerHTML(project, retests, tab, extras = { files: [], checklists: [] }) {
   const openRetests = retests.filter((r) => r.status === 'Incoming' || r.status === 'Ongoing').length;
   const fails = (extras.checklists || []).reduce((n, c) => n + (Number(c.progress?.fail) || 0), 0);
 
@@ -104,7 +97,8 @@ export function drawerHTML(project, retests, tab, extras = { files: [], checklis
     { id: 'attachments', label: 'Files', count: (extras.files || []).length || undefined },
     { id: 'retests', label: 'Retests', count: retests.length || undefined },
     { id: 'checklist', label: 'Checklist', count: fails || undefined },
-    { id: 'pentest-notes', label: 'Pentest notes', count: (extras.pentestNotes || []).length || undefined },
+    // No count: one field, and a box that is filled in is not a badge.
+    { id: 'pentest-notes', label: 'Pentest notes' },
   ];
 
   return `
@@ -166,14 +160,13 @@ export function drawerHTML(project, retests, tab, extras = { files: [], checklis
     }`;
 }
 
-
-export function tabBody(project, retests, tab, extras = { files: [], checklists: [], pentestNotes: [] }) {
+export function tabBody(project, retests, tab, extras = { files: [], checklists: [] }) {
   if (tab === 'checklist') {
     return checklistBodyHTML(extras.checklists || [], extras.files || []);
   }
 
   if (tab === 'pentest-notes') {
-    return pentestNotesTabHTML(extras.pentestNotes || []);
+    return notesFieldHTML('pentest-notes', project.pentestNotes);
   }
 
   if (tab === 'attachments') {
@@ -287,19 +280,8 @@ export function tabBody(project, retests, tab, extras = { files: [], checklists:
     return `<div class="retest-list">${retests.map(retestHTML).join('')}</div>`;
   }
 
-  return project.notes
-    ? `<div class="notes-block">${h(project.notes)}</div>
-       <div class="mt-14">
-         <button class="btn btn-sm" data-edit-notes>${icon.edit()} Edit notes</button>
-       </div>`
-    : `<div class="empty empty-bare">
-        <div class="icon">${icon.note()}</div>
-        <h3>No notes</h3>
-        <p>Add scope details, credentials location, or out-of-scope items.</p>
-        <button class="btn" data-edit-notes>${icon.edit()} Add notes</button>
-      </div>`;
+  return notesFieldHTML('notes', project.notes);
 }
-
 
 export function retestHTML(r) {
   const tone = propTone('status', r.status);
@@ -324,8 +306,7 @@ export function retestHTML(r) {
     </div>`;
 }
 
-
-export function bindDrawer(el, project, retests, extras = { files: [], checklists: [], pentestNotes: [] }) {
+export function bindDrawer(el, project, retests, extras = { files: [], checklists: [] }) {
   el.querySelector('[data-close-drawer]').addEventListener('click', closeDrawer);
 
   // Both tabs repaint through the drawer itself, so a change keeps the tab the
@@ -367,7 +348,6 @@ export function bindDrawer(el, project, retests, extras = { files: [], checklist
   });
 }
 
-
 /** The quick-status menu belonging to a toggle, wherever `placeMenu` parked it. */
 function menuOf(toggle) {
   const host = toggle.closest('[data-quick-status]');
@@ -376,7 +356,6 @@ function menuOf(toggle) {
   if (inPlace) return inPlace;
   return [...document.querySelectorAll('[data-quick-menu]')].find((m) => m._qsHome === host) || null;
 }
-
 
 /**
  * Everything a project's content does, wherever it is rendered.
@@ -387,13 +366,14 @@ function menuOf(toggle) {
  * prevents. `reload` is the only difference: the drawer repaints itself, the
  * page remounts itself.
  */
-export function bindProjectActions(el, project, retests, extras = { files: [], checklists: [], pentestNotes: [] }, reload) {
+export function bindProjectActions(el, project, retests, extras = { files: [], checklists: [] }, reload) {
   // Each binder looks for its own markup and does nothing when the tab on
   // screen is someone else's, so all three can be called every time: a tab
   // cannot end up rendered but unbound because a branch forgot it.
   bindAttachmentsTab(el, project, extras.files || [], reload);
   bindChecklistBody(el, project, extras.checklists || [], extras.files || [], reload);
-  bindPentestNotes(el, project.id, extras.pentestNotes || [], reload);
+  bindNotesField(el, project.id, 'notes', reload);
+  bindNotesField(el, project.id, 'pentest-notes', reload);
 
   // Quick status: refresh whatever is behind the panel AND the panel itself.
   el.querySelectorAll('[data-set-status]').forEach((item) => {
@@ -426,11 +406,6 @@ export function bindProjectActions(el, project, retests, extras = { files: [], c
   });
 
   el.querySelectorAll('[data-edit]').forEach((btn) => btn.addEventListener('click', () => openProjectForm(project)));
-  // Notes have their own tiny modal: opening the whole project form to change
-  // one textarea buries the field the user actually asked for.
-  el.querySelectorAll('[data-edit-notes]').forEach((btn) =>
-    btn.addEventListener('click', () => openNotesForm(project))
-  );
   el.querySelectorAll('[data-team-edit]').forEach((btn) =>
     btn.addEventListener('click', () => openTeamForm(project))
   );
@@ -454,7 +429,6 @@ export function bindProjectActions(el, project, retests, extras = { files: [], c
     })
   );
 }
-
 
 /* ============================================================
    retest form modal
@@ -635,7 +609,6 @@ export async function openRetestForm(projectId = null, retest = null, onDone) {
   });
 }
 
-
 /* ============================================================
    focused sub-forms
    ------------------------------------------------------------
@@ -684,41 +657,3 @@ export function openTeamForm(project) {
   });
 }
 
-
-export function openNotesForm(project) {
-  const body = `
-    <div class="field mt-0">
-      <label for="n-notes">Notes</label>
-      <textarea class="textarea" id="n-notes" rows="7"
-        placeholder="Scope, credentials location, out-of-scope items…">${h(project.notes || '')}</textarea>
-      <span class="hint">Only the notes are changed — name, client, SV and status stay as they are.</span>
-    </div>`;
-
-  openModal({
-    title: project.notes ? 'Edit notes' : 'Add notes',
-    subtitle: project.name,
-    initialFocus: '#n-notes',
-    body,
-    footer: `<div class="spacer"></div>
-      <button class="btn" data-cancel>Cancel</button>
-      <button class="btn btn-primary" data-save>Save notes</button>`,
-    onMount: (modal, close) => {
-      modal.querySelector('[data-cancel]').addEventListener('click', close);
-      const save = async () => {
-        const btn = modal.querySelector('[data-save]');
-        btn.disabled = true;
-        try {
-          await api.updateProject(project.id, { notes: modal.querySelector('#n-notes').value });
-          toast('Notes saved');
-          close();
-          await refreshAll();
-          if (state.drawerProjectId) await renderDrawer(state.drawerProjectId, state.drawerTab, true);
-        } catch (err) {
-          toast(err.message, 'err');
-          btn.disabled = false;
-        }
-      };
-      modal.querySelector('[data-save]').addEventListener('click', save);
-    },
-  });
-}

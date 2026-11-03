@@ -118,7 +118,7 @@ have shipped:
 | a project's category attaches its default, once | auto-attach is additive and idempotent |
 | a template in use cannot be deleted | `RESTRICT`, reported as 409 |
 | an item cannot cite another project's file | evidence stays with its engagement |
-| pentest notes read newest-day-first, and a no-op save keeps the stamp | the log is a timeline, not a list of writes |
+| pentest notes: one field per project, and a no-op save keeps the stamp | saving twice saves once; the two note fields do not overwrite each other |
 | a Member cannot delete a pentest note | the delete rule, on the log |
 
 `.github/workflows/test.yml` runs it on every push and pull request. There is no
@@ -1780,15 +1780,21 @@ on Postgres and `INTEGER` on SQLite, so every statement that touches it uses the
 `seed_version` is what lets a release replace a shipped list's items in place
 instead of adding a second copy beside it.
 
-**`v1.22` — pentest notes, one row per entry.** `project_pentest_notes`
-(`project_id → projects CASCADE`, `entry_date`, `body`, `author_id → users SET
-NULL`, `created_at`, `updated_at`, index on `(project_id, entry_date DESC, id
-DESC)`). The project already had a `notes` field and this is deliberately not
-that: scope notes say what was agreed and rarely change, while these are written
-while testing and are many. One text field would have to be rewritten to add a
-single line, and two testers writing at once would silently overwrite each other.
-`entry_date` is the day the work belongs to, which need not be the day it was
-typed — the list orders by it, and `created_at` answers the other question.
+**`v1.23` — the working note is one field, and the timeline table is gone.**
+`projects.pentest_notes TEXT NOT NULL DEFAULT ''`, beside the existing `notes`.
+`v1.22` briefly modelled this as `project_pentest_notes`, one row per entry,
+ordered by an `entry_date` you picked. That was the wrong shape for the question
+being asked: reading an engagement back is one question — *what did we find?* —
+and answering it out of nine entries dated across three days is the reading work
+the field was supposed to save. `migratePentestNotesIntoColumn()` carries the
+newest entry per project into the column, logs how many it carried, then drops
+the table; a database that never had it skips the whole step.
+
+The route stayed separate from `PATCH /api/projects/:id`
+(`PUT /api/projects/:id/pentest-notes`), so saving a long note cannot overwrite
+the name, status or dates somebody else was not looking at. There is no delete
+route: emptying the field is the deletion, which is also why the endpoint takes a
+`PUT` — sending it twice leaves one note, so a retried save is safe.
 
 **`v1.21` — one checklist per project.** `CREATE UNIQUE INDEX
 idx_project_checklists_one ON project_checklists(project_id)`. A database that
@@ -1797,19 +1803,29 @@ predates the rule can hold duplicates, so `dedupeProjectChecklists()` runs befor
 drops the answers on the others) and logs how many it removed. The invariant then
 lives in the engine, not in every route that might forget it.
 
-### Pentest notes (project → Pentest notes tab)
-The working log of an engagement: many short entries, each stamped with a day.
-It is not the project's `notes` field. Scope notes say what was agreed and change
-rarely; these are written as the work happens, and one text field would have to be
-rewritten to append a line — two testers saving at once would lose one of them.
+### Notes and Pentest notes, both edited in place
+Two long-text fields on a project, answering different questions:
 
-The day is the one the tester picks, defaulting to today, and it need not be the
-day they type it: writing up Monday's work on Friday should still read in
-Monday's place. The list orders by that day, newest first, and prints `created_at`
-as a relative stamp ("Arif Wicaksono · just now") with "edited …" appended when
-the entry was touched after it was written. Saving an entry unchanged does not
-move that stamp, the same rule the project drawer follows. Deleting an entry is a
-`requireDeleter` action: admin, lead or sub-lead.
+| | |
+|---|---|
+| **Notes** | what was agreed with the client: scope, credentials location, out-of-scope items. Changes rarely. |
+| **Pentest notes** | what was tested and what it showed. Written while the work happens. |
+
+They stay separate fields because the person asking *what did we agree?* is rarely
+asking *what did we find?*, and one box would make the second answer overwrite the
+first.
+
+**Both are edited where they are read.** The Edit button turns the text you are
+looking at into the text you are typing — no dialog. A modal was the wrong shape
+for these two specifically: the text is the whole content of the tab, and a 7-row
+box under a dimmed page meant holding one version in your head to compare it with
+the other. Cancel restores what was there (typed text does not linger in a hidden
+box), the textarea grows with its content so a long note is not read through a
+scrollbar, `Ctrl/Cmd+Enter` saves and `Escape` abandons.
+
+Saving without changing anything does not move the project's `updated_at`, the
+same rule every other edit follows. Emptying the box clears the note — there is
+no delete button for a field, and none is needed.
 
 ### Renamed in v1.13: the supervisor columns
 The **role stayed `Project Manager`**. What was renamed is the field that says who
@@ -1987,7 +2003,7 @@ OneProMag/
 │       ├── properties.js categories and statuses (Admin panel)
 │       ├── checklists.js checklists: item editor (drawer + page), Admin panel
 │       ├── project-page.js one project, on its own URL (/project/<id>/<tab>)
-│       ├── pentest-notes.js the engagement's working log, one entry per day
+│       ├── notes-editor.js the two long-text fields, edited in place
 │       ├── files.js     project attachments: upload, download, delete
 │       ├── api.js       fetch wrapper
 │       ├── ui.js        modal/toast/badge/segmented primitives, team + SV cell

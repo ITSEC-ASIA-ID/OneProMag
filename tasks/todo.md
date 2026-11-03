@@ -365,3 +365,25 @@ attaches itself.
 
 - [x] **Verified end to end**
   - 56/56 tests; md5 live == local for all seven touched files; all twelve nav pages render with zero console errors in both themes; `history.back()` from `/project/4` lands on `/projects`; the checklist page at `/project/4/checklist` still renders ten items and its Back button still says "Projects"; 430px page and tab strip both 0 overflow (tabs 398/398).
+
+## notes-edited-in-place
+
+Operator request (three identical sends): *"Each project : - When click Edit notes,
+should not pop up but direct edit inside box - For Pentest notes same like Notes,
+only 1 notes"*.
+
+- [x] **Edit notes edits the box, it does not open a dialog**
+  - Acceptance: pressing Edit on the Notes tab turns the text being read into a textarea in the same place; no modal appears; Cancel restores the original text; Save persists and the tab keeps showing the new text; `Ctrl/Cmd+Enter` saves and `Escape` abandons.
+  - Reason: the text *is* the tab. A modal re-flowed it into a 7-row box under a dimmed page, so comparing "what I wrote" with "what it should say" meant remembering one of the two. The comment on the old handler already said "opening the whole project form to change one textarea buries the field the user actually asked for" — deleting the form was half the fix; the dialog was the other half.
+  - Verify: `notesFieldHTML(kind, value)` + `bindNotesField(root, projectId, kind, reload)` in `public/js/notes-editor.js`, used by both `public/js/drawer.js` (both note tabs) and `public/js/project-page.js`; `openNotesForm` and the `[data-edit-notes]` listener deleted. Probes: on `/project/4/notes`, clicking Edit hid `.nfield-view`, showed `.nfield-edit`, left `!!document.querySelector('.modal')` false and focused `#nfield-notes`; Cancel restored the original text exactly; three typed lines saved as 5 lines with the toast `Notes saved`; the drawer's Notes tab did the same on both counts.
+  - Files: `public/js/notes-editor.js` (new), `public/js/drawer.js`, `public/js/project-page.js`, `public/css/styles.css`
+
+- [x] **Pentest notes is one field, like Notes**
+  - Acceptance: one working note per project instead of a timeline of entries; edited in the same box-in-place way; a database that already holds entries keeps the newest one and loses nothing else; clearing the box clears the note.
+  - Reason: the timeline was my own over-design. Reading an engagement back is one question — *what did we find?* — and answering it out of entries dated across three days is the reading work the field was meant to save. One field also removes the failure the entries existed to prevent: with one row per project there is nothing for a second tester to append to, and the route is a `PUT`, so a retried save is idempotent.
+  - Verify: `projects.pentest_notes` in both schema files, `project_pentest_notes` DDL deleted; `migratePentestNotesIntoColumn()` (schema 23) carries the newest non-empty entry per project, logs `[db] carried N working note(s) into projects.pentest_notes`, then drops the table; `PUT /api/projects/:id/pentest-notes` in `server/routes/pentest-notes.js` (56 lines, `MAX_BODY = 20000`, empty allowed because emptying is the deletion, `editStamp` so a no-op save does not move the stamp); `api.savePentestNotes`; `public/js/pentest-notes.js` deleted; test 57 rewritten (replace-not-append, no-op keeps the stamp, the two fields do not overwrite each other, empty clears with `cleared: true`, a Member can write) — 57/57. Migration proved on a synthetic v22 SQLite database holding two entries: the newest was carried, the scope notes were untouched, the table was gone, version 23. Live: `schema_migrations` 23, `asdf` carried into `projects.id = 4`, no `project_pentest_notes` table in Postgres.
+  - Files: `server/db.js`, `server/schema/sqlite.sql`, `server/schema/postgres.sql`, `server/routes/pentest-notes.js`, `server/routes/projects.js`, `public/js/api.js`, `public/js/notes-editor.js`, `test/api.test.js`
+
+- [x] **Verified end to end**
+  - 57/57 tests; md5 live == local for every touched file except `test/api.test.js` (not copied into the image); both note fields open, save, cancel and clear in place on the project page *and* in the drawer; empty-state button reads "Add notes"; 430px page and editor both 0 overflow (textarea 368px); `bagas` gets an Edit button on both tabs with zero console errors; no modal opens anywhere in either flow; the seeded scope notes were restored to their original text and every working note is empty after testing.
+  - Not in scope (unchanged): no authorship or "edited" stamp on the working note now that it is one field — the project's own `updated_at` is the only record that it changed.

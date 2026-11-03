@@ -1554,69 +1554,92 @@ test('an answer cannot borrow a file from another project', async () => {
   );
 });
 
-test('pentest notes: newest day first, and a no-op save does not touch the stamp', async () => {
+test('pentest notes: one field per project, and a no-op save does not touch the stamp', async () => {
   const admin = await asUser('admin');
   const projects = await call('GET /api/projects', admin);
   const project = projects.projects[0];
 
-  const first = await call('POST /api/projects/:id/pentest-notes', admin, {
+  const first = await call('PUT /api/projects/:id/pentest-notes', admin, {
     params: { id: project.id },
-    body: { entryDate: '2026-10-05', body: 'Replayed a session cookie after logout; the API accepted it.' },
+    body: { body: 'Replayed a session cookie after logout; the API accepted it.' },
   });
-  assert.equal(first.note.entryDate, '2026-10-05');
-  assert.equal(first.note.authorName, admin.name);
+  assert.match(first.project.pentestNotes, /session cookie/);
+  assert.equal(first.project.pentestNotes.split('\n').length, 1);
 
-  const second = await call('POST /api/projects/:id/pentest-notes', admin, {
+  // Saving again replaces it — there is one note, so there is one row's worth of
+  // text and the old one is not appended to.
+  const second = await call('PUT /api/projects/:id/pentest-notes', admin, {
     params: { id: project.id },
-    body: { entryDate: '2026-10-09', body: 'Walked the object-id space on /api/invoices.' },
+    body: { body: 'Walked the object-id space on /api/invoices.' },
   });
-  assert.deepEqual(
-    second.notes.map((n) => n.entryDate),
-    ['2026-10-09', '2026-10-05'],
-    'the later day sorts first whatever order they were written in'
-  );
+  assert.equal(second.project.pentestNotes, 'Walked the object-id space on /api/invoices.');
+  assert.doesNotMatch(second.project.pentestNotes, /session cookie/);
 
   // Pinned first, so a pass cannot come from two writes landing in the same
   // millisecond.
-  await db.run(`UPDATE project_pentest_notes SET updated_at = '2020-01-01T00:00:00.000Z' WHERE id = ?`, [
-    first.note.id,
-  ]);
-  const same = await call('PATCH /api/pentest-notes/:id', admin, {
-    params: { id: first.note.id },
-    body: { body: first.note.body },
+  await db.run(`UPDATE projects SET updated_at = '2020-01-01T00:00:00.000Z' WHERE id = ?`, [project.id]);
+  const same = await call('PUT /api/projects/:id/pentest-notes', admin, {
+    params: { id: project.id },
+    body: { body: second.project.pentestNotes },
   });
-  assert.equal(same.note.updatedAt, '2020-01-01T00:00:00.000Z', 'a no-op save is not an edit');
+  assert.equal(same.project.updatedAt, '2020-01-01T00:00:00.000Z', 'a no-op save is not an edit');
 
-  const edited = await call('PATCH /api/pentest-notes/:id', admin, {
-    params: { id: first.note.id },
-    body: { body: 'Replayed a session cookie after logout; the API accepted it. Fixed in the retest.' },
+  const edited = await call('PUT /api/projects/:id/pentest-notes', admin, {
+    params: { id: project.id },
+    body: { body: 'Walked the object-id space on /api/invoices. Fixed in the retest.' },
   });
-  assert.notEqual(edited.note.updatedAt, '2020-01-01T00:00:00.000Z');
-  assert.match(edited.note.body, /Fixed in the retest/);
+  assert.notEqual(edited.project.updatedAt, '2020-01-01T00:00:00.000Z');
+  assert.match(edited.project.pentestNotes, /Fixed in the retest/);
 
-  await assert.rejects(
-    () => call('POST /api/projects/:id/pentest-notes', admin, { params: { id: project.id }, body: { body: '   ' } }),
-    (err) => err.status === 400 && /needs some text/.test(err.message)
-  );
-  await assert.rejects(
-    () =>
-      call('POST /api/projects/:id/pentest-notes', admin, {
-        params: { id: project.id },
-        body: { body: 'x', entryDate: 'last tuesday' },
-      }),
-    (err) => err.status === 400 && /Not a date/.test(err.message)
-  );
+  // The working note and the scope note are different fields: writing one must
+  // not clear the other, which is the failure a shared column would hide.
+  const scope = await call('GET /api/projects/:id', admin, { params: { id: project.id } });
+  assert.ok(scope.project.notes.length > 0, 'the scope notes were blanked by a working-note save');
+  assert.notEqual(scope.project.notes, scope.project.pentestNotes);
 
-  await call('DELETE /api/pentest-notes/:id', admin, { params: { id: first.note.id } });
-  const left = await call('GET /api/projects/:id/pentest-notes', admin, { params: { id: project.id } });
-  assert.equal(left.notes.length, 1);
+  // Empty is how a note is cleared, exactly like the scope notes: one field, so
+  // removing its text is the removal. No delete button, and no 400 either.
+  const cleared = await call('PUT /api/projects/:id/pentest-notes', admin, {
+    params: { id: project.id },
+    body: { body: '   ' },
+  });
+  assert.equal(cleared.project.pentestNotes, '');
+  assert.equal(cleared.cleared, true);
 
-  // A Member writes notes — that is the job — but deleting someone's log is a
-  // delete like any other.
+  // A Member writes notes — that is the job — so this one is deliberately open
+  // to everyone signed in, unlike deletes.
   const member = await asUser('bagas');
-  await assert.rejects(
-    () => call('DELETE /api/pentest-notes/:id', member, { params: { id: second.notes[0].id } }),
-    (err) => err.status === 403
-  );
-  await call('DELETE /api/pentest-notes/:id', admin, { params: { id: second.notes[0].id } });
+  const byMember = await call('PUT /api/projects/:id/pentest-notes', member, {
+    params: { id: project.id },
+    body: { body: 'Checked the login throttle by hand.' },
+  });
+  assert.match(byMember.project.pentestNotes, /login throttle/);
+
+  const after = await call('GET /api/projects/:id', admin, { params: { id: project.id } });
+  assert.ok(after.project.notes.length > 0, 'clearing the working note also cleared the scope notes');
+});
+
+test('a working note saved in the same millisecond as the last one still persists', async () => {
+  const admin = await asUser('admin');
+  const projects = await call('GET /api/projects', admin);
+  const project = projects.projects[0];
+
+  // The bug this pins: the route used `editStamp(row, next) !== row.updated_at`
+  // as "did anything change". When the clock had not moved since the previous
+  // save, a genuinely different note produced a stamp equal to the row's, the
+  // write was skipped, and the note was silently dropped while the UI said it
+  // saved. Back-to-back saves are the cheapest way to land in one millisecond,
+  // so five of them with distinct text make the collision very likely — and the
+  // assertion is on the stored text, which the buggy version lost.
+  let text = '';
+  for (let i = 1; i <= 5; i += 1) {
+    text = `Note number ${i}.`;
+    const saved = await call('PUT /api/projects/:id/pentest-notes', admin, {
+      params: { id: project.id },
+      body: { body: text },
+    });
+    assert.equal(saved.project.pentestNotes, text);
+    const read = await call('GET /api/projects/:id', admin, { params: { id: project.id } });
+    assert.equal(read.project.pentestNotes, text, `save ${i} was dropped`);
+  }
 });

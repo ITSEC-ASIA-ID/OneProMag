@@ -6679,45 +6679,28 @@ svg { display: block; }
 }
 
 /* ============================================================
-   Pentest notes
+   Long-text fields, edited where they are read
    ------------------------------------------------------------
-   A timeline, not a text field. Each entry is one day's work, so the day is
-   the heading and everything else is subordinate to it.
-   ============================================================ */
-.pn { display: flex; flex-direction: column; gap: 14px; }
-.pn-head { display: flex; align-items: center; gap: 10px; }
-.pn-list { display: flex; flex-direction: column; gap: 12px; }
-.pn-item {
-  border: 1px solid var(--border);
-  border-radius: var(--r-md);
-  background: var(--surface-2);
-  padding: 12px 14px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-.pn-day {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 11.5px;
-  font-weight: 600;
-  letter-spacing: .04em;
-  text-transform: uppercase;
-  color: var(--muted);
-}
-.pn-day svg { color: var(--faint); }
-.pn-body {
-  font-size: 13.5px;
-  line-height: 1.62;
-  color: var(--ink);
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-}
-.pn-foot { display: flex; align-items: center; gap: 6px; }
-.pn-by { font-size: 11.8px; color: var(--faint); }
-.pn-item .btn-icon-sm, .pn-foot .btn-icon { opacity: .55; transition: opacity .12s ease; }
-.pn-item:hover .btn-icon { opacity: 1; }
+   Both the scope notes and the working notes are one box on the project, so
+   "Edit" turns the text you are reading into the text you are typing. No modal:
+   the text is the whole content of the tab, and a dialog re-flowed it into a
+   7-row box under a dimmed page — you had to hold one version in your head to
+   compare it with the other.
+
+   The wrapper hides the view while the editor is up, so the tab never shows two
+   versions of the same note. ============================================================ */
+.nfield { display: flex; flex-direction: column; gap: 10px; }
+.nfield-view[hidden], .nfield-edit[hidden] { display: none; }
+.nfield-view { display: flex; flex-direction: column; gap: 12px; }
+.nfield-edit { display: flex; flex-direction: column; gap: 10px; }
+/* The textarea grows with its content (the binder measures it), so this is only
+   the floor — a one-paragraph note should not open a 10-row box. */
+.nfield-input { min-height: 200px; resize: vertical; line-height: 1.6; }
+.nfield-foot { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.nfield-foot .hint { flex: 1 1 260px; min-width: 0; }
+.nfield-acts { display: flex; gap: 8px; }
 @media (max-width: 720px) {
-  .pn-head { flex-wrap: wrap; }
+  .nfield-input { min-height: 160px; }
+  .nfield-foot { align-items: stretch; }
+  .nfield-foot .spacer { display: none; }
 }

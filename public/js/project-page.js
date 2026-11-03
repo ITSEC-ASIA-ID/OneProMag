@@ -57,7 +57,6 @@ function headHTML(project, retests, tab, extras) {
     attachments: (extras.files || []).length || undefined,
     retests: retests.length || undefined,
     checklist: fails || undefined,
-    'pentest-notes': (extras.pentestNotes || []).length || undefined,
   };
   const labels = {
     overview: 'Overview',
@@ -120,18 +119,16 @@ export async function mountProjectPage() {
   // view of data the header needs anyway (three counts live in it). One load
   // per project, then repaints are local.
   if (!pageCache || pageCache.id !== projectId) {
-    const [projectRes, linksRes, fileRes, noteRes] = await Promise.all([
+    const [projectRes, linksRes, fileRes] = await Promise.all([
       api.project(projectId).catch(() => ({ project: null })),
       api.projectChecklists(projectId).catch(() => ({ checklists: [] })),
       api.projectFiles(projectId).catch(() => ({ files: [] })),
-      api.pentestNotes(projectId).catch(() => ({ notes: [] })),
     ]);
     pageCache = {
       id: projectId,
       data: projectRes,
       links: linksRes.checklists || [],
       files: fileRes.files || [],
-      notes: noteRes.notes || [],
     };
   }
 
@@ -144,7 +141,7 @@ export async function mountProjectPage() {
   }
 
   const retests = pageCache.data.retests || [];
-  const extras = { files: pageCache.files, checklists: pageCache.links, pentestNotes: pageCache.notes };
+  const extras = { files: pageCache.files, checklists: pageCache.links };
   const tab = TABS.includes(state.projectTab) ? state.projectTab : 'overview';
 
   setTitle(project.name, `${project.client || 'No client'} · ${project.category || ''}`);

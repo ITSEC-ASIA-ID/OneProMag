@@ -201,7 +201,11 @@ CREATE TABLE IF NOT EXISTS projects (
   env            TEXT NOT NULL DEFAULT 'Dev',
   method         TEXT NOT NULL DEFAULT 'Grey Box',
   status         TEXT NOT NULL DEFAULT 'Incoming',
+  -- Scope notes: what was agreed with the client. Changes rarely.
   notes          TEXT NOT NULL DEFAULT '',
+  -- Working notes: what was actually tried and found, written while testing.
+  -- One field per project, like the scope notes above — not a log of rows.
+  pentest_notes  TEXT NOT NULL DEFAULT '',
   -- The engagement window, as free-text dates (YYYY-MM-DD). Added by the boot
   -- migration for databases created before they existed — but they belong here
   -- too, or a fresh install would depend on that migration having run.
@@ -339,17 +343,3 @@ CREATE TABLE IF NOT EXISTS project_checklist_items (
   PRIMARY KEY (project_checklist_id, item_id)
 );
 
--- Free-form working notes for an engagement, kept apart from the project's
--- scope notes: scope says what was agreed, these say what was found and tried.
--- `entry_date` is a real day (YYYY-MM-DD) so a set of notes can be read as a
--- timeline; `created_at` is when the row was written, which is a different
--- question and is not shown in place of it.
-CREATE TABLE IF NOT EXISTS project_pentest_notes (
-  id         INTEGER PRIMARY KEY AUTOINCREMENT,
-  project_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
-  entry_date TEXT NOT NULL DEFAULT '',
-  body       TEXT NOT NULL DEFAULT '',
-  author_id  INTEGER REFERENCES users(id) ON DELETE SET NULL,
-  created_at TEXT NOT NULL,
-  updated_at TEXT NOT NULL DEFAULT ''
-);

@@ -1229,8 +1229,10 @@ async function writeChecklistItems(conn, checklistId, items) {
  * 20 — checklist categories, one default per category, versioned seed.
  * 21 — one checklist per project: a unique index on project_checklists(project_id).
  * 22 — working notes per project, read newest-first as a timeline.
+ * 23 — working notes are one field on the project, like the scope notes. The
+ *      table that briefly held a timeline is carried over and dropped.
  */
-export const SCHEMA_VERSION = 22;
+export const SCHEMA_VERSION = 23;
 
 let appliedSchemaVersion = 0;
 
@@ -1579,6 +1581,45 @@ async function dedupeProjectChecklists() {
   return ids.length;
 }
 
+/**
+ * v23: working notes stopped being a table of entries and became one field on
+ * the project, like the scope notes.
+ *
+ * A timeline sounds better than it is. Whoever is testing writes while they
+ * work, but reading the engagement back is one question — "what did we find?" —
+ * and answering it from nine entries with three different days is the reading
+ * work the field was supposed to save. The operator asked for one note; the
+ * entries only ever lived in this build, so the newest one is carried over and
+ * the table is dropped rather than kept as a second answer to the same question.
+ */
+async function migratePentestNotesIntoColumn() {
+  await addColumnIfMissing('projects', 'pentest_notes', "TEXT NOT NULL DEFAULT ''");
+  if (!(await tableExists('project_pentest_notes'))) return;
+
+  // Anything already written is carried over instead of thrown away. Only the
+  // newest entry per project survives: two notes in one field is a format no
+  // screen can show, and silently keeping the older one would lose the work.
+  const rows = await db.all(
+    `SELECT project_id, body FROM project_pentest_notes
+      ORDER BY project_id, entry_date DESC, id DESC`
+  );
+  const seen = new Set();
+  for (const row of rows) {
+    if (seen.has(row.project_id)) continue;
+    seen.add(row.project_id);
+    if (!String(row.body || '').trim()) continue;
+    await db.run(`UPDATE projects SET pentest_notes = ? WHERE id = ? AND pentest_notes = ''`, [
+      row.body,
+      row.project_id,
+    ]);
+  }
+  if (seen.size) console.warn(`[db] carried ${seen.size} working note(s) into projects.pentest_notes`);
+
+  await db.exec('DELETE FROM project_pentest_notes');
+  await db.exec('DROP TABLE project_pentest_notes');
+}
+
+
 async function createIndexes() {
   const statements = [
     'CREATE INDEX IF NOT EXISTS idx_retests_project ON retests(project_id)',
@@ -1623,7 +1664,6 @@ async function createIndexes() {
     'CREATE INDEX IF NOT EXISTS idx_devices_kind ON devices(kind)',
     // Pentest notes are listed newest-first for one project, which is the only
     // way they are ever read.
-    'CREATE INDEX IF NOT EXISTS idx_pentest_notes_project ON project_pentest_notes(project_id, entry_date DESC, id DESC)',
     // Column config is read once per kind on every page load.
     'CREATE INDEX IF NOT EXISTS idx_device_columns_kind ON device_columns(kind)',
     // Login accepts a username OR an email, so the email lookup must not scan the
@@ -1670,6 +1710,7 @@ async function migrateSqlite() {
   // project moves to Ongoing (start) or Done (end); they stay editable after that.
   await addColumnIfMissing('projects', 'started_at', 'TEXT NOT NULL DEFAULT \'\'');
   await addColumnIfMissing('projects', 'ended_at', 'TEXT NOT NULL DEFAULT \'\'');
+  await migratePentestNotesIntoColumn();
   await addColumnIfMissing('retests', 'started_at', 'TEXT');
   await addColumnIfMissing('retests', 'ended_at', 'TEXT');
   // v1.5: availability board (status + note on the user row, empty = automatic).
@@ -1736,6 +1777,7 @@ async function migratePostgres() {
   // project moves to Ongoing (start) or Done (end); they stay editable after that.
   await addColumnIfMissing('projects', 'started_at', 'TEXT NOT NULL DEFAULT \'\'');
   await addColumnIfMissing('projects', 'ended_at', 'TEXT NOT NULL DEFAULT \'\'');
+  await migratePentestNotesIntoColumn();
   await addColumnIfMissing('retests', 'started_at', 'TEXT');
   await addColumnIfMissing('retests', 'ended_at', 'TEXT');
   // v1.5: availability board (status + note on the user row, empty = automatic).

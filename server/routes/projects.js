@@ -109,6 +109,9 @@ function shapeProject(row, pentesters = []) {
     method: row.method,
     status: row.status,
     notes: row.notes,
+    // What was actually tried and found, as opposed to what was agreed. One
+    // field, same as `notes` — see the v23 note in server/db.js.
+    pentestNotes: row.pentest_notes || '',
     startedAt: row.started_at || '',
     endedAt: row.ended_at || '',
     createdAt: row.created_at,
@@ -367,10 +370,10 @@ export const routes = {
       // LOWER() on both sides keeps search case-insensitive on BOTH engines:
       // SQLite's LIKE already is, PostgreSQL's LIKE is NOT. LOWER() makes them agree.
       where.push(
-        '(LOWER(p.name) LIKE ? OR LOWER(p.client) LIKE ? OR LOWER(p.notes) LIKE ? OR LOWER(p.category) LIKE ? OR LOWER(COALESCE(a.name, \'\')) LIKE ?)'
+        '(LOWER(p.name) LIKE ? OR LOWER(p.client) LIKE ? OR LOWER(p.notes) LIKE ? OR LOWER(p.pentest_notes) LIKE ? OR LOWER(p.category) LIKE ? OR LOWER(COALESCE(a.name, \'\')) LIKE ?)'
       );
       const needle = `%${String(q).toLowerCase()}%`;
-      params.push(needle, needle, needle, needle, needle);
+      params.push(needle, needle, needle, needle, needle, needle);
     }
     if (client) {
       where.push('p.client = ?');
@@ -510,8 +513,8 @@ export const routes = {
 
       const supervisorId = await resolveSupervisorId(tx, body.supervisorId);
       const row = await tx.get(
-        `INSERT INTO projects (name, client, client_id, application_id, variant_id, supervisor_id, category, platform, env, method, status, notes, started_at, ended_at, created_by, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
+        `INSERT INTO projects (name, client, client_id, application_id, variant_id, supervisor_id, category, platform, env, method, status, notes, pentest_notes, started_at, ended_at, created_by, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
         [
           name,
           ref.clientName,
@@ -525,6 +528,7 @@ export const routes = {
           pick(body.method, ENUMS.method, 'Grey Box'),
           status,
           String(body.notes || ''),
+          String(body.pentestNotes || ''),
           String(body.startedAt || '').trim(),
           String(body.endedAt || '').trim(),
           ctx.user.id,
@@ -599,6 +603,7 @@ export const routes = {
         method: body.method !== undefined ? pick(body.method, ENUMS.method, row.method) : row.method,
         status: nextStatus,
         notes: body.notes !== undefined ? String(body.notes) : row.notes,
+        pentest_notes: body.pentestNotes !== undefined ? String(body.pentestNotes) : row.pentest_notes || '',
         started_at: dates.startedAt,
         ended_at: dates.endedAt,
       };
