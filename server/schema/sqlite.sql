@@ -319,6 +319,33 @@ CREATE TABLE IF NOT EXISTS checklist_items (
   position     INTEGER NOT NULL DEFAULT 0
 );
 
+-- The how-to-test library: one row per area of a checklist. Shipped with the
+-- app (server/knowledge.js) but edited here, because the text is advice an admin
+-- improves, not a fact about the code. Seeded once and never overwritten, unlike
+-- a checklist template: a rewrite on boot would throw away that improvement.
+CREATE TABLE IF NOT EXISTS test_guides (
+  -- Stable identity, cited by `checklist_items.guide_key` and by a finding's
+  -- `template`. Renaming the code keeps the id, so citations never dangle.
+  id           TEXT PRIMARY KEY,
+  code         TEXT NOT NULL DEFAULT '',
+  area         TEXT NOT NULL DEFAULT '',
+  title        TEXT NOT NULL,
+  -- The checklist this guide teaches, and where its category comes from.
+  -- SET NULL rather than CASCADE: deleting a template must not delete the method
+  -- that used to teach it.
+  checklist_id INTEGER REFERENCES checklists(id) ON DELETE SET NULL,
+  what         TEXT NOT NULL DEFAULT '',
+  -- Lists as JSON text: steps, passes, tools, watch. One column each rather than
+  -- a child table, because nothing ever queries inside them.
+  steps        TEXT NOT NULL DEFAULT '[]',
+  passes       TEXT NOT NULL DEFAULT '[]',
+  tools        TEXT NOT NULL DEFAULT '[]',
+  watch        TEXT NOT NULL DEFAULT '[]',
+  position     INTEGER NOT NULL DEFAULT 0,
+  created_at   TEXT NOT NULL,
+  updated_at   TEXT NOT NULL DEFAULT ''
+);
+
 -- A template attached to an engagement. The project LINKS the template instead
 -- of copying its text, so fixing a typo fixes it everywhere; the price is that
 -- editing mid-engagement changes what an old project shows, which this app

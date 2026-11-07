@@ -191,5 +191,8 @@ export const api = {
   // The reference libraries. Read-only, and small enough to hold: the pages
   // filter locally, so a search never waits on the network.
   tests: () => request('GET', '/api/tests'),
+  createGuide: (payload) => request('POST', '/api/tests', payload),
+  updateGuide: (id, payload) => request('PATCH', `/api/tests/${id}`, payload),
+  deleteGuide: (id) => request('DELETE', `/api/tests/${id}`),
   findings: () => request('GET', '/api/findings'),
 };

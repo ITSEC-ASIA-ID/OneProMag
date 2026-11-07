@@ -558,6 +558,213 @@ export async function refreshChecklists() {
 
 
 /* ------------------------------------------------------------
+   Admin panel → Test guides
+   ------------------------------------------------------------
+   The how-to-test library, from the side that can write. It sits beside
+   Checklists because they are one subject: a template says what must be
+   checked, a guide says how. Seeded from the code on first boot, then owned
+   here — editing a guide is the admin's change, so nothing rewrites it later.
+   ------------------------------------------------------------ */
+
+export function guidesPageHTML() {
+  return `<div class="admin">
+    <div class="admin-head">
+      <p>
+        The method behind the checklists: what to send, where to look, and what
+        "this passes" looks like. Checklist rows point at these guides, so an edit
+        here is what every pentester reads on their next engagement.
+      </p>
+    </div>
+    <div id="gd-admin-body"><div class="empty"><h3>Loading…</h3></div></div>
+  </div>`;
+}
+
+function guideRowHTML(g) {
+  const asked = (g.asked || []).reduce((n, a) => n + Number(a.items || 0), 0);
+  const words = [g.code, g.checklistName].filter(Boolean).join(' · ');
+  return `<tr data-gd-row="${h(g.id)}">
+    <td class="dev-name">
+      <button type="button" class="ck-open" data-gd-edit="${h(g.id)}">${h(g.title)}</button>
+      ${
+        g.category
+          ? `<span class="ck-marks"><span class="badge badge-outline" data-tone="slate">${h(
+              g.category
+            )}</span></span>`
+          : ''
+      }${words ? `<span class="ck-sub">${h(words)}</span>` : ''}
+    </td>
+    <td class="dev-mono-cell">${
+      asked
+        ? `${asked} item${asked === 1 ? '' : 's'} in ${g.asked.length} list${g.asked.length === 1 ? '' : 's'}`
+        : 'not asked yet'
+    }</td>
+    <td class="dev-acts"><span class="dev-acts-inner">
+      <button type="button" class="btn btn-icon" data-gd-edit="${h(g.id)}" title="Open" aria-label="Edit ${h(
+        g.title
+      )}">${icon.edit(13)}</button>
+      <button type="button" class="btn btn-icon btn-icon-danger" data-gd-del="${h(g.id)}"
+        title="Delete" aria-label="Delete ${h(g.title)}">${icon.trash(13)}</button>
+    </span></td>
+  </tr>`;
+}
+
+function guidesSectionHTML(guides) {
+  return `<section class="admin-sec">
+    <div class="admin-sec-head">
+      <h3>Guides</h3>
+      <span class="admin-count">${guides.length}</span>
+      <p>A guide is what a pentester reads mid-engagement. Deleting one is refused while a checklist row still points at it.</p>
+      <span class="spacer"></span>
+      <button class="btn btn-sm" data-gd-new>${icon.plus(13)} Guide</button>
+    </div>
+    ${
+      guides.length
+        ? `<div class="dev-tablewrap">
+             <table class="dev-table">
+               <thead><tr>
+                 <th class="dev-h-label"><span class="dev-h-inner"><span class="dev-h-label">Guide</span></span></th>
+                 <th class="dev-h-key"><span class="dev-h-inner"><span class="dev-h-label">Asked by</span></span></th>
+                 <th class="dev-h-acts"><span class="sr-only">Actions</span></th>
+               </tr></thead>
+               <tbody>${guides.map(guideRowHTML).join('')}</tbody>
+             </table>
+           </div>`
+        : `<div class="empty">
+             <div class="icon">${icon.book(24)}</div>
+             <h3>No test guides yet</h3>
+             <p>Write how you test one area of a checklist: what to send, what passing looks like, and the mistakes that produce a false positive.</p>
+           </div>`
+    }
+  </section>`;
+}
+
+export async function refreshGuides() {
+  const host = document.getElementById('gd-admin-body');
+  if (!host) return;
+  let guides = [];
+  let checklists = [];
+  try {
+    [{ guides }, { checklists }] = await Promise.all([api.tests(), api.checklists()]);
+  } catch (err) {
+    host.innerHTML = `<div class="empty"><h3>Could not load the test guides</h3><p>${h(err.message)}</p></div>`;
+    return;
+  }
+
+  host.innerHTML = guidesSectionHTML(guides);
+  host.querySelector('[data-gd-new]')?.addEventListener('click', () => openGuideEditor(null, checklists));
+  host.querySelectorAll('[data-gd-edit]').forEach((b) =>
+    b.addEventListener('click', () => {
+      const guide = guides.find((g) => g.id === b.dataset.gdEdit);
+      if (guide) openGuideEditor(guide, checklists);
+    })
+  );
+  host.querySelectorAll('[data-gd-del]').forEach((b) =>
+    b.addEventListener('click', async () => {
+      const guide = guides.find((g) => g.id === b.dataset.gdDel);
+      if (!guide) return;
+      const ok = await confirmDialog({
+        title: 'Delete this test guide?',
+        message: `"${guide.title}" will be deleted. A checklist row that points at it, or a built-in finding that cites it, will refuse the delete.`,
+        confirmLabel: 'Delete guide',
+      });
+      if (!ok) return;
+      try {
+        await api.deleteGuide(guide.id);
+        toast('Guide deleted');
+        await refreshGuides();
+      } catch (err) {
+        toast(err.message, 'err');
+      }
+    })
+  );
+}
+
+/** One guide, in a dialog: six short fields and four lists, one line each. */
+function openGuideEditor(guide, checklists) {
+  const editing = Boolean(guide);
+  const listOptions = [`<option value="">No checklist</option>`]
+    .concat(
+      checklists.map(
+        (c) =>
+          `<option value="${c.id}"${guide && Number(guide.checklistId) === c.id ? ' selected' : ''}>${h(
+            c.name
+          )}${c.category ? ` — ${h(c.category)}` : ''}</option>`
+      )
+    )
+    .join('');
+  const field = (id, label, value, multiline) =>
+    `<div class="field">
+       <label for="gd-${id}">${label}</label>
+       ${
+         multiline
+           ? `<textarea id="gd-${id}" class="input" rows="4">${h(value || '')}</textarea>`
+           : `<input id="gd-${id}" class="input" value="${h(value || '')}">`
+       }
+     </div>`;
+
+  const body = `<div class="form-row">
+      ${field('code', 'Code', guide?.code, false)}
+      ${field('title', 'Title', guide?.title, false)}
+      <div class="field">
+        <label for="gd-checklist">Checklist</label>
+        <select id="gd-checklist" class="input">${listOptions}</select>
+      </div>
+    </div>
+    ${field('what', 'What this category means', guide?.what, true)}
+    ${field('steps', 'Steps — one per line', (guide?.steps || []).join('\n'), true)}
+    ${field('passes', 'This passes when — one per line', (guide?.passes || []).join('\n'), true)}
+    ${field('tools', 'Tools — one per line', (guide?.tools || []).join('\n'), true)}
+    ${field('watch', 'Do not over-call it — one per line', (guide?.watch || []).join('\n'), true)}
+    <p class="note-line">The code is what a checklist section is matched against (<code>A01:2025</code>), so keep it in the same shape.</p>`;
+
+  const modal = openModal({
+    title: editing ? 'Edit test guide' : 'New test guide',
+    subtitle: editing
+      ? `${guide.code || 'No code'} · ${guide.checklistName || 'No checklist'}`
+      : 'A guide nothing points at yet is still readable on the Tests page.',
+    body,
+    wide: true,
+    footer: `<button class="btn" data-cancel>Cancel</button>
+             <button class="btn btn-primary" data-save>${editing ? 'Save guide' : 'Create guide'}</button>`,
+    initialFocus: '#gd-title',
+  });
+
+  const value = (id) => modal.modal.querySelector(`#gd-${id}`).value;
+  const list = (id) =>
+    value(id)
+      .split('\n')
+      .map((line) => line.trim())
+      .filter(Boolean);
+
+  modal.modal.querySelector('[data-cancel]').addEventListener('click', () => modal.close());
+  modal.modal.querySelector('[data-save]').addEventListener('click', async (event) => {
+    event.currentTarget.disabled = true;
+    const payload = {
+      code: value('code').trim(),
+      title: value('title').trim(),
+      checklistId: value('checklist') || '',
+      what: value('what').trim(),
+      steps: list('steps'),
+      passes: list('passes'),
+      tools: list('tools'),
+      watch: list('watch'),
+    };
+    try {
+      if (editing) await api.updateGuide(guide.id, payload);
+      else await api.createGuide(payload);
+      modal.close();
+      toast(editing ? 'Guide saved' : 'Guide created');
+      await refreshGuides();
+    } catch (err) {
+      event.currentTarget.disabled = false;
+      toast(err.message, 'err');
+    }
+  });
+}
+
+
+
+/* ------------------------------------------------------------
    One template, on its own page
    ------------------------------------------------------------ */
 export function checklistEditorHTML() {

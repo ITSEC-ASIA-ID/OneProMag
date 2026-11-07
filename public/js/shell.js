@@ -1,6 +1,6 @@
 import { openAccountMenu, renderAuth } from './auth.js';
 import { forgetProjectPage, mountProjectPage } from './project-page.js';
-import { mountChecklistEditor, refreshChecklists } from './checklists.js';
+import { mountChecklistEditor, refreshChecklists, refreshGuides } from './checklists.js';
 import { openRetestForm } from './drawer.js';
 import { loadDevices } from './devices.js';
 import { loadDirectory } from './directory.js';
@@ -64,7 +64,8 @@ export function sidebarHTML() {
              ${navBtn('clients', icon.building(16), 'Clients & apps', s.clients ?? 0, 'admin')}
              ${navBtn('users', icon.userCheck(16), 'Manage users', userCount, 'admin')}
              ${navBtn('properties', icon.tag(), 'Properties', propKeys('category').length + propKeys('status').length, 'admin')}
-             ${navBtn('checklists', icon.shield(16), 'Checklists', undefined, 'admin')}`
+             ${navBtn('checklists', icon.shield(16), 'Checklists', undefined, 'admin')}
+             ${navBtn('guides', icon.book(16), 'Test guides', undefined, 'admin')}`
           : ''
       }
 
@@ -223,6 +224,7 @@ export function finishNav(historyMode = 'push') {
     state.nav === 'users' ||
     state.nav === 'properties' ||
     state.nav === 'checklists' ||
+    state.nav === 'guides' ||
     state.nav === 'info' ||
     state.nav === 'devices' ||
     state.nav === 'directory' ||
@@ -236,6 +238,7 @@ export function finishNav(historyMode = 'push') {
     if (state.nav === 'directory') loadDirectory();
     // Checklists owns its own load: the page is a catalogue, not the project list.
     if (state.nav === 'checklists') refreshChecklists();
+    if (state.nav === 'guides') refreshGuides();
     // The two libraries paint a skeleton, then fill it from one fetch.
     if (state.nav === 'tests') void loadTests();
     if (state.nav === 'findings') void loadFindings();
@@ -559,6 +562,7 @@ export async function boot() {
     }
     if (state.nav === 'clients' || state.nav === 'properties') return;
     if (state.nav === 'checklists') return void refreshChecklists();
+    if (state.nav === 'guides') return void refreshGuides();
     if (state.nav === 'checklist-edit') return void mountChecklistEditor();
     if (state.nav === 'project') return void mountProjectPage();
     if (state.nav === 'directory') return void loadDirectory();

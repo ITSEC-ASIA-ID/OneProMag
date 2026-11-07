@@ -1741,6 +1741,73 @@ test('a checklist item names the guide that teaches it, and the guide names wher
   }
 });
 
+test('the test library is edited in the admin panel, and a cited guide cannot be deleted', async () => {
+  // The guides used to be a module because nobody could edit them. They are rows
+  // now, so the two things that can go wrong with an editable catalogue are worth
+  // pinning: an edit must survive, and a delete must not quietly break a citation.
+  const who = await asUser('rafi');
+  const { checklists } = await call('GET /api/checklists', who);
+  const own = checklists.find((c) => c.category === 'Web') || checklists[0];
+
+  const created = await call('POST /api/tests', who, {
+    body: {
+      code: 'A99:2026',
+      title: 'Server-side prototype pollution',
+      checklistId: own.id,
+      what: 'A parser merges user input into an object it then trusts.',
+      steps: ['Send {"__proto__":{"admin":true}} to every JSON body.'],
+      passes: ['The merge refuses inherited keys.'],
+      tools: ['Burp Repeater'],
+      watch: ['JSON.parse on its own does not merge anything.'],
+    },
+  });
+  const guide = created.guide;
+  assert.equal(guide.id, 'a99-2026', 'the id is derived once from the code');
+  assert.equal(guide.title, 'Server-side prototype pollution');
+  assert.equal(guide.checklistName, own.name, 'the guide names the checklist it teaches');
+  assert.equal(guide.category, own.category || '', 'the category comes from that checklist');
+  assert.deepEqual(guide.steps, ['Send {"__proto__":{"admin":true}} to every JSON body.']);
+
+  const edited = await call('PATCH /api/tests/:id', who, {
+    params: { id: guide.id },
+    body: { title: 'Prototype pollution', steps: ['first', 'second'], code: 'A98:2026' },
+  });
+  assert.equal(edited.guide.title, 'Prototype pollution');
+  assert.deepEqual(edited.guide.steps, ['first', 'second']);
+  assert.equal(edited.guide.id, 'a99-2026', 'renaming the code must not move the citation');
+
+  const { guides } = await call('GET /api/tests', who);
+  assert.ok(guides.some((g) => g.id === guide.id && g.title === 'Prototype pollution'));
+
+  // Nothing points at the new guide, so it can go.
+  const removed = await call('DELETE /api/tests/:id', who, { params: { id: guide.id } });
+  assert.equal(removed.ok, true);
+
+  // A shipped guide that a checklist row asks is refused: that pointer is the
+  // link the Tests page and the project checklist share.
+  const cited = guides.find((g) => g.asked.length > 0);
+  await assert.rejects(
+    () => call('DELETE /api/tests/:id', who, { params: { id: cited.id } }),
+    /checklist item/
+  );
+  // And one a built-in finding cites is refused too — the findings library is
+  // code, so that citation cannot be edited away from the panel.
+  const uncited = guides.find((g) => g.asked.length === 0 && g.id !== guide.id);
+  if (uncited) {
+    await assert.rejects(
+      () => call('DELETE /api/tests/:id', who, { params: { id: uncited.id } }),
+      /finding/
+    );
+  }
+
+  // Only a catalog manager may write.
+  const plain = await asUser('bagas');
+  await assert.rejects(
+    () => call('POST /api/tests', plain, { body: { title: 'nope' } }),
+    /admin panel/
+  );
+});
+
 test('a project records its own findings, and only a lead can delete one', async () => {
   // Findings on an engagement are claims we make to a client, not a copy of the
   // reference library: they can start from a library entry and are edited after.

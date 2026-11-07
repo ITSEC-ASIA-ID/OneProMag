@@ -2,7 +2,7 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { guideKeyFor } from './knowledge.js';
+import { GUIDE_CHECKLISTS, TEST_GUIDES, guideKeyFor } from './knowledge.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const SCHEMA_DIR = path.join(__dirname, 'schema');
@@ -1121,6 +1121,52 @@ const DEFAULT_CHECKLISTS = [
 const RETIRED_CHECKLISTS = ['OWASP Top 10 2021'];
 
 /**
+ * Puts the shipped how-to-test library in the database, once.
+ *
+ * Unlike the templates this does NOT rewrite rows that already exist: a guide is
+ * prose an admin may have rewritten, and a boot that replaced it would silently
+ * undo that. A guide added in a later release is still inserted, because it is
+ * missing rather than edited — `INSERT` per unknown id, in `TEST_GUIDES` order.
+ */
+async function seedTestGuides() {
+  const stamp = now();
+  const lists = await db.all('SELECT id, seed_key, name, category FROM checklists');
+  const byKey = new Map(lists.map((r) => [r.seed_key, r]));
+  const byName = new Map(lists.map((r) => [r.name, r]));
+  let seeded = 0;
+
+  for (const [index, guide] of TEST_GUIDES.entries()) {
+    const existing = await db.get('SELECT id FROM test_guides WHERE id = ?', [guide.id]);
+    if (existing) continue;
+    // The same resolution the read path uses: seed key first, then the name,
+    // then no checklist at all — the guide keeps its own `area` as the fallback.
+    const list = byKey.get(GUIDE_CHECKLISTS[guide.checklist]) || byName.get(guide.checklist);
+    await db.run(
+      `INSERT INTO test_guides
+         (id, code, area, title, checklist_id, what, steps, passes, tools, watch, position, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        guide.id,
+        guide.code,
+        guide.area,
+        guide.title,
+        list ? Number(list.id) : null,
+        guide.what,
+        JSON.stringify(guide.steps || []),
+        JSON.stringify(guide.passes || []),
+        JSON.stringify(guide.tools || []),
+        JSON.stringify(guide.watch || []),
+        index,
+        stamp,
+        stamp,
+      ]
+    );
+    seeded += 1;
+  }
+  return { seeded };
+}
+
+/**
  * Seeds the shipped templates and keeps them current.
  *
  * Idempotent, and safe to kill halfway: the row is written before its items, so
@@ -1260,8 +1306,10 @@ async function backfillGuideKeys() {
  *      table that briefly held a timeline is carried over and dropped.
  * 24 — checklist items point at their guide; a project finding rates likelihood
  *      and impact, and its severity is the product of the two (server/risk.js).
+ * 25 — the how-to-test library is a table an admin edits, seeded from
+ *      server/knowledge.js once and never rewritten.
  */
-export const SCHEMA_VERSION = 24;
+export const SCHEMA_VERSION = 25;
 
 let appliedSchemaVersion = 0;
 
@@ -1333,12 +1381,14 @@ export async function initDatabase() {
   // After the sync: a freshly regenerated template already carries its links, and
   // this only fills in the rows an older install kept in place.
   const guideLinks = await backfillGuideKeys();
+  // After the checklists exist, so a guide can point at the one it teaches.
+  const guides = await seedTestGuides();
   const result = SEED_DEMO ? await seed() : await seedBootstrapAdmin();
   // Runs after seed() on purpose: a brand-new database gets its devices from
   // seed() itself, and only an EXISTING install needs the backfill. With demo
   // data off there is nothing to backfill into either.
   const devices = SEED_DEMO ? await seedDevicesIfEmpty() : { seeded: false };
-  return { engine: db.engine, ...result, devices, properties, checklists, guideLinks, demo: SEED_DEMO };
+  return { engine: db.engine, ...result, devices, properties, checklists, guideLinks, guides, demo: SEED_DEMO };
 }
 
 /**

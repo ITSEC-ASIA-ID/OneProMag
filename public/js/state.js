@@ -91,6 +91,12 @@ export const NAV = {
     title: 'Checklists',
     sub: 'Security checklists an engagement can be measured against',
   },
+  // The admin twin of /tests: the same library, from the side that can write.
+  // Two titles, one subject — the row says which job it does.
+  guides: {
+    title: 'Test guides',
+    sub: 'The how-to-test library, edited here',
+  },
   // Reference, not workspace data: the method behind the checklists, and what a
   // failure looks like once you have one. Readable by anyone signed in, because
   // knowing how to test something is not a privilege.
@@ -138,6 +144,7 @@ export const NAV_PATHS = {
   users: '/admin/users',
   properties: '/admin/properties',
   checklists: '/admin/checklists',
+  guides: '/admin/tests',
   tests: '/tests',
   findings: '/findings',
 };
