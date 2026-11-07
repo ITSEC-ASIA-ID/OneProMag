@@ -216,7 +216,6 @@ async function openFindingForm(project, row, reload) {
   const editing = Boolean(row);
   const f = row || {
     title: '',
-    status: 'Open',
     template: '',
     description: '',
     impact: '',
@@ -289,12 +288,18 @@ async function openFindingForm(project, row, reload) {
       <div class="field">
         <span class="hint" data-pf-risk></span>
       </div>
-      <div class="field">
+      ${
+        // A finding is filed open, always. The status only appears once it is on
+        // the table, where "Fixed" means something someone decided.
+        editing
+          ? `<div class="field">
         <label for="pf-status">Status</label>
         <select class="input" id="pf-status" data-pf-field="status">
           ${STATUSES.map((s) => `<option ${s === f.status ? 'selected' : ''}>${h(s)}</option>`).join('')}
         </select>
-      </div>
+      </div>`
+          : ''
+      }
       <div class="field">
         <label for="pf-description">Description</label>
         <textarea class="input" id="pf-description" rows="3" data-pf-field="description"
@@ -461,12 +466,14 @@ async function openFindingForm(project, row, reload) {
           // severity a caller tries to hand it.
           likelihood: Number(field('likelihood').value),
           impactScore: Number(field('impactScore').value),
-          status: field('status').value,
           template: picked,
           description: field('description').value.trim(),
           impact: field('impact').value.trim(),
           mitigation: field('mitigation').value.trim(),
         };
+        // New findings are Open by definition; the server sets it, so there is no
+        // field to keep in step here.
+        if (editing) payload.status = field('status').value;
         if (!payload.title) {
           field('title').focus();
           toast('A finding needs a title', 'err');
