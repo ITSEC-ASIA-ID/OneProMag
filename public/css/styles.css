@@ -6964,6 +6964,22 @@ svg { display: block; }
    who disagrees can see which number to argue with. */
 [data-pf-risk] { display: inline-flex; align-items: center; gap: 8px; }
 
+/* The library search inside the finding form. It is a list in the flow rather
+   than a floating panel: the modal body scrolls, and a popover would be clipped
+   by it — the one place where the honest layout is also the simpler one. */
+.pf-lib {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  max-height: 214px;
+  overflow-y: auto;
+}
+.pf-lib-list { display: flex; flex-direction: column; padding: 4px; }
+.pf-lib-opt { align-items: flex-start; gap: 8px; padding: 7px 8px; }
+.pf-lib-opt .lib-item-title { font-size: 12.5px; }
+.pf-lib-opt.is-active { background: var(--surface-3); }
+.pf-lib .lib-none { padding: 10px 12px; font-size: 12px; }
+
 /* Findings: an index on the left and the one finding you opened on the right.
    They are read one at a time, so a grid of equal cards made every finding
    compete for attention with the twelve around it. The list rows keep the

@@ -78,6 +78,28 @@ function ratingsFor(matrix, severity) {
   return { likelihood: 3, impactScore: 3 };
 }
 
+/** The library entry a row cites, if it still exists — the search box's value. */
+function pickedTitle(f, lib) {
+  const found = f.template ? lib.find((l) => l.id === f.template) : null;
+  return found ? found.title : '';
+}
+
+/**
+ * One row in the library search: what it is, how bad, and which area — the three
+ * things a tester scans to tell two similar entries apart.
+ */
+function libOptionHTML(l) {
+  return `<button type="button" class="lib-item pf-lib-opt" data-pf-lib-opt="${h(l.id)}" role="option">
+      ${sevChip(l.severity)}
+      <span class="lib-item-body">
+        <span class="lib-item-title">${h(l.title)}</span>
+        <span class="lib-item-sub">${h([l.area, l.cwe].filter(Boolean).join(' · '))}</span>
+      </span>
+    </button>`;
+}
+
+const LIB_LIMIT = 8;
+
 function sevChip(severity) {
   return `<span class="lib-sev" data-tone="${SEVERITY_TONE[severity] || 'slate'}">${h(severity)}</span>`;
 }
@@ -218,20 +240,19 @@ async function openFindingForm(project, row, reload) {
     wide: true,
     body: `
       ${
+        // A search box, not a select: twenty entries in a long dropdown is a
+        // scroll, and the thing a tester knows at that moment is a word — "idor",
+        // "jwt", "upload" — not which band it sits in.
         lib.length
           ? `<div class="field">
-               <label for="pf-template">Start from the library</label>
-               <select class="input" id="pf-template" data-pf-template>
-                 <option value="">Write it myself</option>
-                 ${lib
-                   .map(
-                     (l) =>
-                       `<option value="${h(l.id)}" ${l.id === f.template ? 'selected' : ''}>${h(
-                         `${l.severity} · ${l.title}`
-                       )}</option>`
-                   )
-                   .join('')}
-               </select>
+               <label for="pf-template-q">Start from the library</label>
+               <input class="input" id="pf-template-q" data-pf-template-q autocomplete="off"
+                 spellcheck="false" placeholder="Search by title, area or severity"
+                 value="${h(pickedTitle(f, lib))}">
+               <div class="pf-lib" data-pf-lib hidden>
+                 <div class="pf-lib-list" data-pf-lib-list role="listbox" aria-label="Library findings"></div>
+               </div>
+               <button type="button" class="link-btn" data-pf-template-clear hidden>Don't cite a library entry</button>
                <span class="hint">Copies the text once. Editing it here never edits the library.</span>
              </div>`
           : ''
@@ -295,8 +316,12 @@ async function openFindingForm(project, row, reload) {
     initialFocus: '[data-pf-field="title"]',
     onMount: (modal, closeFn) => {
       const field = (name) => modal.querySelector(`[data-pf-field="${name}"]`);
-      const template = modal.querySelector('[data-pf-template]');
+      const search = modal.querySelector('[data-pf-template-q]');
+      const list = modal.querySelector('[data-pf-lib]');
+      const options = modal.querySelector('[data-pf-lib-list]');
       const readout = modal.querySelector('[data-pf-risk]');
+      // The entry this finding cites. Empty means "written here, from nothing".
+      let picked = f.template && lib.some((l) => l.id === f.template) ? f.template : '';
 
       // The band the two selects currently land in, spelled out with the score so
       // it can be argued with before the row is saved.
@@ -310,11 +335,22 @@ async function openFindingForm(project, row, reload) {
       field('likelihood').addEventListener('change', paintRisk);
       field('impactScore').addEventListener('change', paintRisk);
 
+      /** What the box is offering: title, area, severity and CWE, first 8. */
+      const matches = (text) => {
+        const q = text.trim().toLowerCase();
+        const rows = q
+          ? lib.filter((l) => `${l.title} ${l.area} ${l.severity} ${l.cwe}`.toLowerCase().includes(q))
+          : lib;
+        return rows.slice(0, LIB_LIMIT);
+      };
+
       // Copying from the library fills the text once. After that the two are
       // separate: the library may change, and what we told this client must not.
-      template?.addEventListener('change', () => {
-        const found = lib.find((l) => l.id === template.value);
+      const pick = (id) => {
+        const found = lib.find((l) => l.id === id);
         if (!found) return;
+        picked = found.id;
+        search.value = found.title;
         field('title').value = found.title;
         field('description').value = found.description;
         field('impact').value = found.impact;
@@ -325,7 +361,97 @@ async function openFindingForm(project, row, reload) {
         field('likelihood').value = String(suggested.likelihood);
         field('impactScore').value = String(suggested.impactScore);
         paintRisk();
-      });
+        paintPicked();
+        hideList();
+      };
+
+      const clearBtn = modal.querySelector('[data-pf-template-clear]');
+      const paintPicked = () => {
+        if (clearBtn) clearBtn.hidden = !picked;
+      };
+      paintPicked();
+
+      const hideList = () => {
+        if (list) list.hidden = true;
+        search?.setAttribute('aria-expanded', 'false');
+      };
+
+      /**
+       * The query, with one wrinkle: the box holds the picked title, and focusing
+       * it again should offer the whole library rather than "nothing matches this
+       * exact sentence".
+       */
+      const query = () => (picked && search.value === pickedTitle({ template: picked }, lib) ? '' : search.value);
+
+      const paintList = () => {
+        const rows = matches(query());
+        options.innerHTML = rows.length
+          ? rows.map(libOptionHTML).join('')
+          : '<div class="lib-none">Nothing in the library matches that. Write it yourself below.</div>';
+        list.hidden = false;
+        search.setAttribute('aria-expanded', 'true');
+        // mousedown, not click: the field would blur and hide the list first.
+        options.querySelectorAll('[data-pf-lib-opt]').forEach((btn) =>
+          btn.addEventListener('mousedown', (ev) => {
+            ev.preventDefault();
+            pick(btn.dataset.pfLibOpt);
+          })
+        );
+        const first = options.querySelector('[data-pf-lib-opt]');
+        if (first) activeIndex = 0;
+        paintActive();
+      };
+
+      // Enter picks the highlighted row, so "type three letters, press Enter" works.
+      let activeIndex = -1;
+      const paintActive = () => {
+        const rows = [...options.querySelectorAll('[data-pf-lib-opt]')];
+        rows.forEach((row, i) => row.classList.toggle('is-active', i === activeIndex));
+        rows[activeIndex]?.scrollIntoView({ block: 'nearest' });
+      };
+
+      if (search) {
+        search.setAttribute('role', 'combobox');
+        search.setAttribute('aria-expanded', 'false');
+        search.addEventListener('focus', paintList);
+        search.addEventListener('input', () => {
+          // Searching is not a decision. The citation is only dropped by picking
+          // another entry or by the explicit link below — a keystroke must not
+          // quietly un-cite a finding someone already filed.
+          activeIndex = -1;
+          paintList();
+        });
+        search.addEventListener('keydown', (ev) => {
+          const rows = [...options.querySelectorAll('[data-pf-lib-opt]')];
+          if (ev.key === 'Escape') {
+            hideList();
+            return;
+          }
+          if (ev.key === 'ArrowDown' || ev.key === 'ArrowUp') {
+            if (list.hidden) paintList();
+            const step = ev.key === 'ArrowDown' ? 1 : -1;
+            activeIndex = Math.max(0, Math.min(rows.length - 1, activeIndex + step));
+            paintActive();
+            ev.preventDefault();
+            return;
+          }
+          if (ev.key === 'Enter' && rows.length) {
+            ev.preventDefault();
+            pick(rows[Math.max(0, activeIndex)].dataset.pfLibOpt);
+          }
+        });
+        search.addEventListener('blur', () => setTimeout(hideList, 120));
+
+        // Drops the citation and nothing else: the text already copied into the
+        // fields is this project's finding now, and it stays.
+        clearBtn?.addEventListener('click', () => {
+          picked = '';
+          search.value = '';
+          paintPicked();
+          hideList();
+          search.focus();
+        });
+      }
 
       modal.querySelector('[data-pf-cancel]').addEventListener('click', closeFn);
       modal.querySelector('[data-pf-save]').addEventListener('click', async () => {
@@ -336,7 +462,7 @@ async function openFindingForm(project, row, reload) {
           likelihood: Number(field('likelihood').value),
           impactScore: Number(field('impactScore').value),
           status: field('status').value,
-          template: template ? template.value : f.template,
+          template: picked,
           description: field('description').value.trim(),
           impact: field('impact').value.trim(),
           mitigation: field('mitigation').value.trim(),
