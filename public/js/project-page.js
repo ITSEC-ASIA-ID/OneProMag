@@ -53,7 +53,6 @@ function headHTML(project, retests, tab, extras) {
   // is noise; an absent one means "nothing waiting here".
   const counts = {
     attachments: (extras.files || []).length || undefined,
-    retests: retests.length || undefined,
     checklist: fails || undefined,
     findings: (extras.findings || []).length || undefined,
   };
@@ -61,7 +60,6 @@ function headHTML(project, retests, tab, extras) {
     overview: 'Overview',
     notes: 'Notes',
     attachments: 'Files',
-    retests: 'Retests',
     checklist: 'Checklist',
     findings: 'Findings',
     'pentest-notes': 'Pentest notes',
@@ -190,27 +188,13 @@ export async function mountProjectPage() {
 }
 
 
-/** The panel for one tab. Retests keep their heading and its New button. */
+/** The panel for one tab. Retests live inside Overview now. */
 function panelHTML(project, retests, tab, extras) {
   if (tab === 'overview') return tabBody(project, retests, 'overview', extras);
   if (tab === 'attachments') return tabBody(project, retests, 'attachments', extras);
   if (tab === 'checklist') return tabBody(project, retests, 'checklist', extras);
   if (tab === 'findings') return tabBody(project, retests, 'findings', extras);
   if (tab === 'pentest-notes') return tabBody(project, retests, 'pentest-notes', extras);
-  if (tab === 'retests') {
-    // The empty state carries its own "New retest"; only a populated list needs
-    // the heading's button, or the page offers the same action twice.
-    return `<div class="section-head"><h3>Client requests</h3>
-        <span class="badge badge-outline">${retests.length}</span>
-        <span class="spacer"></span>
-        ${
-          retests.length
-            ? `<button class="btn btn-sm" data-add-retest>${icon.plus()} New retest</button>`
-            : ''
-        }
-      </div>
-      ${tabBody(project, retests, 'retests', extras)}`;
-  }
   return tabBody(project, retests, 'notes', extras);
 }
 

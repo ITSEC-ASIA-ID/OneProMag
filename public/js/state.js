@@ -157,7 +157,14 @@ export const CHECKLIST_EDIT_PATH = (id) => `/admin/checklists/${id ? Number(id) 
  * spelled out, because the tab you were reading is part of the address — a
  * reload, a bookmark or a link sent to a colleague must land on it.
  */
-export const PROJECT_TABS = ['overview', 'notes', 'attachments', 'retests', 'checklist', 'findings', 'pentest-notes'];
+export const PROJECT_TABS = ['overview', 'notes', 'attachments', 'checklist', 'findings', 'pentest-notes'];
+
+/**
+ * Tabs that used to exist and now live inside another one. Old links keep
+ * working instead of bouncing: `/project/4/retests` is a URL someone bookmarked,
+ * and the retest list is inside Overview now.
+ */
+export const LEGACY_PROJECT_TABS = { retests: 'overview' };
 
 export const PROJECT_PATH = (projectId, tab = 'overview') =>
   `/project/${Number(projectId) || 0}${tab && tab !== 'overview' ? `/${tab}` : ''}`;
@@ -182,9 +189,10 @@ export function navForPath(pathname) {
   if (project) {
     // A segment that is not a tab is a URL this app does not have: fall back to
     // the list rather than show Overview under a path that claims a page.
-    if (project[2] && !PROJECT_TABS.includes(project[2])) return null;
+    const tab = project[2] ? LEGACY_PROJECT_TABS[project[2]] || project[2] : 'overview';
+    if (!PROJECT_TABS.includes(tab)) return null;
     state.projectViewId = Number(project[1]);
-    state.projectTab = project[2] || 'overview';
+    state.projectTab = tab;
     return 'project';
   }
   const edit = /^\/admin\/checklists\/(new|\d+)$/.exec(clean);

@@ -1731,7 +1731,7 @@ svg { display: block; }
 .plist-item.on .plist-meta { color: inherit; opacity: 0.75; }
 .plist-check { margin-left: auto; display: inline-flex; }
 
-/* callout — used for the retest-queue explanation */
+/* callout — used for import failures and the users hierarchy hint */
 .nowrap { white-space: nowrap; }
 /* A hint that sits directly under a .form-row, aligned with the two fields. */
 .form-hint { display: block; margin-top: -6px; }
@@ -1745,9 +1745,7 @@ svg { display: block; }
   border: 1px solid transparent;
   margin-bottom: 16px;
 }
-.callout.queue { background: var(--cyan-soft); }
 .callout svg { flex: 0 0 auto; color: var(--blue); margin-top: 1px; }
-.callout.queue svg { color: var(--cyan-strong); }
 .callout strong { display: block; font-size: 12.5px; font-weight: 650; color: var(--ink-2); margin-bottom: 2px; }
 .callout span { font-size: 11.8px; color: var(--muted); line-height: 1.45; display: block; }
 
@@ -6420,6 +6418,16 @@ svg { display: block; }
 .ck-note { min-height: 54px; font-size: 12.8px; }
 .ck-file { max-width: 320px; height: 32px; font-size: 12.4px; }
 .ck-stamp { font-size: 11.5px; color: var(--faint); }
+
+/* The retest summary in a project overview. The list lost its tab, so it needs
+   an edge of its own or it reads as three loose sections in a row. */
+.ov-box {
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  padding: 12px 14px 14px;
+}
+.ov-box .section-head { margin-bottom: 10px; }
 
 /* Template picker */
 .ck-pick { display: flex; flex-direction: column; gap: 6px; }

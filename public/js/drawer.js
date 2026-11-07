@@ -98,7 +98,8 @@ export function drawerHTML(project, retests, tab, extras = { files: [], checklis
     { id: 'overview', label: 'Overview' },
     { id: 'notes', label: 'Notes' },
     { id: 'attachments', label: 'Files', count: (extras.files || []).length || undefined },
-    { id: 'retests', label: 'Retests', count: retests.length || undefined },
+    // Retests have no tab of their own: they are a queue that lives in Overview,
+    // where the open ones already announce themselves in the header.
     { id: 'checklist', label: 'Checklist', count: fails || undefined },
     { id: 'findings', label: 'Findings', count: (extras.findings || []).length || undefined },
     // No count: one field, and a box that is filled in is not a badge.
@@ -149,19 +150,11 @@ export function drawerHTML(project, retests, tab, extras = { files: [], checklis
       </div>
     </div>
     <div class="drawer-body">${tabBody(project, retests, tab, extras)}</div>
-    ${
-      tab === 'retests'
-        ? `<div class="drawer-foot">
-             <span class="note-count">${retests.length} client request${retests.length === 1 ? '' : 's'}</span>
-             <div class="spacer"></div>
-             <button class="btn btn-primary" data-add-retest>${icon.plus()} New retest</button>
-           </div>`
-        : `<div class="drawer-foot">
-             <span class="note-updated">Updated ${fmtRelative(project.updatedAt)}</span>
-             <div class="spacer"></div>
-             <button class="btn" data-expand>${icon.expand(14)} Open full page</button>
-           </div>`
-    }`;
+    <div class="drawer-foot">
+      <span class="note-updated">Updated ${fmtRelative(project.updatedAt)}</span>
+      <div class="spacer"></div>
+      <button class="btn" data-expand>${icon.expand(14)} Open full page</button>
+    </div>`;
 }
 
 export function tabBody(project, retests, tab, extras = { files: [], checklists: [], findings: [] }) {
@@ -187,18 +180,6 @@ export function tabBody(project, retests, tab, extras = { files: [], checklists:
     const open = retests.filter((r) => r.status === 'Incoming' || r.status === 'Ongoing').length;
 
     return `
-      ${
-        open
-          ? `<div class="callout queue">
-               ${icon.queue()}
-               <div>
-                 <strong>In the retest queue</strong>
-                 <span>${open} open client request${open === 1 ? '' : 's'}. Open the Retests tab to work through ${open === 1 ? 'it' : 'them'}.</span>
-               </div>
-             </div>`
-          : ''
-      }
-
       <div class="info-grid">
         <div class="info-item span-2"><div class="k">Client</div><div class="v">${h(project.client || '—')}</div></div>
         <div class="info-item span-2"><div class="k">Application</div><div class="v">${h(project.applicationName || '—')}</div></div>
@@ -259,9 +240,13 @@ export function tabBody(project, retests, tab, extras = { files: [], checklists:
         }
       </div>
 
-      <div class="mt-20">
-        <div class="section-head"><h3>Retest summary</h3><span class="spacer"></span>
-          <button class="btn btn-sm" data-tab-jump="retests">View all ${icon.chevronRight()}</button>
+      <div class="ov-box mt-20">
+        <div class="section-head">
+          <h3>Retest summary</h3>
+          <span class="badge badge-outline">${retests.length}</span>
+          ${open ? `<span class="badge pulse" data-tone="cyan"><span class="dot"></span>${open} open</span>` : ''}
+          <span class="spacer"></span>
+          <button class="btn btn-sm" data-add-retest>${icon.plus()} New retest</button>
         </div>
         <div class="info-grid">
           <div class="info-item"><div class="k">Total requests</div><div class="v">${retests.length}</div></div>
@@ -269,23 +254,11 @@ export function tabBody(project, retests, tab, extras = { files: [], checklists:
         </div>
         ${
           retests.length
-            ? `<div class="retest-list mt-12">${retests.slice(0, 2).map(retestHTML).join('')}</div>`
-            : ''
+            ? `<div class="retest-list mt-12">${retests.map(retestHTML).join('')}</div>`
+            : `<p class="note-line">No retest asked for yet. When a client wants the same project checked again, log it here.</p>`
         }
       </div>
     </div>`;
-  }
-
-  if (tab === 'retests') {
-    if (!retests.length) {
-      return `<div class="empty empty-bare">
-        <div class="icon">${icon.queue()}</div>
-        <h3>No retest requests yet</h3>
-        <p>When a client asks you to re-verify the project, log the request here. It is queued until you finish it, and there is no limit on how many a project can have.</p>
-        <button class="btn btn-primary" data-add-retest>${icon.plus()} New retest</button>
-      </div>`;
-    }
-    return `<div class="retest-list">${retests.map(retestHTML).join('')}</div>`;
   }
 
   return notesFieldHTML('notes', project.notes);
@@ -333,9 +306,6 @@ export function bindDrawer(el, project, retests, extras = { files: [], checklist
 
   el.querySelectorAll('[data-tab]').forEach((btn) =>
     btn.addEventListener('click', () => renderDrawer(project.id, btn.dataset.tab, true))
-  );
-  el.querySelectorAll('[data-tab-jump]').forEach((btn) =>
-    btn.addEventListener('click', () => renderDrawer(project.id, btn.dataset.tabJump, true))
   );
 
   el.querySelector('[data-delete-project]')?.addEventListener('click', async () => {
@@ -606,7 +576,7 @@ export async function openRetestForm(projectId = null, retest = null, onDone) {
           }
           close();
           await refreshAll();
-          if (projectId) await renderDrawer(projectId, 'retests', true);
+          if (projectId) await renderDrawer(projectId, 'overview', true);
           onDone?.();
         } catch (err) {
           toast(err.message, 'err');
