@@ -479,8 +479,6 @@ function sectionsHTML(checklists) {
       <h3>Templates</h3>
       <span class="admin-count">${checklists.length}</span>
       <p>A project links a template rather than copying it, so an edit here reaches every project at once.</p>
-      <span class="spacer"></span>
-      <button class="btn btn-sm" data-ck-new>${icon.plus(13)} Checklist</button>
     </div>
     ${
       checklists.length
@@ -504,14 +502,49 @@ function sectionsHTML(checklists) {
 }
 
 
+/**
+ * One admin page, two tabs.
+ *
+ * A template says what must be checked; a guide says how. They are different
+ * things to use — one is attached to an engagement, the other is read mid-test —
+ * but they are one body of knowledge, so they share a page and a sidebar row
+ * instead of competing for space under the same label.
+ */
+const CATALOG_TABS = [
+  { id: 'checklists', label: 'Checklists' },
+  { id: 'guides', label: 'Test guides' },
+];
+
+function catalogSwitchHTML(tab) {
+  return `<div class="catalog-switch" role="tablist" aria-label="Checklists and test guides">${CATALOG_TABS.map(
+    (t) =>
+      `<button class="chip${t.id === tab ? ' active' : ''}" type="button" role="tab" aria-selected="${
+        t.id === tab
+      }" data-catalog-tab="${t.id}">${t.label}</button>`
+  ).join('')}</div>`;
+}
+
+/**
+ * The switch is re-rendered with the page, so binding with `onclick` keeps one
+ * listener however many times a tab is painted.
+ */
+function bindCatalogSwitch() {
+  document.querySelectorAll('[data-catalog-tab]').forEach((b) => {
+    b.onclick = () => handleNav(b.dataset.catalogTab);
+  });
+}
+
 export function checklistsPageHTML() {
   return `<div class="admin">
     <div class="admin-head">
       <p>
-        The security checklists an engagement can be measured against. A template can be
-        edited after projects have linked it — the answers stay with the project.
+        The security checklists an engagement can be measured against, and the guides
+        that teach each part of them. A template can be edited after projects have
+        linked it — the answers stay with the project.
       </p>
+      <button class="btn btn-sm" data-catalog-new="checklists">${icon.plus(13)} Checklist</button>
     </div>
+    ${catalogSwitchHTML('checklists')}
     <div id="ck-admin-body"><div class="empty"><h3>Loading…</h3></div></div>
   </div>`;
 }
@@ -520,6 +553,12 @@ export function checklistsPageHTML() {
 export async function refreshChecklists() {
   const host = document.getElementById('ck-admin-body');
   if (!host) return;
+  bindCatalogSwitch();
+  document.querySelector('[data-catalog-new="checklists"]')?.addEventListener(
+    'click',
+    () => openChecklistEditor(null),
+    { once: true }
+  );
   let checklists = [];
   try {
     ({ checklists } = await api.checklists());
@@ -529,7 +568,6 @@ export async function refreshChecklists() {
   }
 
   host.innerHTML = sectionsHTML(checklists);
-  host.querySelector('[data-ck-new]')?.addEventListener('click', () => openChecklistEditor(null));
   host.querySelectorAll('[data-ck-edit]').forEach((b) =>
     b.addEventListener('click', () => openChecklistEditor(Number(b.dataset.ckEdit)))
   );
@@ -574,7 +612,9 @@ export function guidesPageHTML() {
         "this passes" looks like. Checklist rows point at these guides, so an edit
         here is what every pentester reads on their next engagement.
       </p>
+      <button class="btn btn-sm" data-catalog-new="guides">${icon.plus(13)} Guide</button>
     </div>
+    ${catalogSwitchHTML('guides')}
     <div id="gd-admin-body"><div class="empty"><h3>Loading…</h3></div></div>
   </div>`;
 }
@@ -614,8 +654,6 @@ function guidesSectionHTML(guides) {
       <h3>Guides</h3>
       <span class="admin-count">${guides.length}</span>
       <p>A guide is what a pentester reads mid-engagement. Deleting one is refused while a checklist row still points at it.</p>
-      <span class="spacer"></span>
-      <button class="btn btn-sm" data-gd-new>${icon.plus(13)} Guide</button>
     </div>
     ${
       guides.length
@@ -641,6 +679,7 @@ function guidesSectionHTML(guides) {
 export async function refreshGuides() {
   const host = document.getElementById('gd-admin-body');
   if (!host) return;
+  bindCatalogSwitch();
   let guides = [];
   let checklists = [];
   try {
@@ -651,7 +690,9 @@ export async function refreshGuides() {
   }
 
   host.innerHTML = guidesSectionHTML(guides);
-  host.querySelector('[data-gd-new]')?.addEventListener('click', () => openGuideEditor(null, checklists));
+  document
+    .querySelector('[data-catalog-new="guides"]')
+    ?.addEventListener('click', () => openGuideEditor(null, checklists), { once: true });
   host.querySelectorAll('[data-gd-edit]').forEach((b) =>
     b.addEventListener('click', () => {
       const guide = guides.find((g) => g.id === b.dataset.gdEdit);

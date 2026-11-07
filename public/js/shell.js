@@ -64,8 +64,7 @@ export function sidebarHTML() {
              ${navBtn('clients', icon.building(16), 'Clients & apps', s.clients ?? 0, 'admin')}
              ${navBtn('users', icon.userCheck(16), 'Manage users', userCount, 'admin')}
              ${navBtn('properties', icon.tag(), 'Properties', propKeys('category').length + propKeys('status').length, 'admin')}
-             ${navBtn('checklists', icon.shield(16), 'Checklists', undefined, 'admin')}
-             ${navBtn('guides', icon.book(16), 'Test guides', undefined, 'admin')}`
+             ${navBtn('checklists', icon.shield(16), 'Checklists', undefined, 'admin')}`
           : ''
       }
 
@@ -256,7 +255,7 @@ export function finishNav(historyMode = 'push') {
 
 
 /** Pages that are not sidebar rows: the row they belong to stays lit instead. */
-const CHECKLIST_LIT = { 'checklist-edit': 'checklists', project: 'active' };
+const CHECKLIST_LIT = { 'checklist-edit': 'checklists', guides: 'checklists', project: 'active' };
 
 
 /** Opens a template in the editor page. `id` null means a new one. */

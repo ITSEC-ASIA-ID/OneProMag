@@ -46,7 +46,14 @@ export function normalizeNav(id) {
  * straight into the Properties admin page — a page whose sidebar row is not even
  * rendered for them.
  */
-export const ADMIN_NAV = new Set(['clients', 'users', 'properties', 'checklists', 'checklist-edit']);
+export const ADMIN_NAV = new Set([
+  'clients',
+  'users',
+  'properties',
+  'checklists',
+  'guides',
+  'checklist-edit',
+]);
 
 
 export function navAllowed(id) {
@@ -89,13 +96,14 @@ export const NAV = {
   },
   checklists: {
     title: 'Checklists',
-    sub: 'Security checklists an engagement can be measured against',
+    sub: 'What an engagement is measured against, and the guides that teach it',
   },
-  // The admin twin of /tests: the same library, from the side that can write.
-  // Two titles, one subject — the row says which job it does.
+  // The same admin page, second tab: the twin of /tests, from the side that can
+  // write. One sidebar row owns both, because a template says what must be
+  // checked and a guide says how — the same subject, two jobs.
   guides: {
     title: 'Test guides',
-    sub: 'The how-to-test library, edited here',
+    sub: 'How to test each part of a checklist, edited here',
   },
   // Reference, not workspace data: the method behind the checklists, and what a
   // failure looks like once you have one. Readable by anyone signed in, because

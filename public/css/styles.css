@@ -1773,6 +1773,13 @@ svg { display: block; }
   flex: 0 0 auto;
 }
 .admin-head-actions .btn { margin-left: 0; }
+/* Two tabs, one page: a template says what to check, a guide says how. They are
+   separate things to use, so they keep separate tables and separate editors. */
+.catalog-switch {
+  display: flex;
+  gap: 6px;
+  margin: 0 0 16px;
+}
 
 .client-grid {
   display: grid;
