@@ -207,8 +207,14 @@ function applyAnswer(itemEl, item) {
     b.setAttribute('aria-pressed', b.dataset.ckSet === item.status ? 'true' : 'false');
   });
   const wrap = itemEl.querySelector('.ck-note-wrap');
-  const hasNote = Boolean((item.note || '').trim()) || Boolean(item.fileId);
-  if (wrap && (item.status === 'Fail' || hasNote)) wrap.hidden = false;
+  // `item` is the server's row, but the note saves on blur: text typed a moment
+  // before the click is not in it yet, and closing the box over someone's
+  // half-written note is worse than leaving it open.
+  const typed = wrap?.querySelector('[data-ck-note]')?.value.trim() || '';
+  const hasNote = Boolean((item.note || '').trim()) || Boolean(item.fileId) || Boolean(typed);
+  // Fail opens the note box, and moving back to Pass/Open/N/A closes it again —
+  // unless a note or a file is already there, because that is work, not a hint.
+  if (wrap) wrap.hidden = !(item.status === 'Fail' || hasNote);
   itemEl.querySelector('[data-ck-note-btn]')?.setAttribute('aria-expanded', String(!wrap?.hidden));
   const stamp = itemEl.querySelector('.ck-stamp');
   if (stamp) stamp.innerHTML = itemStamp(item);
