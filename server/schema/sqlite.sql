@@ -334,7 +334,12 @@ CREATE TABLE IF NOT EXISTS project_findings (
   id          INTEGER PRIMARY KEY AUTOINCREMENT,
   project_id  INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
   title       TEXT NOT NULL,
+  -- Severity is not chosen, it is derived: likelihood × impact, banded by the
+  -- matrix in server/risk.js. It is stored so every list and count can read it
+  -- without re-deriving, and 0/0 means the row predates the matrix.
   severity    TEXT NOT NULL DEFAULT 'Medium',
+  likelihood   INTEGER NOT NULL DEFAULT 0,
+  impact_score INTEGER NOT NULL DEFAULT 0,
   status      TEXT NOT NULL DEFAULT 'Open',
   template    TEXT NOT NULL DEFAULT '',
   description TEXT NOT NULL DEFAULT '',

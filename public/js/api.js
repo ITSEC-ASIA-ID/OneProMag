@@ -178,6 +178,10 @@ export const api = {
     request('PUT', `/api/projects/${projectId}/pentest-notes`, { body }),
 
   // What we found on one engagement. A separate resource from the reference
+  // The risk matrix: likelihood × impact → severity. Served so the form and the
+  // server cannot band the same pair differently.
+  riskMatrix: () => request('GET', '/api/risk-matrix'),
+
   // library: `findings()` is the method, these are the claims about a project.
   projectFindings: (projectId) => request('GET', `/api/projects/${projectId}/findings`),
   createFinding: (projectId, payload) => request('POST', `/api/projects/${projectId}/findings`, payload),

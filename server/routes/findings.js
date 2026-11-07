@@ -13,6 +13,7 @@
  */
 import { db } from '../db.js';
 import { HttpError, nowISO } from '../auth.js';
+import { levelOf, riskMatrix, severityFor } from '../risk.js';
 import { assertProject, requireDeleter } from '../shared.js';
 
 export const FINDING_SEVERITIES = ['Critical', 'High', 'Medium', 'Low'];
@@ -30,13 +31,19 @@ function textValue(value, label, max = MAX_TEXT) {
   return text;
 }
 
-function severityOf(value, fallback) {
-  if (value === undefined) return fallback;
-  const wanted = String(value).trim();
-  if (!FINDING_SEVERITIES.includes(wanted)) {
-    throw new HttpError(400, `A severity is one of ${FINDING_SEVERITIES.join(', ')}`);
+/**
+ * Likelihood and impact, both required together.
+ *
+ * Severity is never accepted from the client: it is the matrix's answer, and a
+ * caller that could send it would be able to file a 5 × 5 as Low.
+ */
+function ratingsOf(body, fallback = { likelihood: 0, impactScore: 0 }) {
+  const likelihood = body.likelihood === undefined ? fallback.likelihood : levelOf(body.likelihood);
+  const impactScore = body.impactScore === undefined ? fallback.impactScore : levelOf(body.impactScore);
+  if (!likelihood || !impactScore) {
+    throw new HttpError(400, 'Assess both likelihood and impact, each from 1 to 5');
   }
-  return wanted;
+  return { likelihood, impactScore, severity: severityFor(likelihood, impactScore) };
 }
 
 function statusOf(value, fallback) {
@@ -53,7 +60,14 @@ function shape(row) {
     id: Number(row.id),
     projectId: Number(row.project_id),
     title: row.title,
-    severity: row.severity,
+    // Severity is what the matrix says today, not what a column happened to say
+    // when the row was written: re-banding the matrix must re-band the list.
+    severity: row.likelihood && row.impact_score
+      ? severityFor(row.likelihood, row.impact_score)
+      : row.severity,
+    likelihood: Number(row.likelihood) || 0,
+    impactScore: Number(row.impact_score) || 0,
+    score: (Number(row.likelihood) || 0) * (Number(row.impact_score) || 0),
     status: row.status,
     // The library entry this was written from, '' when it was written from
     // nothing. It is a citation, not a live link: editing the library later
@@ -90,6 +104,15 @@ async function touchProject(projectId, stamp) {
 }
 
 export const routes = {
+  /**
+   * GET /api/risk-matrix — the 5×5 table, levels and band thresholds.
+   *
+   * Served rather than hard-coded in the client so the form cannot band a 4 × 4
+   * differently from the server that stored it, and so re-banding the matrix is
+   * one edit rather than two that must agree.
+   */
+  'GET /api/risk-matrix': async () => riskMatrix(),
+
   'GET /api/projects/:id/findings': async (ctx) => {
     const project = await assertProject(ctx.params.id);
     const rows = await db.all(
@@ -108,14 +131,17 @@ export const routes = {
     const body = ctx.body || {};
     const title = textValue(body.title, 'A title', MAX_TITLE);
     if (!title) throw new HttpError(400, 'A finding needs a title');
+    const ratings = ratingsOf(body);
     const ts = nowISO();
     const inserted = await db.run(
-      `INSERT INTO project_findings (project_id, title, severity, status, template, description, impact, mitigation, created_by, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
+      `INSERT INTO project_findings (project_id, title, severity, likelihood, impact_score, status, template, description, impact, mitigation, created_by, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
       [
         project.id,
         title,
-        severityOf(body.severity, 'Medium'),
+        ratings.severity,
+        ratings.likelihood,
+        ratings.impactScore,
         statusOf(body.status, 'Open'),
         textValue(body.template, 'A template', 120),
         textValue(body.description, 'A description'),
@@ -133,9 +159,14 @@ export const routes = {
   'PATCH /api/findings/:id': async (ctx) => {
     const row = await findingRow(ctx.params.id);
     const body = ctx.body || {};
+    // A row filed before the matrix has 0/0; editing it must supply both ratings,
+    // which is the moment the tester is asked for them.
+    const ratings = ratingsOf(body, { likelihood: Number(row.likelihood) || 0, impactScore: Number(row.impact_score) || 0 });
     const next = {
       title: body.title === undefined ? row.title : textValue(body.title, 'A title', MAX_TITLE) || row.title,
-      severity: severityOf(body.severity, row.severity),
+      severity: ratings.severity,
+      likelihood: ratings.likelihood,
+      impact_score: ratings.impactScore,
       status: statusOf(body.status, row.status),
       template: body.template === undefined ? row.template : textValue(body.template, 'A template', 120),
       description: body.description === undefined ? row.description : textValue(body.description, 'A description'),
@@ -150,11 +181,13 @@ export const routes = {
     const stamp = nowISO();
     await db.run(
       `UPDATE project_findings
-          SET title = ?, severity = ?, status = ?, template = ?, description = ?, impact = ?, mitigation = ?, updated_at = ?
+          SET title = ?, severity = ?, likelihood = ?, impact_score = ?, status = ?, template = ?, description = ?, impact = ?, mitigation = ?, updated_at = ?
         WHERE id = ?`,
       [
         next.title,
         next.severity,
+        next.likelihood,
+        next.impact_score,
         next.status,
         next.template,
         next.description,

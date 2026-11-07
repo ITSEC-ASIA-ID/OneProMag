@@ -1258,8 +1258,10 @@ async function backfillGuideKeys() {
  * 22 — working notes per project, read newest-first as a timeline.
  * 23 — working notes are one field on the project, like the scope notes. The
  *      table that briefly held a timeline is carried over and dropped.
+ * 24 — checklist items point at their guide; a project finding rates likelihood
+ *      and impact, and its severity is the product of the two (server/risk.js).
  */
-export const SCHEMA_VERSION = 23;
+export const SCHEMA_VERSION = 24;
 
 let appliedSchemaVersion = 0;
 
@@ -1781,6 +1783,11 @@ async function migrateSqlite() {
   await addColumnIfMissing('checklists', 'seed_version', 'INTEGER NOT NULL DEFAULT 0');
   // v1.24: a checklist item names the guide that teaches it.
   await addColumnIfMissing('checklist_items', 'guide_key', "TEXT NOT NULL DEFAULT ''");
+  // v1.24: a finding's severity is derived from likelihood × impact. 0 means
+  // "filed before the matrix existed": those rows keep the severity they were
+  // given, and the form asks for both ratings the first time one is edited.
+  await addColumnIfMissing('project_findings', 'likelihood', 'INTEGER NOT NULL DEFAULT 0');
+  await addColumnIfMissing('project_findings', 'impact_score', 'INTEGER NOT NULL DEFAULT 0');
 }
 
 async function migratePostgres() {
@@ -1841,6 +1848,9 @@ async function migratePostgres() {
   await addColumnIfMissing('checklists', 'seed_version', 'INTEGER NOT NULL DEFAULT 0');
   // v1.24: a checklist item names the guide that teaches it.
   await addColumnIfMissing('checklist_items', 'guide_key', "TEXT NOT NULL DEFAULT ''");
+  // v1.24: a finding's severity is derived from likelihood × impact.
+  await addColumnIfMissing('project_findings', 'likelihood', 'INTEGER NOT NULL DEFAULT 0');
+  await addColumnIfMissing('project_findings', 'impact_score', 'INTEGER NOT NULL DEFAULT 0');
 }
 
 export { seed };

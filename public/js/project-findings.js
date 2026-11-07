@@ -12,13 +12,17 @@ import { confirmDialog, escapeHtml as h, fmtRelative, openModal, toast } from '.
    itself from one — and is then edited here, because what was found is never
    exactly what the template describes.
 
+   Severity is NOT a dropdown: it is likelihood × impact, banded by the matrix the
+   server serves at /api/risk-matrix (server/risk.js owns the thresholds). The form
+   therefore asks the two questions a tester can actually answer, and shows the
+   band it lands in — so a reader can see the score, not just the word.
+
    Severity and status reuse the library's vocabulary and the library's chips
    (`.lib-sev` + the same four tones) rather than growing a second colour code
    for the same four words.
    ============================================================ */
 
 const SEVERITY_TONE = { Critical: 'rose', High: 'amber', Medium: 'blue', Low: 'slate' };
-const SEVERITIES = ['Critical', 'High', 'Medium', 'Low'];
 const STATUSES = ['Open', 'Fixed', 'Accepted'];
 
 /** The library, fetched once per page load: the form's "copy from" list. */
@@ -35,6 +39,44 @@ async function library() {
   return libraryCache;
 }
 
+
+/**
+ * The matrix, fetched once per page load.
+ *
+ * Not cached in code: a band threshold is a policy decision, and the day it moves
+ * it must move in one file (server/risk.js) rather than in two that disagree.
+ */
+let riskCache = null;
+async function risk() {
+  if (riskCache) return riskCache;
+  try {
+    riskCache = await api.riskMatrix();
+  } catch {
+    riskCache = null;
+  }
+  return riskCache;
+}
+
+function severityFor(matrix, likelihood, impactScore) {
+  const row = matrix.grid[likelihood - 1];
+  return row ? row[impactScore - 1] : '';
+}
+
+/**
+ * The pair to start a library entry from: the diagonal cell inside its band.
+ *
+ * A library finding carries a severity but no rating, and inventing "most likely"
+ * would put words in the tester's mouth. The diagonal is the cheapest honest
+ * placeholder — it lands in the same band — and the hint says what it is.
+ */
+function ratingsFor(matrix, severity) {
+  for (let level = 1; level <= 5; level += 1) {
+    if (matrix.grid[level - 1][level - 1] === severity) {
+      return { likelihood: level, impactScore: level };
+    }
+  }
+  return { likelihood: 3, impactScore: 3 };
+}
 
 function sevChip(severity) {
   return `<span class="lib-sev" data-tone="${SEVERITY_TONE[severity] || 'slate'}">${h(severity)}</span>`;
@@ -83,9 +125,16 @@ function findingRowHTML(f) {
     <td class="dev-name">
       <button type="button" class="ck-open" data-pf-edit="${f.id}">${h(f.title)}</button>
       ${
-        // The library id would mean nothing to a reader; what matters is that
-        // this started from our method rather than from nothing.
-        f.template ? `<span class="ck-sub">from the reference library</span>` : ''
+        // The rating behind the chip, so the number can be checked: "3 × 4" is a
+        // question a reader can argue with, "High" is not. A row filed before the
+        // matrix existed has no rating and says so rather than showing 0 × 0.
+        `<span class="ck-sub">${
+          f.likelihood && f.impactScore
+            ? `${f.likelihood} × ${f.impactScore}${f.template ? ' · from the reference library' : ''}`
+            : f.template
+              ? 'from the reference library · not rated yet'
+              : 'not rated yet'
+        }</span>`
       }
     </td>
     <td>${sevChip(f.severity)}</td>
@@ -145,14 +194,23 @@ async function openFindingForm(project, row, reload) {
   const editing = Boolean(row);
   const f = row || {
     title: '',
-    severity: 'Medium',
     status: 'Open',
     template: '',
     description: '',
     impact: '',
     mitigation: '',
   };
-  const lib = await library();
+  const [lib, matrix] = await Promise.all([library(), risk()]);
+  if (!matrix) {
+    // Guessing a band here would be exactly the habit this change removes.
+    toast('The risk matrix could not be loaded, so this finding cannot be rated', 'err');
+    return;
+  }
+  // A row filed before the matrix existed carries 0/0; it opens at the diagonal
+  // cell of the band it was given, which is the closest thing to its old severity.
+  const start = f.likelihood && f.impactScore
+    ? { likelihood: f.likelihood, impactScore: f.impactScore }
+    : ratingsFor(matrix, f.severity);
 
   const { close } = openModal({
     title: editing ? 'Edit finding' : 'New finding',
@@ -185,17 +243,36 @@ async function openFindingForm(project, row, reload) {
       </div>
       <div class="form-row">
         <div class="field">
-          <label for="pf-severity">Severity</label>
-          <select class="input" id="pf-severity" data-pf-field="severity">
-            ${SEVERITIES.map((s) => `<option ${s === f.severity ? 'selected' : ''}>${h(s)}</option>`).join('')}
+          <label for="pf-likelihood">Likelihood</label>
+          <select class="input" id="pf-likelihood" data-pf-field="likelihood">
+            ${matrix.likelihood
+              .map(
+                (l) =>
+                  `<option value="${l.value}" ${l.value === start.likelihood ? 'selected' : ''}>${l.value} · ${h(l.label)}</option>`
+              )
+              .join('')}
           </select>
         </div>
         <div class="field">
-          <label for="pf-status">Status</label>
-          <select class="input" id="pf-status" data-pf-field="status">
-            ${STATUSES.map((s) => `<option ${s === f.status ? 'selected' : ''}>${h(s)}</option>`).join('')}
+          <label for="pf-impact-score">Impact</label>
+          <select class="input" id="pf-impact-score" data-pf-field="impactScore">
+            ${matrix.impact
+              .map(
+                (i) =>
+                  `<option value="${i.value}" ${i.value === start.impactScore ? 'selected' : ''}>${i.value} · ${h(i.label)}</option>`
+              )
+              .join('')}
           </select>
         </div>
+      </div>
+      <div class="field">
+        <span class="hint" data-pf-risk></span>
+      </div>
+      <div class="field">
+        <label for="pf-status">Status</label>
+        <select class="input" id="pf-status" data-pf-field="status">
+          ${STATUSES.map((s) => `<option ${s === f.status ? 'selected' : ''}>${h(s)}</option>`).join('')}
+        </select>
       </div>
       <div class="field">
         <label for="pf-description">Description</label>
@@ -203,7 +280,7 @@ async function openFindingForm(project, row, reload) {
           placeholder="What was observed, and where">${h(f.description)}</textarea>
       </div>
       <div class="field">
-        <label for="pf-impact">Impact</label>
+        <label for="pf-impact">Impact detail</label>
         <textarea class="input" id="pf-impact" rows="2" data-pf-field="impact"
           placeholder="What it lets an attacker do, in the client's terms">${h(f.impact)}</textarea>
       </div>
@@ -219,6 +296,19 @@ async function openFindingForm(project, row, reload) {
     onMount: (modal, closeFn) => {
       const field = (name) => modal.querySelector(`[data-pf-field="${name}"]`);
       const template = modal.querySelector('[data-pf-template]');
+      const readout = modal.querySelector('[data-pf-risk]');
+
+      // The band the two selects currently land in, spelled out with the score so
+      // it can be argued with before the row is saved.
+      const paintRisk = () => {
+        const likelihood = Number(field('likelihood').value);
+        const impactScore = Number(field('impactScore').value);
+        const severity = severityFor(matrix, likelihood, impactScore);
+        readout.innerHTML = `${sevChip(severity)} <span class="hint">Likelihood ${likelihood} × Impact ${impactScore} = ${likelihood * impactScore}</span>`;
+      };
+      paintRisk();
+      field('likelihood').addEventListener('change', paintRisk);
+      field('impactScore').addEventListener('change', paintRisk);
 
       // Copying from the library fills the text once. After that the two are
       // separate: the library may change, and what we told this client must not.
@@ -226,17 +316,25 @@ async function openFindingForm(project, row, reload) {
         const found = lib.find((l) => l.id === template.value);
         if (!found) return;
         field('title').value = found.title;
-        field('severity').value = found.severity;
         field('description').value = found.description;
         field('impact').value = found.impact;
         field('mitigation').value = (found.mitigation || []).join('\n');
+        // The library says how bad it usually is; the rating is still ours, so
+        // this only moves the selects into that band as a starting point.
+        const suggested = ratingsFor(matrix, found.severity);
+        field('likelihood').value = String(suggested.likelihood);
+        field('impactScore').value = String(suggested.impactScore);
+        paintRisk();
       });
 
       modal.querySelector('[data-pf-cancel]').addEventListener('click', closeFn);
       modal.querySelector('[data-pf-save]').addEventListener('click', async () => {
         const payload = {
           title: field('title').value.trim(),
-          severity: field('severity').value,
+          // Sent as numbers; the server derives severity from them and ignores any
+          // severity a caller tries to hand it.
+          likelihood: Number(field('likelihood').value),
+          impactScore: Number(field('impactScore').value),
           status: field('status').value,
           template: template ? template.value : f.template,
           description: field('description').value.trim(),

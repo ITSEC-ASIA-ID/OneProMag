@@ -1754,14 +1754,18 @@ test('a project records its own findings, and only a lead can delete one', async
     params: { id },
     body: {
       title: 'Password reset token is predictable',
-      severity: 'High',
+      likelihood: 4,
+      impactScore: 3,
       description: 'Reset links are sequential per user id.',
       impact: 'An attacker can reset any account.',
       mitigation: 'Use 128 bits of CSPRNG.',
       template: 'f-critical-auth-bypass',
     },
   });
+  // 4 × 3 = 12, which the matrix bands as High — the severity is the matrix's
+  // answer, never the caller's.
   assert.equal(made.finding.severity, 'High');
+  assert.equal(made.finding.score, 12);
   assert.equal(made.finding.status, 'Open', 'a new finding starts Open');
   assert.equal(made.finding.template, 'f-critical-auth-bypass');
   assert.ok(made.finding.createdByName, 'the author is named, not just numbered');
@@ -1795,12 +1799,28 @@ test('a project records its own findings, and only a lead can delete one', async
   const empty = await call('GET /api/projects/:id/findings', user, { params: { id } });
   assert.equal(empty.findings.length, 0);
 
-  // Unknown values are refused rather than stored: the four severities are the
-  // library's four, so a typo cannot invent a fifth colour.
+  // A rating is required, and a level outside 1..5 is refused rather than
+  // quietly banded: "6 × 6" is a mistake in the assessment, not a worse finding.
   await assert.rejects(
-    () => call('POST /api/projects/:id/findings', user, { params: { id }, body: { title: 'x', severity: 'Severe' } }),
+    () => call('POST /api/projects/:id/findings', user, { params: { id }, body: { title: 'x' } }),
     { status: 400 }
   );
+  await assert.rejects(
+    () =>
+      call('POST /api/projects/:id/findings', user, {
+        params: { id },
+        body: { title: 'x', likelihood: 6, impactScore: 2 },
+      }),
+    { status: 400 }
+  );
+  // A severity sent by a caller is ignored: it is derived, so it cannot be used
+  // to file a 5 × 5 as Low.
+  const ignored = await call('POST /api/projects/:id/findings', user, {
+    params: { id },
+    body: { title: 'Caller-chosen severity', likelihood: 5, impactScore: 5, severity: 'Low' },
+  });
+  assert.equal(ignored.finding.severity, 'Critical');
+  await call('DELETE /api/findings/:id', chief, { params: { id: ignored.finding.id } });
   await assert.rejects(() => call('POST /api/projects/:id/findings', user, { params: { id }, body: { title: '  ' } }), {
     status: 400,
   });

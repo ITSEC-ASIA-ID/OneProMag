@@ -6959,6 +6959,11 @@ svg { display: block; }
 .lib-sev[data-tone='blue']  { background: var(--blue-soft);  color: var(--blue); }
 .lib-sev[data-tone='slate'] { background: var(--slate-soft); color: var(--slate); }
 
+/* The risk read-out under the two rating selects: the band, then the arithmetic
+   that produced it. Severity is derived, so the form shows its work — a reader
+   who disagrees can see which number to argue with. */
+[data-pf-risk] { display: inline-flex; align-items: center; gap: 8px; }
+
 /* Findings: an index on the left and the one finding you opened on the right.
    They are read one at a time, so a grid of equal cards made every finding
    compete for attention with the twelve around it. The list rows keep the
