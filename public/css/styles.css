@@ -6923,6 +6923,10 @@ svg { display: block; }
   font-size: 11.5px;
   color: var(--ink-2);
 }
+.guide-asked { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 5px; }
+.guide-asked li { display: flex; align-items: baseline; gap: 8px; font-size: 12.5px; color: var(--ink-2); }
+.guide-asked-name { color: var(--ink); }
+.guide-asked-n { font-size: 11px; color: var(--faint); }
 .lib-links { display: flex; flex-direction: column; gap: 6px; }
 .lib-link {
   display: inline-flex;

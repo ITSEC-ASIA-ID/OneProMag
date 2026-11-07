@@ -273,6 +273,10 @@ CREATE TABLE IF NOT EXISTS checklist_items (
   section      TEXT NOT NULL DEFAULT '',
   title        TEXT NOT NULL,
   help         TEXT NOT NULL DEFAULT '',
+  -- The guide that teaches this item (`TEST_GUIDES.id`), derived from `section`
+  -- at seed time because this column describes the standard, not the admin's
+  -- edit. '' is honest: an item of a hand-written checklist may have no guide.
+  guide_key    TEXT NOT NULL DEFAULT '',
   position     INTEGER NOT NULL DEFAULT 0
 );
 

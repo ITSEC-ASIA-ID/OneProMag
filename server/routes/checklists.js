@@ -1,5 +1,6 @@
 import { db } from '../db.js';
 import { HttpError, nowISO } from '../auth.js';
+import { guideKeyFor } from '../knowledge.js';
 import { assertProject, requireCatalogManager, requireDeleter } from '../shared.js';
 
 /* Security checklists, in two halves that live in one file because they cannot
@@ -65,6 +66,10 @@ function shapeItem(row) {
     section: row.section || '',
     title: row.title,
     help: row.help || '',
+    // The guide that teaches this item, '' when none does. Read-only here: it is
+    // derived from the section when the row is written, so the admin edits the
+    // standard and the link follows it instead of drifting on its own.
+    guide: row.guide_key || '',
     position: Number(row.position || 0),
   };
 }
@@ -329,11 +334,11 @@ export const routes = {
     await db.transaction(async (tx) => {
       for (const item of parsed) {
         const info = await tx.run(
-          `INSERT INTO checklist_items (checklist_id, section, title, help, position)
-           VALUES (?, ?, ?, ?, ?) RETURNING id`,
-          [row.id, item.section, item.title, item.help, position]
+          `INSERT INTO checklist_items (checklist_id, section, title, help, guide_key, position)
+           VALUES (?, ?, ?, ?, ?, ?) RETURNING id`,
+          [row.id, item.section, item.title, item.help, guideKeyFor(row.seed_key, item.section), position]
         );
-        created.push({ id: Number(info.lastInsertId), ...item, position });
+        created.push({ id: Number(info.lastInsertId), ...item, guide: guideKeyFor(row.seed_key, item.section), position });
         position += 1;
       }
     });
@@ -354,8 +359,18 @@ export const routes = {
           : Number(body.position),
     };
     await db.run(
-      'UPDATE checklist_items SET section = ?, title = ?, help = ?, position = ? WHERE id = ?',
-      [next.section, next.title, next.help, next.position, row.id]
+      `UPDATE checklist_items SET section = ?, title = ?, help = ?, guide_key = ?, position = ?
+        WHERE id = ?`,
+      [
+        next.section,
+        next.title,
+        next.help,
+        // Moving an item to another section re-derives its guide, which is the
+        // whole point of the link being a column the standard owns.
+        guideKeyFor((await checklistRow(row.checklist_id)).seed_key, next.section),
+        next.position,
+        row.id,
+      ]
     );
     return { item: shapeItem(await itemRow(row.id)) };
   },

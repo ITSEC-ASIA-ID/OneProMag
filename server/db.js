@@ -2,6 +2,7 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { guideKeyFor } from './knowledge.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const SCHEMA_DIR = path.join(__dirname, 'schema');
@@ -1155,7 +1156,7 @@ async function syncSeededChecklists() {
          VALUES (?, ?, ?, ${template.isDefault ? 'TRUE' : 'FALSE'}, ?, ?, ?) RETURNING id`,
         [template.name, template.description, template.category, template.key, template.version, stamp]
       );
-      await writeChecklistItems(db, inserted.lastInsertId, template.items);
+      await writeChecklistItems(db, inserted.lastInsertId, template.items, template.key);
       written += 1;
       continue;
     }
@@ -1170,7 +1171,7 @@ async function syncSeededChecklists() {
 
     await db.transaction(async (tx) => {
       await tx.run('DELETE FROM checklist_items WHERE checklist_id = ?', [row.id]);
-      await writeChecklistItems(tx, row.id, template.items);
+      await writeChecklistItems(tx, row.id, template.items, template.key);
       await tx.run('UPDATE checklists SET seed_version = ? WHERE id = ?', [
         template.version,
         row.id,
@@ -1205,14 +1206,40 @@ async function syncSeededChecklists() {
   return { seeded: written > 0, checklists: written, retired };
 }
 
-async function writeChecklistItems(conn, checklistId, items) {
+async function writeChecklistItems(conn, checklistId, items, checklistKey = '') {
   for (let i = 0; i < items.length; i += 1) {
     const [section, title, help] = items[i];
     await conn.run(
-      'INSERT INTO checklist_items (checklist_id, section, title, help, position) VALUES (?, ?, ?, ?, ?)',
-      [checklistId, section, title, help, i]
+      'INSERT INTO checklist_items (checklist_id, section, title, help, guide_key, position) VALUES (?, ?, ?, ?, ?, ?)',
+      [checklistId, section, title, help, guideKeyFor(checklistKey, section), i]
     );
   }
+}
+
+/**
+ * Fills `guide_key` on items written before the column existed, and on items whose
+ * template was seeded before a guide was written for its section.
+ *
+ * Runs on every boot rather than once behind a version gate: it is idempotent, it
+ * only ever writes a non-empty key, and it fixes the one case a gate cannot reach — a
+ * shipped template that did not bump its version when the link arrived, which is
+ * exactly what happens on an install upgrading to this release.
+ */
+async function backfillGuideKeys() {
+  const rows = await db.all(
+    `SELECT i.id, i.section, c.seed_key AS checklist_key
+       FROM checklist_items i
+       JOIN checklists c ON c.id = i.checklist_id
+      WHERE i.guide_key = ''`
+  );
+  let filled = 0;
+  for (const row of rows) {
+    const key = guideKeyFor(row.checklist_key, row.section);
+    if (!key) continue;
+    await db.run('UPDATE checklist_items SET guide_key = ? WHERE id = ?', [key, row.id]);
+    filled += 1;
+  }
+  return filled;
 }
 
 
@@ -1301,12 +1328,15 @@ export async function initDatabase() {
   // that must already mean something.
   const properties = await seedPropertiesIfEmpty();
   const checklists = await syncSeededChecklists();
+  // After the sync: a freshly regenerated template already carries its links, and
+  // this only fills in the rows an older install kept in place.
+  const guideLinks = await backfillGuideKeys();
   const result = SEED_DEMO ? await seed() : await seedBootstrapAdmin();
   // Runs after seed() on purpose: a brand-new database gets its devices from
   // seed() itself, and only an EXISTING install needs the backfill. With demo
   // data off there is nothing to backfill into either.
   const devices = SEED_DEMO ? await seedDevicesIfEmpty() : { seeded: false };
-  return { engine: db.engine, ...result, devices, properties, checklists, demo: SEED_DEMO };
+  return { engine: db.engine, ...result, devices, properties, checklists, guideLinks, demo: SEED_DEMO };
 }
 
 /**
@@ -1746,6 +1776,8 @@ async function migrateSqlite() {
   await addColumnIfMissing('checklists', 'is_default', 'INTEGER NOT NULL DEFAULT 0');
   await addColumnIfMissing('checklists', 'seed_key', "TEXT NOT NULL DEFAULT ''");
   await addColumnIfMissing('checklists', 'seed_version', 'INTEGER NOT NULL DEFAULT 0');
+  // v1.24: a checklist item names the guide that teaches it.
+  await addColumnIfMissing('checklist_items', 'guide_key', "TEXT NOT NULL DEFAULT ''");
 }
 
 async function migratePostgres() {
@@ -1804,6 +1836,8 @@ async function migratePostgres() {
   await addColumnIfMissing('checklists', 'is_default', 'BOOLEAN NOT NULL DEFAULT false');
   await addColumnIfMissing('checklists', 'seed_key', "TEXT NOT NULL DEFAULT ''");
   await addColumnIfMissing('checklists', 'seed_version', 'INTEGER NOT NULL DEFAULT 0');
+  // v1.24: a checklist item names the guide that teaches it.
+  await addColumnIfMissing('checklist_items', 'guide_key', "TEXT NOT NULL DEFAULT ''");
 }
 
 export { seed };

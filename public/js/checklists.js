@@ -3,6 +3,7 @@ import { icon } from './icons.js';
 import { canManageCatalog, state } from './state.js';
 import { closeDrawer } from './drawer.js';
 import { handleNav, openChecklistEditor } from './shell.js';
+import { showGuide } from './library.js';
 import { confirmDialog, escapeHtml as h, fmtRelative, openModal, toast } from './ui.js';
 
 
@@ -76,6 +77,12 @@ function itemHTML(item, files) {
       </div>
       <span class="ck-item-title">${h(item.title)}</span>
       <div class="spacer"></div>
+      ${
+        item.guide
+          ? `<button type="button" class="btn btn-icon btn-icon-sm" data-ck-guide="${h(item.guide)}"
+               title="How to test this" aria-label="How to test ${h(item.title)}">${icon.book(13)}</button>`
+          : ''
+      }
       ${
         item.help
           ? `<button type="button" class="btn btn-icon btn-icon-sm" data-ck-help
@@ -214,6 +221,10 @@ export function bindChecklistBody(el, project, links, files, reload, onProgress 
   );
   el.querySelector('[data-ck-change]')?.addEventListener('click', () =>
     openAttachPicker(project, links, reload)
+  );
+
+  el.querySelectorAll('[data-ck-guide]').forEach((btn) =>
+    btn.addEventListener('click', () => showGuide(btn.dataset.ckGuide))
   );
 
   el.querySelectorAll('[data-ck-help]').forEach((btn) =>

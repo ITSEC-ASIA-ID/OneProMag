@@ -32,6 +32,7 @@ async function checklistFor() {
 
 async function guidesWithChecklist() {
   const find = await checklistFor();
+  const asked = await askedWhere();
   return TEST_GUIDES.map((guide) => {
     const list = find(guide);
     return {
@@ -41,8 +42,36 @@ async function guidesWithChecklist() {
       // The checklist owns the category; `area` is what the text was written for
       // and stays on the guide as the fallback when the template is gone.
       category: list?.category || guide.area,
+      // Where a pentester will actually meet this guide: one entry per checklist
+      // holding rows linked to it. Derived from the items, never stored on the
+      // guide — an admin adding a row makes the guide findable the same day.
+      asked: asked.get(guide.id) || [],
     };
   });
+}
+
+/** guide id → the checklists whose items point at it, with how many rows each has. */
+async function askedWhere() {
+  const rows = await db.all(
+    `SELECT i.guide_key, c.id AS checklist_id, c.name AS checklist_name
+       FROM checklist_items i
+       JOIN checklists c ON c.id = i.checklist_id
+      WHERE i.guide_key <> ''`
+  );
+  const map = new Map();
+  for (const row of rows) {
+    const perGuide = map.get(row.guide_key) || [];
+    const known = perGuide.find((a) => a.checklistId === Number(row.checklist_id));
+    if (known) known.items += 1;
+    else
+      perGuide.push({
+        checklistId: Number(row.checklist_id),
+        checklistName: row.checklist_name,
+        items: 1,
+      });
+    map.set(row.guide_key, perGuide);
+  }
+  return map;
 }
 
 export const routes = {

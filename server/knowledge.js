@@ -610,6 +610,34 @@ export const GUIDE_CHECKLISTS = {
   'OWASP API Security Top 10 2023': 'owasp-api',
 };
 
+/**
+ * The section code a checklist item belongs to — `A01:2025 — Broken Access
+ * Control` → `A01:2025`. The dash is the separator the seeded templates use, and the
+ * only thing standing between an item and its guide, so it is read once here rather
+ * than in every page that wants the link.
+ */
+function sectionCode(section) {
+  return String(section || '')
+    .split(/\s+[—–]\s+|\s+-\s+/)[0]
+    .trim();
+}
+
+/**
+ * The guide that teaches one checklist item: by section code, narrowed to the
+ * checklist the item belongs to so two standards that both publish an "A01" cannot
+ * cross-link. `''` is a legitimate answer — an admin's own item about password
+ * policy is not covered by any OWASP category, and a wrong link is worse than none.
+ */
+export function guideKeyFor(checklistKey, section) {
+  const code = sectionCode(section);
+  if (!code) return '';
+  const of = (g) => !checklistKey || GUIDE_CHECKLISTS[g.checklist] === checklistKey;
+  const exact = TEST_GUIDES.find((g) => of(g) && g.code === code);
+  if (exact) return exact.id;
+  const prefixed = TEST_GUIDES.find((g) => of(g) && code.startsWith(g.code));
+  return prefixed ? prefixed.id : '';
+}
+
 /* ============================================================
    Common findings
    ------------------------------------------------------------

@@ -205,8 +205,30 @@ function guideDetailHTML(g) {
         ${bulletList(g.watch, 'is-watch')}
       </section>
 
+      ${guideAskedHTML(g)}
       ${guideFindingsHTML(g.id)}
     </article>`;
+}
+
+/**
+ * "Where this is asked" — the checklist rows that open this guide. A guide nobody
+ * asks about is a guide nobody uses, so the section simply disappears rather than
+ * printing an empty heading.
+ */
+function guideAskedHTML(g) {
+  const asked = g.asked || [];
+  if (!asked.length) return '';
+  return `<section class="guide-section" data-guide-asked>
+        <h3 class="lib-h">Where this is asked</h3>
+        <ul class="guide-asked">${asked
+          .map(
+            (a) =>
+              `<li><span class="guide-asked-name">${h(a.checklistName)}</span>${
+                a.items ? `<span class="guide-asked-n">${a.items} ${a.items === 1 ? 'item' : 'items'}</span>` : ''
+              }</li>`
+          )
+          .join('')}</ul>
+      </section>`;
 }
 
 /** The category chips, taken from the checklist each guide belongs to. */

@@ -1702,3 +1702,41 @@ test('the reference libraries are readable by anyone signed in, and complete', a
   const uncategorised = findings.filter((f) => !f.category || f.category !== areas.get(f.guide)).map((f) => f.id);
   assert.deepEqual(uncategorised, [], 'findings do not carry the category of their guide');
 });
+
+test('a checklist item names the guide that teaches it, and the guide names where it is asked', async () => {
+  // The link between a checklist row and a guide used to be a string convention
+  // ("A01:2025 — ..." in one file, "A01:2025" in the other) that nothing checked.
+  // It is a column now, derived from the section when the row is written, so both
+  // directions are testable: item → guide, and guide → the checklists asking it.
+  const who = await member();
+  const { checklists } = await call('GET /api/checklists', who);
+  const { guides } = await call('GET /api/tests', who);
+  const ids = new Set(guides.map((g) => g.id));
+  const codeOf = new Map(guides.map((g) => [g.id, g.code]));
+
+  const linked = [];
+  for (const list of checklists) {
+    const full = await call('GET /api/checklists/:id', who, { params: { id: list.id } });
+    for (const item of full.checklist.items) {
+      assert.ok(!item.guide || ids.has(item.guide), `${item.title} points at a guide that does not exist`);
+      if (!item.guide) continue;
+      linked.push(item);
+      // A guide is derived from the section, so a link that disagrees with the
+      // section means the row was moved and kept a stale guide.
+      assert.ok(
+        item.section.startsWith(codeOf.get(item.guide)),
+        `${item.title} sits in "${item.section}" but links ${item.guide}`
+      );
+    }
+  }
+  assert.ok(linked.length >= 30, `expected the shipped items to be linked, got ${linked.length}`);
+
+  // A seeded guide has to say where it is asked: the template that teaches it asks
+  // it, and its count comes from the rows, not from a number in the seed file.
+  for (const g of guides.filter((x) => x.checklistId)) {
+    assert.ok(Array.isArray(g.asked), `${g.id} carries no answered-where list`);
+    const own = g.asked.find((a) => a.checklistId === g.checklistId);
+    assert.ok(own, `${g.id} claims ${g.checklistName} but that checklist does not ask it`);
+    assert.ok(own.items >= 1, `${g.id} is asked by no item of ${own.checklistName}`);
+  }
+});
