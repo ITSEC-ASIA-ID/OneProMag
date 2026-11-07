@@ -153,6 +153,7 @@ export function drawerHTML(project, retests, tab, extras = { files: [], checklis
     <div class="drawer-foot">
       <span class="note-updated">Updated ${fmtRelative(project.updatedAt)}</span>
       <div class="spacer"></div>
+      <button class="btn btn-primary" data-add-retest>${icon.plus()} New retest</button>
       <button class="btn" data-expand>${icon.expand(14)} Open full page</button>
     </div>`;
 }
