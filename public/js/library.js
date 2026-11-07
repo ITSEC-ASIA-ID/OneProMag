@@ -92,14 +92,15 @@ function groupedHTML(rows, field, itemHTML) {
  * cannot fill yet still gets a chip — greyed and disabled — because hiding it would
  * read as "this category does not exist", when the truth is "no entries yet".
  */
-function categoryChipsHTML(rows = [], field = 'area', attr, active = '') {
+function categoryChipsHTML(rows = [], field = 'area', attr, active = '', withAll = true) {
   const counts = new Map();
   for (const row of rows) counts.set(row[field], (counts.get(row[field]) || 0) + 1);
   const chip = (key, label, count) =>
     `<button class="chip${active === key ? ' active' : ''}" type="button" ${attr}="${h(key)}"${
       count ? '' : ` disabled title="No entries in ${h(label)} yet"`
     }>${h(label)}<span class="n">${count}</span></button>`;
-  return [chip('', 'All', rows.length), ...categoryOptions(rows, field).map((o) => chip(o.key, o.label, counts.get(o.key) || 0))].join('');
+  const all = withAll ? [chip('', 'All', rows.length)] : [];
+  return [...all, ...categoryOptions(rows, field).map((o) => chip(o.key, o.label, counts.get(o.key) || 0))].join('');
 }
 
 
@@ -279,7 +280,9 @@ function guideAskedHTML(g) {
 
 /** The category chips, taken from the checklist each guide belongs to. */
 function testCategoryChipsHTML() {
-  return categoryChipsHTML(state.tests || [], 'category', 'data-test-cat', state.testCategory || '');
+  // No "All" chip here: a category chip is a toggle, so clearing the filter is
+  // one click on the one that is lit, and a chip that means "nothing" is noise.
+  return categoryChipsHTML(state.tests || [], 'category', 'data-test-cat', state.testCategory || '', false);
 }
 
 /** The list, the count and the open guide — everything but the shell. */
@@ -345,8 +348,8 @@ export function bindTests(root) {
   root.querySelector('#test-areas')?.addEventListener('click', (event) => {
     const chip = event.target.closest('[data-test-cat]');
     if (!chip) return;
-    state.testCategory = chip.dataset.testCat;
-    root.querySelectorAll('[data-test-cat]').forEach((b) => b.classList.toggle('active', b === chip));
+    const picked = chip.dataset.testCat;
+    state.testCategory = state.testCategory === picked ? '' : picked;
     paintTests();
   });
 
