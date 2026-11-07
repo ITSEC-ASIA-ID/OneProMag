@@ -1,6 +1,7 @@
 import { bindAttachmentsTab, attachmentsTabHTML } from './files.js';
 import { bindChecklistBody, checklistBodyHTML } from './checklists.js';
 import { bindNotesField, notesFieldHTML } from './notes-editor.js';
+import { bindProjectFindings, projectFindingsHTML } from './project-findings.js';
 import { deleteRetestFlow, loadProjects, openProjectForm, refreshAll } from './projects.js';
 import { hideMenu, placeMenu } from './shared.js';
 import { loadStats, openProjectPage } from './shell.js';
@@ -44,19 +45,21 @@ export async function renderDrawer(id, tab = 'overview', keepOpen = true) {
   state.drawerProjectId = id;
   state.drawerTab = tab;
   let data;
-  let extras = { files: [], checklists: [] };
+  let extras = { files: [], checklists: [], findings: [] };
   try {
-    // The tabs carry counts, so the drawer needs all three before it paints:
+    // The tabs carry counts, so the drawer needs all of them before it paints:
     // a tab that says "3" and then shows two rows is worse than a slower open.
-    const [projectData, checklistRes, fileRes] = await Promise.all([
+    const [projectData, checklistRes, fileRes, findingRes] = await Promise.all([
       api.project(id),
       api.projectChecklists(id).catch(() => ({ checklists: [] })),
       api.projectFiles(id).catch(() => ({ files: [] })),
+      api.projectFindings(id).catch(() => ({ findings: [] })),
     ]);
     data = projectData;
     extras = {
       checklists: checklistRes.checklists || [],
       files: fileRes.files || [],
+      findings: findingRes.findings || [],
     };
   } catch (err) {
     toast(err.message, 'err');
@@ -82,7 +85,7 @@ export async function renderDrawer(id, tab = 'overview', keepOpen = true) {
   bindDrawer(el, project, retests, extras);
 }
 
-export function drawerHTML(project, retests, tab, extras = { files: [], checklists: [] }) {
+export function drawerHTML(project, retests, tab, extras = { files: [], checklists: [], findings: [] }) {
   const openRetests = retests.filter((r) => r.status === 'Incoming' || r.status === 'Ongoing').length;
   const fails = (extras.checklists || []).reduce((n, c) => n + (Number(c.progress?.fail) || 0), 0);
 
@@ -90,13 +93,14 @@ export function drawerHTML(project, retests, tab, extras = { files: [], checklis
   // is noise, an absent one means "nothing waiting here".
   // The order is the order of the work: what this is, what was agreed, what
   // came back, what the client asked for, what was checked against a standard,
-  // and finally the running log.
+  // what that turned up, and finally the running log.
   const tabs = [
     { id: 'overview', label: 'Overview' },
     { id: 'notes', label: 'Notes' },
     { id: 'attachments', label: 'Files', count: (extras.files || []).length || undefined },
     { id: 'retests', label: 'Retests', count: retests.length || undefined },
     { id: 'checklist', label: 'Checklist', count: fails || undefined },
+    { id: 'findings', label: 'Findings', count: (extras.findings || []).length || undefined },
     // No count: one field, and a box that is filled in is not a badge.
     { id: 'pentest-notes', label: 'Pentest notes' },
   ];
@@ -160,9 +164,13 @@ export function drawerHTML(project, retests, tab, extras = { files: [], checklis
     }`;
 }
 
-export function tabBody(project, retests, tab, extras = { files: [], checklists: [] }) {
+export function tabBody(project, retests, tab, extras = { files: [], checklists: [], findings: [] }) {
   if (tab === 'checklist') {
     return checklistBodyHTML(extras.checklists || [], extras.files || []);
+  }
+
+  if (tab === 'findings') {
+    return projectFindingsHTML(extras.findings || []);
   }
 
   if (tab === 'pentest-notes') {
@@ -306,7 +314,7 @@ export function retestHTML(r) {
     </div>`;
 }
 
-export function bindDrawer(el, project, retests, extras = { files: [], checklists: [] }) {
+export function bindDrawer(el, project, retests, extras = { files: [], checklists: [], findings: [] }) {
   el.querySelector('[data-close-drawer]').addEventListener('click', closeDrawer);
 
   // Both tabs repaint through the drawer itself, so a change keeps the tab the
@@ -366,12 +374,13 @@ function menuOf(toggle) {
  * prevents. `reload` is the only difference: the drawer repaints itself, the
  * page remounts itself.
  */
-export function bindProjectActions(el, project, retests, extras = { files: [], checklists: [] }, reload) {
+export function bindProjectActions(el, project, retests, extras = { files: [], checklists: [], findings: [] }, reload) {
   // Each binder looks for its own markup and does nothing when the tab on
   // screen is someone else's, so all three can be called every time: a tab
   // cannot end up rendered but unbound because a branch forgot it.
   bindAttachmentsTab(el, project, extras.files || [], reload);
   bindChecklistBody(el, project, extras.checklists || [], extras.files || [], reload);
+  bindProjectFindings(el, project, extras.findings || [], reload);
   bindNotesField(el, project.id, 'notes', reload);
   bindNotesField(el, project.id, 'pentest-notes', reload);
 

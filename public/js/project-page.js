@@ -2,7 +2,7 @@ import { api } from './api.js';
 import { bindProjectActions, tabBody } from './drawer.js';
 import { handleNav, setTitle } from './shell.js';
 import { openProjectForm } from './projects.js';
-import { canManageCatalog, state } from './state.js';
+import { PROJECT_TABS, canManageCatalog, state } from './state.js';
 import { icon } from './icons.js';
 import {
   catBadge, catIcon, confirmDialog, envBadge, methodBadge, escapeHtml as h,
@@ -26,8 +26,6 @@ import {
    `bindProjectActions` wires them, so a status button cannot mean one thing in
    the drawer and another here.
    ============================================================ */
-
-const TABS = ['overview', 'notes', 'attachments', 'retests', 'checklist', 'pentest-notes'];
 
 let pageCache = null;
 
@@ -57,6 +55,7 @@ function headHTML(project, retests, tab, extras) {
     attachments: (extras.files || []).length || undefined,
     retests: retests.length || undefined,
     checklist: fails || undefined,
+    findings: (extras.findings || []).length || undefined,
   };
   const labels = {
     overview: 'Overview',
@@ -64,6 +63,7 @@ function headHTML(project, retests, tab, extras) {
     attachments: 'Files',
     retests: 'Retests',
     checklist: 'Checklist',
+    findings: 'Findings',
     'pentest-notes': 'Pentest notes',
   };
 
@@ -92,7 +92,7 @@ function headHTML(project, retests, tab, extras) {
       </div>
     </div>
     <div class="tabs pjp-tabs">
-      ${TABS
+      ${PROJECT_TABS
         .map(
           (id) => `<button class="tab ${id === tab ? 'active' : ''}" data-pjp-tab="${id}"
             aria-current="${id === tab ? 'page' : 'false'}">${labels[id]}${
@@ -119,16 +119,18 @@ export async function mountProjectPage() {
   // view of data the header needs anyway (three counts live in it). One load
   // per project, then repaints are local.
   if (!pageCache || pageCache.id !== projectId) {
-    const [projectRes, linksRes, fileRes] = await Promise.all([
+    const [projectRes, linksRes, fileRes, findingRes] = await Promise.all([
       api.project(projectId).catch(() => ({ project: null })),
       api.projectChecklists(projectId).catch(() => ({ checklists: [] })),
       api.projectFiles(projectId).catch(() => ({ files: [] })),
+      api.projectFindings(projectId).catch(() => ({ findings: [] })),
     ]);
     pageCache = {
       id: projectId,
       data: projectRes,
       links: linksRes.checklists || [],
       files: fileRes.files || [],
+      findings: findingRes.findings || [],
     };
   }
 
@@ -141,8 +143,8 @@ export async function mountProjectPage() {
   }
 
   const retests = pageCache.data.retests || [];
-  const extras = { files: pageCache.files, checklists: pageCache.links };
-  const tab = TABS.includes(state.projectTab) ? state.projectTab : 'overview';
+  const extras = { files: pageCache.files, checklists: pageCache.links, findings: pageCache.findings };
+  const tab = PROJECT_TABS.includes(state.projectTab) ? state.projectTab : 'overview';
 
   setTitle(project.name, `${project.client || 'No client'} · ${project.category || ''}`);
   document.title = project.name;
@@ -193,6 +195,7 @@ function panelHTML(project, retests, tab, extras) {
   if (tab === 'overview') return tabBody(project, retests, 'overview', extras);
   if (tab === 'attachments') return tabBody(project, retests, 'attachments', extras);
   if (tab === 'checklist') return tabBody(project, retests, 'checklist', extras);
+  if (tab === 'findings') return tabBody(project, retests, 'findings', extras);
   if (tab === 'pentest-notes') return tabBody(project, retests, 'pentest-notes', extras);
   if (tab === 'retests') {
     // The empty state carries its own "New retest"; only a populated list needs

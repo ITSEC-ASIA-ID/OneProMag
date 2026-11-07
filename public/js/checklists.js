@@ -3,7 +3,7 @@ import { icon } from './icons.js';
 import { canManageCatalog, state } from './state.js';
 import { closeDrawer } from './drawer.js';
 import { handleNav, openChecklistEditor } from './shell.js';
-import { showGuide } from './library.js';
+import { openGuideModal } from './library.js';
 import { confirmDialog, escapeHtml as h, fmtRelative, openModal, toast } from './ui.js';
 
 
@@ -223,8 +223,11 @@ export function bindChecklistBody(el, project, links, files, reload, onProgress 
     openAttachPicker(project, links, reload)
   );
 
+  // The guide comes to the engagement as a dialog: leaving the checklist you are
+  // half-way through to read one item is the wrong trade, and losing your place
+  // is exactly what the old jump to /tests did.
   el.querySelectorAll('[data-ck-guide]').forEach((btn) =>
-    btn.addEventListener('click', () => showGuide(btn.dataset.ckGuide))
+    btn.addEventListener('click', () => openGuideModal(btn.dataset.ckGuide))
   );
 
   el.querySelectorAll('[data-ck-help]').forEach((btn) =>

@@ -1740,3 +1740,70 @@ test('a checklist item names the guide that teaches it, and the guide names wher
     assert.ok(own.items >= 1, `${g.id} is asked by no item of ${own.checklistName}`);
   }
 });
+
+test('a project records its own findings, and only a lead can delete one', async () => {
+  // Findings on an engagement are claims we make to a client, not a copy of the
+  // reference library: they can start from a library entry and are edited after.
+  const user = await member();
+  const created = await call('POST /api/projects', user, {
+    body: { name: 'Findings walkthrough', clientId: 1 },
+  });
+  const id = created.project.id;
+
+  const made = await call('POST /api/projects/:id/findings', user, {
+    params: { id },
+    body: {
+      title: 'Password reset token is predictable',
+      severity: 'High',
+      description: 'Reset links are sequential per user id.',
+      impact: 'An attacker can reset any account.',
+      mitigation: 'Use 128 bits of CSPRNG.',
+      template: 'f-critical-auth-bypass',
+    },
+  });
+  assert.equal(made.finding.severity, 'High');
+  assert.equal(made.finding.status, 'Open', 'a new finding starts Open');
+  assert.equal(made.finding.template, 'f-critical-auth-bypass');
+  assert.ok(made.finding.createdByName, 'the author is named, not just numbered');
+
+  const listed = await call('GET /api/projects/:id/findings', user, { params: { id } });
+  assert.equal(listed.findings.length, 1);
+
+  const edited = await call('PATCH /api/findings/:id', user, {
+    params: { id: made.finding.id },
+    body: { status: 'Fixed' },
+  });
+  assert.equal(edited.finding.status, 'Fixed');
+
+  // A no-op save is not an edit: the project must not jump to the top of the list.
+  const before = (await call('GET /api/projects/:id', user, { params: { id } })).project.updatedAt;
+  const same = await call('PATCH /api/findings/:id', user, {
+    params: { id: made.finding.id },
+    body: { status: 'Fixed' },
+  });
+  assert.equal(same.finding.updatedAt, edited.finding.updatedAt);
+  const after = (await call('GET /api/projects/:id', user, { params: { id } })).project.updatedAt;
+  assert.equal(after, before, 'an unchanged save moved the project stamp');
+
+  await assert.rejects(
+    () => call('DELETE /api/findings/:id', user, { params: { id: made.finding.id } }),
+    { status: 403 }
+  );
+
+  const chief = await lead();
+  await call('DELETE /api/findings/:id', chief, { params: { id: made.finding.id } });
+  const empty = await call('GET /api/projects/:id/findings', user, { params: { id } });
+  assert.equal(empty.findings.length, 0);
+
+  // Unknown values are refused rather than stored: the four severities are the
+  // library's four, so a typo cannot invent a fifth colour.
+  await assert.rejects(
+    () => call('POST /api/projects/:id/findings', user, { params: { id }, body: { title: 'x', severity: 'Severe' } }),
+    { status: 400 }
+  );
+  await assert.rejects(() => call('POST /api/projects/:id/findings', user, { params: { id }, body: { title: '  ' } }), {
+    status: 400,
+  });
+
+  await call('DELETE /api/projects/:id', chief, { params: { id } });
+});

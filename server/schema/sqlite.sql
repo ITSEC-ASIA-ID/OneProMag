@@ -325,6 +325,26 @@ CREATE TABLE IF NOT EXISTS checklist_items (
 -- accepts because it tracks engagements rather than certifying them.
 -- ON DELETE RESTRICT makes that price visible: a template in use cannot be
 -- deleted, and the Admin panel says how many projects use it.
+-- What a tester actually found on this engagement. A row here is a claim we
+-- make to the client: a title, how bad it is, and what to do about it. It is
+-- deliberately NOT a second copy of the reference library — `template` names the
+-- library finding it was written from, so the text can start there and be
+-- edited here without the two ever having to agree.
+CREATE TABLE IF NOT EXISTS project_findings (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  project_id  INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  title       TEXT NOT NULL,
+  severity    TEXT NOT NULL DEFAULT 'Medium',
+  status      TEXT NOT NULL DEFAULT 'Open',
+  template    TEXT NOT NULL DEFAULT '',
+  description TEXT NOT NULL DEFAULT '',
+  impact      TEXT NOT NULL DEFAULT '',
+  mitigation  TEXT NOT NULL DEFAULT '',
+  created_by  INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  created_at  TEXT NOT NULL,
+  updated_at  TEXT NOT NULL DEFAULT ''
+);
+
 CREATE TABLE IF NOT EXISTS project_checklists (
   id           INTEGER PRIMARY KEY AUTOINCREMENT,
   project_id   INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,

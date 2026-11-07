@@ -1672,6 +1672,9 @@ async function createIndexes() {
     // project_id index narrows to the project and then filters; leading with status
     // as well lets the engine read only the open rows.
     'CREATE INDEX IF NOT EXISTS idx_retests_project_status ON retests(project_id, status)',
+    // A project's findings are read as one list, ordered by severity, every time
+    // the tab opens — and never scanned across projects.
+    'CREATE INDEX IF NOT EXISTS idx_project_findings_project ON project_findings(project_id)',
     // Nothing filters on expires_at today, so this index earns its place only
     // because expireSessions() sweeps by it — on boot and hourly.
     'CREATE INDEX IF NOT EXISTS idx_sessions_expires ON sessions(expires_at)',

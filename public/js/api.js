@@ -177,6 +177,13 @@ export const api = {
   savePentestNotes: (projectId, body) =>
     request('PUT', `/api/projects/${projectId}/pentest-notes`, { body }),
 
+  // What we found on one engagement. A separate resource from the reference
+  // library: `findings()` is the method, these are the claims about a project.
+  projectFindings: (projectId) => request('GET', `/api/projects/${projectId}/findings`),
+  createFinding: (projectId, payload) => request('POST', `/api/projects/${projectId}/findings`, payload),
+  updateFinding: (id, payload) => request('PATCH', `/api/findings/${id}`, payload),
+  deleteFinding: (id) => request('DELETE', `/api/findings/${id}`),
+
   // The reference libraries. Read-only, and small enough to hold: the pages
   // filter locally, so a search never waits on the network.
   tests: () => request('GET', '/api/tests'),

@@ -157,7 +157,7 @@ export const CHECKLIST_EDIT_PATH = (id) => `/admin/checklists/${id ? Number(id) 
  * spelled out, because the tab you were reading is part of the address — a
  * reload, a bookmark or a link sent to a colleague must land on it.
  */
-export const PROJECT_TABS = ['overview', 'notes', 'attachments', 'retests', 'checklist', 'pentest-notes'];
+export const PROJECT_TABS = ['overview', 'notes', 'attachments', 'retests', 'checklist', 'findings', 'pentest-notes'];
 
 export const PROJECT_PATH = (projectId, tab = 'overview') =>
   `/project/${Number(projectId) || 0}${tab && tab !== 'overview' ? `/${tab}` : ''}`;

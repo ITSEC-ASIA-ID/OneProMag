@@ -251,6 +251,23 @@ CREATE TABLE IF NOT EXISTS project_files (
 
 -- The catalogue of security checklists, owned by the Admin panel. `name` is
 -- unique because two templates called "OWASP Top 10 2021" help nobody.
+-- What a tester actually found on this engagement. See the SQLite schema for
+-- why this is not a copy of the reference library.
+CREATE TABLE IF NOT EXISTS project_findings (
+  id          SERIAL PRIMARY KEY,
+  project_id  INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  title       TEXT NOT NULL,
+  severity    TEXT NOT NULL DEFAULT 'Medium',
+  status      TEXT NOT NULL DEFAULT 'Open',
+  template    TEXT NOT NULL DEFAULT '',
+  description TEXT NOT NULL DEFAULT '',
+  impact      TEXT NOT NULL DEFAULT '',
+  mitigation  TEXT NOT NULL DEFAULT '',
+  created_by  INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  created_at  TEXT NOT NULL,
+  updated_at  TEXT NOT NULL DEFAULT ''
+);
+
 CREATE TABLE IF NOT EXISTS checklists (
   id           SERIAL PRIMARY KEY,
   name         TEXT NOT NULL UNIQUE,

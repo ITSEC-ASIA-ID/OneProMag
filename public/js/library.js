@@ -3,7 +3,7 @@ import { icon } from './icons.js';
 import { propLabel, propOptions } from './props.js';
 import { handleNav } from './shell.js';
 import { state } from './state.js';
-import { escapeHtml as h } from './ui.js';
+import { escapeHtml as h, openModal, toast } from './ui.js';
 
 
 /* ============================================================
@@ -183,7 +183,23 @@ function guideDetailHTML(g) {
         </div>
       </header>
 
-      <p class="guide-what">${h(g.what)}</p>
+      ${guideContentHTML(g)}
+
+      ${guideAskedHTML(g)}
+      ${guideFindingsHTML(g.id)}
+    </article>`;
+}
+
+
+/**
+ * What a guide says, without its header or its footers.
+ *
+ * Split out so the project checklist can open a guide as a dialog and the Tests
+ * page can show the same guide inside its detail panel: one body of text, two
+ * places to read it, and no chance of the two disagreeing.
+ */
+function guideContentHTML(g) {
+  return `<p class="guide-what">${h(g.what)}</p>
 
       <section class="guide-section">
         <h3 class="lib-h">How to test it</h3>
@@ -203,11 +219,41 @@ function guideDetailHTML(g) {
       <section class="guide-section">
         <h3 class="lib-h">Where people get it wrong</h3>
         ${bulletList(g.watch, 'is-watch')}
-      </section>
+      </section>`;
+}
 
-      ${guideAskedHTML(g)}
-      ${guideFindingsHTML(g.id)}
-    </article>`;
+
+/**
+ * The same guide, as a dialog.
+ *
+ * This is what a checklist row's "how to test this" opens. Jumping to /tests and
+ * losing the checklist you were half-way through is the wrong trade for someone
+ * reading one item: the guide is reference text, so it comes to the engagement
+ * instead of the engagement going to it. The footer keeps the old behaviour one
+ * click away for the times you DO want the full page.
+ */
+export async function openGuideModal(guideId) {
+  const guides = state.tests?.length ? state.tests : await loadGuides();
+  const g = guides.find((x) => x.id === guideId);
+  if (!g) {
+    toast('That guide is no longer in the library', 'err');
+    return;
+  }
+  openModal({
+    title: `${g.code} · ${g.title}`,
+    subtitle: g.checklistName || g.checklist || '',
+    wide: true,
+    body: `<article class="guide" data-guide-modal="${h(g.id)}">${guideContentHTML(g)}${guideAskedHTML(g)}</article>`,
+    footer: `<div class="spacer"></div>
+      <button type="button" class="btn" data-close>Close</button>
+      <button type="button" class="btn btn-primary" data-guide-open>${icon.shield(13)} Open in Tests</button>`,
+    onMount: (modal, closeFn) => {
+      modal.querySelector('[data-guide-open]').addEventListener('click', () => {
+        closeFn();
+        showGuide(g.id);
+      });
+    },
+  });
 }
 
 /**
@@ -320,11 +366,27 @@ export function bindTests(root) {
   });
 }
 
-export async function loadTests() {
+/**
+ * The guides, fetched once and kept.
+ *
+ * `loadTests` used to be the only way in, which meant a pop-up opened from a
+ * project page had no guides to show. Both go through here now, so whichever
+ * gets there first pays for the fetch and the other one reads `state.tests`.
+ */
+async function loadGuides() {
   if (!state.tests) {
-    const data = await api.tests();
-    state.tests = data.guides || [];
+    try {
+      const data = await api.tests();
+      state.tests = data.guides || [];
+    } catch {
+      state.tests = [];
+    }
   }
+  return state.tests;
+}
+
+export async function loadTests() {
+  await loadGuides();
   // The findings are needed for the cross-links; fetching them with the guides
   // means a link is never a dead end after a cold load of this page.
   if (!state.findings) {
