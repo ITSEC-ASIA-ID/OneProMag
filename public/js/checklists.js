@@ -1,6 +1,7 @@
 import { api } from './api.js';
 import { icon } from './icons.js';
 import { canManageCatalog, state } from './state.js';
+import { propLabel, propOptions } from './props.js';
 import { closeDrawer } from './drawer.js';
 import { handleNav, openChecklistEditor } from './shell.js';
 import { openGuideModal } from './library.js';
@@ -450,309 +451,109 @@ async function openAttachPicker(project, links, reload) {
    on its own page (`/admin/checklists/<id>`), because a real list is a hundred
    rows tall and a modal cannot hold it.
    ============================================================ */
-function templateRowHTML(c) {
+/* ============================================================
+   Admin panel → Checklists & Tests
+   ------------------------------------------------------------
+   The page is the categories, and each category lists the checklists written
+   for it. A checklist opens on its own page, where its categories and the tests
+   inside them are edited — one click, one job.
+
+   The buckets come from Admin → Properties (`propOptions('category')`), the same
+   list a project is filed under, so adding "MASTG" or "Thick client" there is all
+   it takes to get a bucket here. No framework is named in this file.
+   ============================================================ */
+
+function checklistRowHTML(c) {
   const items = Number(c.itemCount) || 0;
   const used = Number(c.projectCount) || 0;
-  return `<tr data-ck-row="${c.id}">
-    <td class="dev-name">
-      <button type="button" class="ck-open" data-ck-edit="${c.id}">${h(c.name)}</button>
-      ${
-        c.category || c.isDefault
-          ? `<span class="ck-marks">${
-              c.category ? `<span class="badge badge-outline" data-tone="slate">${h(c.category)}</span>` : ''
-            }${
-              c.isDefault
-                ? `<span class="badge badge-outline" data-tone="amber"><span class="dot"></span>default</span>`
-                : ''
-            }</span>`
+  const meta = [`${items} test${items === 1 ? '' : 's'}`];
+  if (used) meta.push(`in ${used} project${used === 1 ? '' : 's'}`);
+  return `<li class="ck-row">
+    <button type="button" class="ck-row-main" data-ck-open="${c.id}">
+      <span class="ck-row-name">${h(c.name)}${
+        c.isDefault
+          ? '<span class="badge badge-outline" data-tone="amber"><span class="dot"></span>default</span>'
           : ''
-      }${c.description ? `<span class="ck-sub">${h(c.description)}</span>` : ''}
-    </td>
-    <td class="dev-mono-cell">${items} item${items === 1 ? '' : 's'}</td>
-    <td class="dev-acts"><span class="dev-acts-inner">
-      <button type="button" class="btn btn-icon" data-ck-edit="${c.id}" title="Open" aria-label="Edit ${h(
-        c.name
-      )}">${icon.edit(13)}</button>
+      }</span>
+      ${c.description ? `<span class="ck-row-desc">${h(c.description)}</span>` : ''}
+      <span class="ck-row-meta">${meta.join(' · ')}</span>
+    </button>
+    <span class="ck-row-acts">
       <button type="button" class="btn btn-icon btn-icon-danger" data-ck-del="${c.id}"
         title="${used ? `Attached to ${used} project${used === 1 ? '' : 's'} — detach it first` : 'Delete'}"
         aria-label="Delete ${h(c.name)}" ${used ? 'disabled' : ''}>${icon.trash(13)}</button>
-    </span></td>
-  </tr>`;
+    </span>
+  </li>`;
 }
 
-
-function sectionsHTML(checklists) {
+function categorySectionHTML(label, rows) {
   return `<section class="admin-sec">
     <div class="admin-sec-head">
-      <h3>Templates</h3>
-      <span class="admin-count">${checklists.length}</span>
-      <p>A project links a template rather than copying it, so an edit here reaches every project at once.</p>
+      <h3>${h(label)}</h3>
+      <span class="admin-count">${rows.length}</span>
     </div>
     ${
-      checklists.length
-        ? `<div class="dev-tablewrap">
-             <table class="dev-table">
-               <thead><tr>
-                 <th class="dev-h-label"><span class="dev-h-inner"><span class="dev-h-label">Checklist</span></span></th>
-                 <th class="dev-h-key"><span class="dev-h-inner"><span class="dev-h-label">Items</span></span></th>
-                 <th class="dev-h-acts"><span class="sr-only">Actions</span></th>
-               </tr></thead>
-               <tbody>${checklists.map(templateRowHTML).join('')}</tbody>
-             </table>
-           </div>`
-        : `<div class="empty">
-             <div class="icon">${icon.shield(24)}</div>
-             <h3>No checklist templates yet</h3>
-             <p>Write one item per line of the threat you are checking for, and every engagement can be measured against it.</p>
-           </div>`
+      rows.length
+        ? `<ul class="ck-list">${rows.map(checklistRowHTML).join('')}</ul>`
+        : `<p class="note-line">Nothing here yet. A checklist filed under this category lands here.</p>`
     }
   </section>`;
 }
 
-
-/* ============================================================
-   Admin panel → Checklists & Tests
-   ------------------------------------------------------------
-   One page, because a checklist is only ever used through the tests inside it and
-   every test is only usable through the guide that shows how. The shape on screen
-   is the shape in the database: a checklist holds categories (code + title), a
-   category holds its tests, and a test names the guide that teaches it.
-
-   The category is the section prefix the rows already carry (`A01:2025 — Broken
-   Access Control`), so grouping is a reading of the data rather than a second
-   table that could disagree with it.
-   ============================================================ */
-
-/** `A01:2025 — Broken Access Control` → `{ code: 'A01:2025', title: 'Broken Access Control' }`. */
-function categoryOfSection(section) {
-  const raw = String(section || '').trim();
-  const split = /^(.*?)\s+[—–]\s+(.*)$/.exec(raw);
-  if (split) return { code: split[1].trim(), title: split[2].trim() };
-  return { code: raw, title: '' };
-}
-
-/** Items grouped by section, in the order the server sent them. */
-function byCategory(items) {
-  const groups = new Map();
-  for (const item of items) {
-    const key = item.section || '';
-    if (!groups.has(key)) groups.set(key, []);
-    groups.get(key).push(item);
+/** Checklists bucketed by the category they are filed under. */
+function catalogHTML(checklists) {
+  const buckets = new Map(propOptions('category').map((o) => [o.value, []]));
+  const loose = [];
+  for (const c of checklists) {
+    const key = String(c.category || '');
+    if (buckets.has(key)) buckets.get(key).push(c);
+    else loose.push(c);
   }
-  return [...groups.entries()];
+  const sections = [];
+  for (const [value, rows] of buckets) {
+    sections.push(categorySectionHTML(propLabel('category', value) || value || 'No category', rows));
+  }
+  if (loose.length) sections.push(categorySectionHTML('No category', loose));
+  return sections.join('');
 }
 
 export function checklistsPageHTML() {
   return `<div class="admin">
     <div class="admin-head">
       <p>
-        A checklist is a set of categories; a category holds the tests to run; every
-        test names the guide that shows how to run it. Editing a category's tests
-        reaches every project that linked the checklist, because a project links it
-        rather than copying it.
+        Every checklist sits under the category it was written for. Open one to see its
+        categories and the tests inside them. A project links a checklist rather than
+        copying it, so an edit here reaches every engagement at once.
       </p>
       <span class="admin-head-actions">
+        <button class="btn btn-sm" data-go-guides>Test guides</button>
         <button class="btn btn-sm" data-catalog-new="checklists">${icon.plus(13)} Checklist</button>
-        <button class="btn btn-sm" data-catalog-new="guides">${icon.plus(13)} Test guide</button>
       </span>
     </div>
-    <div id="ck-picker" class="catalog-switch" role="tablist" aria-label="Checklists"></div>
     <div id="ck-admin-body"><div class="empty"><h3>Loading…</h3></div></div>
-    <div id="gd-admin-body"></div>
   </div>`;
 }
 
-/** The template this page is showing. Held here, not in the URL: it is a filter. */
-let shownChecklistId = 0;
-
-function pickerHTML(checklists) {
-  return checklists
-    .map(
-      (c) =>
-        `<button class="chip${
-          Number(c.id) === shownChecklistId ? ' active' : ''
-        }" type="button" role="tab" aria-selected="${
-          Number(c.id) === shownChecklistId
-        }" data-ck-pick="${c.id}" title="${h(c.description || c.name)}">${h(c.name)}<span class="n">${
-          Number(c.itemCount) || 0
-        }</span></button>`
-    )
-    .join('');
-}
-
-function itemRowHTML(item, guideById) {
-  const guide = item.guide ? guideById.get(item.guide) : null;
-  return `<tr data-item-row="${item.id}">
-    <td class="dev-name">
-      <button type="button" class="ck-open" data-item-edit="${item.id}">${h(item.title)}</button>
-      ${item.help ? `<span class="ck-sub">${h(item.help)}</span>` : ''}
-    </td>
-    <td class="dev-mono-cell">${
-      guide
-        ? `<button type="button" class="link-btn" data-item-guide="${h(guide.id)}">${h(
-            guide.code || guide.title
-          )}</button>`
-        : item.guide
-          ? `<span class="note-line">${h(item.guide)}</span>`
-          : '<span class="note-line">No guide yet</span>'
-    }</td>
-    <td class="dev-acts"><span class="dev-acts-inner">
-      <button type="button" class="btn btn-icon" data-item-edit="${item.id}" title="Edit test"
-        aria-label="Edit ${h(item.title)}">${icon.edit(13)}</button>
-      <button type="button" class="btn btn-icon btn-icon-danger" data-item-del="${item.id}"
-        title="Delete" aria-label="Delete ${h(item.title)}">${icon.trash(13)}</button>
-    </span></td>
-  </tr>`;
-}
-
-function categoryBlockHTML(section, items, guideById) {
-  const { code, title } = categoryOfSection(section);
-  return `<section class="admin-cat" data-admin-cat="${h(section)}">
-    <div class="admin-cat-head">
-      ${code ? `<span class="badge badge-outline" data-tone="slate">${h(code)}</span>` : ''}
-      <h4>${h(title || code || 'Uncategorised')}</h4>
-      <span class="admin-count">${items.length}</span>
-    </div>
-    <div class="dev-tablewrap">
-      <table class="dev-table">
-        <thead><tr>
-          <th class="dev-h-label"><span class="dev-h-inner"><span class="dev-h-label">Test</span></span></th>
-          <th class="dev-h-key"><span class="dev-h-inner"><span class="dev-h-label">Test guide</span></span></th>
-          <th class="dev-h-acts"><span class="sr-only">Actions</span></th>
-        </tr></thead>
-        <tbody>${items.map((item) => itemRowHTML(item, guideById)).join('')}</tbody>
-      </table>
-    </div>
-  </section>`;
-}
-
-function treeHTML(checklist, guides) {
-  const guideById = new Map(guides.map((g) => [g.id, g]));
-  const items = checklist.items || [];
-  if (!items.length) {
-    return `<section class="admin-sec">
-      <div class="empty">
-        <div class="icon">${icon.shield(24)}</div>
-        <h3>This checklist has no tests yet</h3>
-        <p>Open the checklist to add categories and the tests inside them.</p>
-      </div>
-    </section>`;
-  }
-  const counted = byCategory(items);
-  return `<section class="admin-sec">
-    <div class="admin-sec-head">
-      <h3>${h(checklist.name)}</h3>
-      <span class="admin-count">${items.length} tests · ${counted.length} categories</span>
-      <p>Each row's guide is the one that teaches it — read it here, or open the checklist to change the rows.</p>
-      <span class="admin-head-actions">
-        <button class="btn btn-sm" data-ck-open="${checklist.id}">${icon.edit(13)} Edit checklist</button>
-      </span>
-    </div>
-    ${counted.map(([section, rows]) => categoryBlockHTML(section, rows, guideById)).join('')}
-  </section>`;
-}
-
-/**
- * Paints the checklist, then the guides.
- *
- * One fetch for both halves: the tree needs the guides to print a guide's code, and
- * the guide list needs the checklists to say where each one is asked.
- */
-export async function refreshChecklists() {
-  const host = document.getElementById('ck-admin-body');
-  const guideHost = document.getElementById('gd-admin-body');
-  if (!host) return;
-
-  let checklists = [];
-  let guides = [];
-  let wstg = [];
-  try {
-    [{ checklists }, { guides, wstg }] = await Promise.all([api.checklists(), api.tests()]);
-  } catch (err) {
-    host.innerHTML = `<div class="empty"><h3>Could not load the catalogue</h3><p>${h(err.message)}</p></div>`;
-    return;
-  }
-
-  if (!checklists.length) {
-    host.innerHTML = `<div class="empty"><h3>No checklists yet</h3><p>Start with a template, then add the categories and tests an engagement runs.</p></div>`;
-    if (guideHost) guideHost.innerHTML = '';
-    return;
-  }
-
-  const known = checklists.some((c) => Number(c.id) === shownChecklistId);
-  if (!known) {
-    shownChecklistId = Number(
-      (checklists.find((c) => c.isDefault) || checklists[0]).id
-    );
-  }
-
-  const picker = document.getElementById('ck-picker');
-  if (picker) picker.innerHTML = pickerHTML(checklists);
-  document.querySelectorAll('[data-ck-pick]').forEach((b) => {
-    b.onclick = () => {
-      shownChecklistId = Number(b.dataset.ckPick);
-      refreshChecklists();
-    };
-  });
-
-  let checklist = null;
-  try {
-    ({ checklist } = await api.checklist(shownChecklistId));
-  } catch (err) {
-    host.innerHTML = `<div class="empty"><h3>Could not load this checklist</h3><p>${h(err.message)}</p></div>`;
-    return;
-  }
-
-  host.innerHTML = treeHTML(checklist, guides);
-  if (guideHost) {
-    guideHost.innerHTML = guidesSectionHTML(guides);
-    bindGuides(guides, checklists, wstg);
-  }
-  bindTree(checklist, guides, checklists, wstg);
-
-  document
-    .querySelector('[data-catalog-new="checklists"]')
-    ?.addEventListener('click', () => openChecklistEditor(null), { once: true });
-  document
-    .querySelector('[data-catalog-new="guides"]')
-    ?.addEventListener('click', () => openGuideEditor(null, checklists, wstg), { once: true });
-}
-
-/** Item rows: edit in a dialog, and jump to the guide that teaches the row. */
-function bindTree(checklist, guides, checklists, wstg) {
+function bindCatalog(checklists) {
   const host = document.getElementById('ck-admin-body');
   if (!host) return;
-  const byId = new Map((checklist.items || []).map((i) => [Number(i.id), i]));
-
-  host.querySelector('[data-ck-open]')?.addEventListener('click', () =>
-    openChecklistEditor(checklist.id)
+  host.querySelectorAll('[data-ck-open]').forEach((b) =>
+    b.addEventListener('click', () => openChecklistEditor(Number(b.dataset.ckOpen)))
   );
-
-  host.querySelectorAll('[data-item-guide]').forEach((b) =>
-    b.addEventListener('click', () => {
-      const guide = guides.find((g) => g.id === b.dataset.itemGuide);
-      if (guide) openGuideEditor(guide, checklists, wstg);
-    })
-  );
-  host.querySelectorAll('[data-item-edit]').forEach((b) =>
-    b.addEventListener('click', () => {
-      const item = byId.get(Number(b.dataset.itemEdit));
-      if (item) openItemEditor(item);
-    })
-  );
-  host.querySelectorAll('[data-item-del]').forEach((b) =>
+  host.querySelectorAll('[data-ck-del]').forEach((b) =>
     b.addEventListener('click', async () => {
-      const item = byId.get(Number(b.dataset.itemDel));
-      if (!item) return;
+      const row = checklists.find((c) => Number(c.id) === Number(b.dataset.ckDel));
+      if (!row) return;
+      const items = Number(row.itemCount) || 0;
       const ok = await confirmDialog({
-        title: 'Delete this test?',
-        message: `"${item.title}" will be removed from ${checklist.name}. Projects using this checklist lose that row, and the answers on it.`,
-        confirmLabel: 'Delete test',
+        title: 'Delete this checklist?',
+        message: `"${row.name}" and its ${items} item${items === 1 ? '' : 's'} will be deleted. Projects that linked it lose the list.`,
+        confirmLabel: 'Delete checklist',
       });
       if (!ok) return;
       try {
-        await api.deleteChecklistItem(item.id);
-        toast('Test deleted');
+        await api.deleteChecklist(row.id);
+        toast('Checklist deleted');
         await refreshChecklists();
       } catch (err) {
         toast(err.message, 'err');
@@ -761,124 +562,98 @@ function bindTree(checklist, guides, checklists, wstg) {
   );
 }
 
-/** One row of a checklist, edited where it sits. */
-function openItemEditor(item) {
-  const { code, title } = categoryOfSection(item.section);
-  const modal = openModal({
-    title: 'Edit test',
-    subtitle: [code, title].filter(Boolean).join(' · '),
-    wide: true,
-    initialFocus: '#ci-title',
-    body: `<div class="field">
-        <label for="ci-title">Test</label>
-        <input id="ci-title" class="input" value="${h(item.title)}">
-      </div>
-      <div class="field">
-        <label for="ci-section">Category</label>
-        <input id="ci-section" class="input" value="${h(item.section || '')}">
-      </div>
-      <div class="field">
-        <label for="ci-help">What passing looks like</label>
-        <textarea id="ci-help" class="input" rows="3">${h(item.help || '')}</textarea>
-      </div>
-      <p class="note-line">The category is what links this row to the standard and to its guide${
-        item.guide ? ` — currently <strong>${h(item.guide)}</strong>` : ''
-      }. Renaming the category moves the row, and its guide link, with it.</p>`,
-    footer: `<button class="btn" data-cancel>Cancel</button>
-             <button class="btn btn-primary" data-save>Save test</button>`,
-  });
-  const value = (id) => modal.modal.querySelector(`#ci-${id}`).value.trim();
-  modal.modal.querySelector('[data-cancel]').addEventListener('click', () => modal.close());
-  modal.modal.querySelector('[data-save]').addEventListener('click', async (event) => {
-    event.currentTarget.disabled = true;
-    try {
-      await api.updateChecklistItem(item.id, {
-        title: value('title'),
-        section: value('section'),
-        help: value('help'),
-      });
-      modal.close();
-      toast('Test saved');
-      await refreshChecklists();
-    } catch (err) {
-      event.currentTarget.disabled = false;
-      toast(err.message, 'err');
-    }
-  });
+export async function refreshChecklists() {
+  const host = document.getElementById('ck-admin-body');
+  if (!host) return;
+  let checklists = [];
+  try {
+    ({ checklists } = await api.checklists());
+  } catch (err) {
+    host.innerHTML = `<div class="empty"><h3>Could not load the checklists</h3><p>${h(err.message)}</p></div>`;
+    return;
+  }
+  host.innerHTML = checklists.length
+    ? catalogHTML(checklists)
+    : `<div class="empty"><h3>No checklists yet</h3><p>Write one item per line of the threat you are checking for, and every engagement can be measured against it.</p></div>`;
+  bindCatalog(checklists);
+  document
+    .querySelector('[data-go-guides]')
+    ?.addEventListener('click', () => handleNav('guides'), { once: true });
+  document
+    .querySelector('[data-catalog-new="checklists"]')
+    ?.addEventListener('click', () => openChecklistEditor(null), { once: true });
 }
 
 /* ------------------------------------------------------------
-   The guides half of the same page
+   Admin panel → Test guides: the other half of a checklist, filed under the same
+   categories, so "how it is tested" is found where "what must be tested" is.
    ------------------------------------------------------------ */
 
 function guideRowHTML(g) {
   const asked = (g.asked || []).reduce((n, a) => n + Number(a.items || 0), 0);
-  const words = [g.code, g.wstg, g.checklistName].filter(Boolean).join(' · ');
-  return `<tr data-gd-row="${h(g.id)}">
-    <td class="dev-name">
-      <button type="button" class="ck-open" data-gd-edit="${h(g.id)}">${h(g.title)}</button>
-      ${
-        g.category
-          ? `<span class="ck-marks"><span class="badge badge-outline" data-tone="slate">${h(
-              g.category
-            )}</span></span>`
-          : ''
-      }${words ? `<span class="ck-sub">${h(words)}</span>` : ''}
-    </td>
-    <td class="dev-mono-cell">${
-      asked
-        ? `${asked} test${asked === 1 ? '' : 's'} in ${g.asked.length} list${g.asked.length === 1 ? '' : 's'}`
-        : 'not asked yet'
-    }</td>
-    <td class="dev-acts"><span class="dev-acts-inner">
-      <button type="button" class="btn btn-icon" data-gd-edit="${h(g.id)}" title="Open" aria-label="Edit ${h(
-        g.title
-      )}">${icon.edit(13)}</button>
+  const meta = [
+    g.code,
+    g.wstg,
+    asked ? `asked by ${asked} test${asked === 1 ? '' : 's'}` : 'not asked yet',
+  ]
+    .filter(Boolean)
+    .join(' · ');
+  return `<li class="ck-row">
+    <button type="button" class="ck-row-main" data-gd-edit="${h(g.id)}">
+      <span class="ck-row-name">${h(g.title)}</span>
+      ${g.checklistName ? `<span class="ck-row-desc">${h(g.checklistName)}</span>` : ''}
+      <span class="ck-row-meta">${h(meta)}</span>
+    </button>
+    <span class="ck-row-acts">
       <button type="button" class="btn btn-icon btn-icon-danger" data-gd-del="${h(g.id)}"
         title="Delete" aria-label="Delete ${h(g.title)}">${icon.trash(13)}</button>
-    </span></td>
-  </tr>`;
+    </span>
+  </li>`;
 }
 
-function guidesSectionHTML(guides) {
-  return `<section class="admin-sec">
-    <div class="admin-sec-head">
-      <h3>Test guides</h3>
-      <span class="admin-count">${guides.length}</span>
-      <p>What a pentester reads mid-engagement. Deleting one is refused while a test still points at it.</p>
+function guideSectionsHTML(guides) {
+  const buckets = new Map(propOptions('category').map((o) => [o.value, []]));
+  const loose = [];
+  for (const g of guides) {
+    const key = String(g.category || '');
+    if (buckets.has(key)) buckets.get(key).push(g);
+    else loose.push(g);
+  }
+  const sections = [];
+  const paint = (label, rows) =>
+    sections.push(`<section class="admin-sec">
+      <div class="admin-sec-head"><h3>${h(label)}</h3><span class="admin-count">${rows.length}</span></div>
+      <ul class="ck-list">${rows.map(guideRowHTML).join('')}</ul>
+    </section>`);
+  for (const [value, rows] of buckets) {
+    if (rows.length) paint(propLabel('category', value) || value, rows);
+  }
+  if (loose.length) paint('No category', loose);
+  return (
+    sections.join('') ||
+    `<div class="empty"><h3>No test guides yet</h3><p>Write how you test one part of a checklist: what to send, what passing looks like, and the mistakes that produce a false positive.</p></div>`
+  );
+}
+
+export function guidesPageHTML() {
+  return `<div class="admin">
+    <div class="admin-head">
+      <p>
+        One guide per part of a checklist: what to send, what passing looks like, and the
+        false positives to avoid. Deleting one is refused while a test still points at it.
+      </p>
       <span class="admin-head-actions">
-        <button class="btn btn-sm" data-catalog-tab="wstg">WSTG categories</button>
+        <button class="btn btn-sm" data-catalog-new="guides">${icon.plus(13)} Test guide</button>
+        <button class="btn btn-sm" data-catalog-new="wstg">WSTG data</button>
       </span>
     </div>
-    ${
-      guides.length
-        ? `<div class="dev-tablewrap">
-             <table class="dev-table">
-               <thead><tr>
-                 <th class="dev-h-label"><span class="dev-h-inner"><span class="dev-h-label">Guide</span></span></th>
-                 <th class="dev-h-key"><span class="dev-h-inner"><span class="dev-h-label">Asked by</span></span></th>
-                 <th class="dev-h-acts"><span class="sr-only">Actions</span></th>
-               </tr></thead>
-               <tbody>${guides.map(guideRowHTML).join('')}</tbody>
-             </table>
-           </div>`
-        : `<div class="empty">
-             <div class="icon">${icon.book(24)}</div>
-             <h3>No test guides yet</h3>
-             <p>Write how you test one part of a checklist: what to send, what passing looks like, and the mistakes that produce a false positive.</p>
-           </div>`
-    }
-  </section>`;
+    <div id="gd-admin-body"><div class="empty"><h3>Loading…</h3></div></div>
+  </div>`;
 }
 
 function bindGuides(guides, checklists, wstg) {
   const host = document.getElementById('gd-admin-body');
   if (!host) return;
-  document.querySelector('[data-catalog-tab="wstg"]')?.addEventListener(
-    'click',
-    () => handleNav('wstg'),
-    { once: true }
-  );
   host.querySelectorAll('[data-gd-edit]').forEach((b) =>
     b.addEventListener('click', () => {
       const guide = guides.find((g) => g.id === b.dataset.gdEdit);
@@ -898,7 +673,7 @@ function bindGuides(guides, checklists, wstg) {
       try {
         await api.deleteGuide(guide.id);
         toast('Guide deleted');
-        await refreshChecklists();
+        await refreshGuides();
       } catch (err) {
         toast(err.message, 'err');
       }
@@ -906,12 +681,26 @@ function bindGuides(guides, checklists, wstg) {
   );
 }
 
-/**
- * Kept for the callers that were built around two tabs: the guides are part of the
- * catalogue page now, so refreshing them means painting that page.
- */
 export async function refreshGuides() {
-  await refreshChecklists();
+  const host = document.getElementById('gd-admin-body');
+  if (!host) return;
+  let guides = [];
+  let wstg = [];
+  let checklists = [];
+  try {
+    [{ guides, wstg }, { checklists }] = await Promise.all([api.tests(), api.checklists()]);
+  } catch (err) {
+    host.innerHTML = `<div class="empty"><h3>Could not load the guides</h3><p>${h(err.message)}</p></div>`;
+    return;
+  }
+  host.innerHTML = guideSectionsHTML(guides);
+  bindGuides(guides, checklists, wstg);
+  document
+    .querySelector('[data-catalog-new="guides"]')
+    ?.addEventListener('click', () => openGuideEditor(null, checklists, wstg), { once: true });
+  document
+    .querySelector('[data-catalog-new="wstg"]')
+    ?.addEventListener('click', () => handleNav('wstg'), { once: true });
 }
 
 /** One guide, in a dialog: six short fields and four lists, one line each. */

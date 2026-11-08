@@ -1,6 +1,6 @@
 import { adminHTML, bindAdmin } from './admin.js';
 import { projectPageHTML } from './project-page.js';
-import { checklistEditorHTML, checklistsPageHTML, wstgPageHTML } from './checklists.js';
+import { checklistEditorHTML, checklistsPageHTML, guidesPageHTML, wstgPageHTML } from './checklists.js';
 import { bindFindings, bindTests, findingsPageHTML, testsPageHTML } from './library.js';
 import { bindDevices, devicesHTML } from './devices.js';
 import { bindDirectory, directoryHTML } from './directory.js';
@@ -403,11 +403,11 @@ export function mountContent() {
     setTitle(NAV.checklists.title, NAV.checklists.sub);
     return;
   }
-  // The guides are the second half of the catalogue page, so both nav ids paint
-  // the same page: a template says what must be checked, a guide says how.
+  // The other half of the catalogue: a checklist says what must be tested, a guide
+  // says how. Filed under the same categories, on a page of its own.
   if (state.nav === 'guides') {
-    content.innerHTML = checklistsPageHTML();
-    setTitle(NAV.checklists.title, NAV.guides.sub);
+    content.innerHTML = guidesPageHTML();
+    setTitle(NAV.guides.title, NAV.guides.sub);
     return;
   }
   if (state.nav === 'wstg') {
