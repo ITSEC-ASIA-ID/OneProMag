@@ -55,7 +55,7 @@ export function sidebarHTML() {
       ${navBtn('mineActive', icon.user(), 'My active projects', s.mineActive ?? 0)}
       ${navBtn('mineAll', icon.layers(16), 'My all projects')}
       <div class="nav-divider"></div>
-      ${navBtn('tests', icon.shield(16), 'Tests')}
+      ${navBtn('tests', icon.shield(16), 'Tests Guide')}
       ${navBtn('findings', icon.flag(), 'Findings')}
 
       ${
@@ -64,7 +64,7 @@ export function sidebarHTML() {
              ${navBtn('clients', icon.building(16), 'Clients & apps', s.clients ?? 0, 'admin')}
              ${navBtn('users', icon.userCheck(16), 'Manage users', userCount, 'admin')}
              ${navBtn('properties', icon.tag(), 'Properties', propKeys('category').length + propKeys('status').length, 'admin')}
-             ${navBtn('checklists', icon.shield(16), 'Checklists', undefined, 'admin')}`
+             ${navBtn('checklists', icon.shield(16), 'Checklists & Tests', undefined, 'admin')}`
           : ''
       }
 

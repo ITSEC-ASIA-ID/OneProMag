@@ -96,7 +96,7 @@ export const NAV = {
     sub: 'The categories and statuses a project can carry',
   },
   checklists: {
-    title: 'Checklists',
+    title: 'Checklists & Tests',
     sub: 'What an engagement is measured against, and the guides that teach it',
   },
   // The same admin page, second tab: the twin of /tests, from the side that can
@@ -116,7 +116,7 @@ export const NAV = {
   // failure looks like once you have one. Readable by anyone signed in, because
   // knowing how to test something is not a privilege.
   tests: {
-    title: 'Tests',
+    title: 'Tests Guide',
     sub: 'How to test each area of a checklist, step by step',
   },
   findings: {
