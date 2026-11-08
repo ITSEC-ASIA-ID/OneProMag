@@ -1,7 +1,7 @@
 import { db } from '../db.js';
 import { HttpError, nowISO } from '../auth.js';
-import { COMMON_FINDINGS } from '../knowledge.js';
-import { isWstgCode, wstgCategoryCode, wstgTitle, wstgUrl, WSTG_CATEGORIES } from '../wstg.js';
+import { COMMON_FINDINGS, WSTG_SHAPE } from '../knowledge.js';
+import { forgetWstg, wstgIndex, wstgUrlOf } from '../wstg-store.js';
 import { requireCatalogManager, requireDeleter } from '../shared.js';
 
 /* ============================================================
@@ -65,6 +65,11 @@ function parseList(raw) {
   }
 }
 
+/** A WSTG directory as the site spells it, without the slashes a URL adds. */
+function dirOf(value) {
+  return text(value, 120).replace(/^\/+|\/+$/g, '');
+}
+
 /** `A11:2025` → `a11-2025`, the id a citation can carry safely. */
 function slugOf(value) {
   return String(value ?? '')
@@ -75,15 +80,18 @@ function slugOf(value) {
     .slice(0, 60);
 }
 
-function shapeGuide(row) {
+function shapeGuide(row, index) {
+  // A citation, resolved here so a page never has to build a URL for it. The
+  // tables are the truth, so a row naming a category an admin deleted simply
+  // renders without a link instead of pointing at a page that no longer matches.
+  const cite = wstgUrlOf(index, row.wstg || '');
   return {
     id: row.id,
     code: row.code || '',
     area: row.area || '',
-    // A citation, resolved here so a page never has to build a URL for it.
     wstg: row.wstg || '',
-    wstgTitle: wstgTitle(row.wstg || ''),
-    wstgUrl: wstgUrl(row.wstg || ''),
+    wstgTitle: cite.title,
+    wstgUrl: cite.url,
     title: row.title,
     what: row.what || '',
     steps: parseList(row.steps),
@@ -108,7 +116,7 @@ async function checklistById(id) {
   return list;
 }
 
-async function guidesWithChecklist() {
+async function guidesWithChecklist(index) {
   const rows = await db.all(
     `SELECT g.*, c.name AS checklist_name, c.category AS checklist_category
        FROM test_guides g
@@ -117,7 +125,7 @@ async function guidesWithChecklist() {
   );
   const asked = await askedWhere();
   return rows.map((row) => {
-    const guide = shapeGuide(row);
+    const guide = shapeGuide(row, index);
     return {
       ...guide,
       checklistName: row.checklist_name || '',
@@ -161,7 +169,7 @@ async function askedWhere() {
  * `area` is not an input: it is the checklist's category, and a second field a
  * human could set differently is a second vocabulary to keep in step.
  */
-async function nextGuide(body, row) {
+async function nextGuide(body, row, index) {
   const checklistId =
     body.checklistId === undefined || body.checklistId === null || body.checklistId === ''
       ? row.checklist_id
@@ -171,9 +179,18 @@ async function nextGuide(body, row) {
   // link on a published page, and a typo would render as a dead one.
   let wstg = row.wstg || '';
   if (body.wstg !== undefined) {
-    if (body.wstg === '' || body.wstg === null) wstg = '';
-    else if (isWstgCode(body.wstg)) wstg = wstgCategoryCode(body.wstg);
-    else throw new HttpError(400, 'A WSTG citation is one of the twelve categories, like WSTG-ATHZ');
+    const wanted_ = String(body.wstg ?? '')
+      .trim()
+      .toUpperCase();
+    if (!wanted_) wstg = '';
+    else if (index.byCategory.has(wanted_)) wstg = wanted_;
+    else if (WSTG_SHAPE.test(wanted_) || wanted_.startsWith('WSTG-')) {
+      // A case id (`WSTG-ATHZ-04`) is a real thing, but a guide covers a
+      // category: say so instead of guessing which one it meant.
+      throw new HttpError(400, `A guide cites a category, not a test case — pick ${wanted_.split('-').slice(0, 2).join('-')} or another category`);
+    } else {
+      throw new HttpError(400, 'A WSTG citation is a category from the WSTG page, like WSTG-ATHZ');
+    }
   }
   return {
     code: body.code === undefined ? row.code || '' : text(body.code, 40),
@@ -190,17 +207,21 @@ async function nextGuide(body, row) {
 }
 
 export const routes = {
-  'GET /api/tests': async () => ({
-    guides: await guidesWithChecklist(),
-    // The twelve categories travel with the guides so the editor can offer them
-    // without a second call, and a client never hard-codes OWASP's vocabulary.
-    wstg: WSTG_CATEGORIES.map(({ code, title }) => ({ code, title })),
-  }),
+  'GET /api/tests': async () => {
+    const index = await wstgIndex();
+    return {
+      guides: await guidesWithChecklist(index),
+      // The categories travel with the guides so the editor can offer them without
+      // a second call, and a client never hard-codes OWASP's vocabulary.
+      wstg: index.categories.map(({ code, title }) => ({ code, title })),
+    };
+  },
 
   'POST /api/tests': async (ctx) => {
     requireCatalogManager(ctx);
     const body = ctx.body || {};
-    const next = await nextGuide(body, {});
+    const index = await wstgIndex();
+    const next = await nextGuide(body, {}, index);
     const seed = slugOf(next.code) || slugOf(next.title);
     if (!seed) throw new HttpError(400, 'A guide needs a code, like A11:2025, or a title');
     // The id is a citation: `checklist_items.guide_key` and a finding's
@@ -233,14 +254,15 @@ export const routes = {
         stamp,
       ]
     );
-    const guide = (await guidesWithChecklist()).find((g) => g.id === id);
+    const guide = (await guidesWithChecklist(index)).find((g) => g.id === id);
     return { guide };
   },
 
   'PATCH /api/tests/:id': async (ctx) => {
     requireCatalogManager(ctx);
     const row = await guideRow(ctx.params.id);
-    const next = await nextGuide(ctx.body || {}, row);
+    const index = await wstgIndex();
+    const next = await nextGuide(ctx.body || {}, row, index);
     await db.run(
       `UPDATE test_guides
           SET code = ?, area = ?, wstg = ?, title = ?, checklist_id = ?, what = ?,
@@ -261,7 +283,7 @@ export const routes = {
         row.id,
       ]
     );
-    const guide = (await guidesWithChecklist()).find((g) => g.id === row.id);
+    const guide = (await guidesWithChecklist(index)).find((g) => g.id === row.id);
     return { guide };
   },
 
@@ -294,11 +316,175 @@ export const routes = {
     return { ok: true, title: row.title };
   },
 
+
+  /* ============================================================
+     The WSTG itself
+     ------------------------------------------------------------
+     Twelve categories and 116 cases, as tables. The method used to be a module,
+     which meant a typo OWASP had already fixed on their site needed a release
+     from us; here an admin corrects it and the citation on every guide, the
+     checklist template and every project row follow on the next read.
+
+     The codes are the identity: `test_guides.wstg` cites a category, and a
+     checklist row carries a case code in its title. Renaming is therefore a
+     title/slug edit, and an id is never rewritten.
+     ============================================================ */
+
+  'GET /api/wstg': async () => {
+    const index = await wstgIndex();
+    return { categories: index.categories, cases: index.cases };
+  },
+
+  'POST /api/wstg/categories': async (ctx) => {
+    requireCatalogManager(ctx);
+    const body = ctx.body || {};
+    const code = text(body.code, 20).toUpperCase();
+    if (!WSTG_SHAPE.test(code)) {
+      throw new HttpError(400, 'A category code looks like WSTG-ATHZ');
+    }
+    if (await db.get('SELECT code FROM wstg_categories WHERE code = ?', [code])) {
+      throw new HttpError(409, `${code} already exists`);
+    }
+    const max = await db.get('SELECT COALESCE(MAX(position), -1) AS p FROM wstg_categories');
+    await db.run('INSERT INTO wstg_categories (code, title, dir, position) VALUES (?, ?, ?, ?)', [
+      code,
+      wanted(body.title),
+      dirOf(body.dir),
+      Number(max && max.p) + 1,
+    ]);
+    forgetWstg();
+    return { categories: (await wstgIndex(true)).categories };
+  },
+
+  'PATCH /api/wstg/categories/:code': async (ctx) => {
+    requireCatalogManager(ctx);
+    const code = String(ctx.params.code || '').toUpperCase();
+    const row = await db.get('SELECT * FROM wstg_categories WHERE code = ?', [code]);
+    if (!row) throw new HttpError(404, 'That WSTG category no longer exists');
+    const body = ctx.body || {};
+    await db.run('UPDATE wstg_categories SET title = ?, dir = ? WHERE code = ?', [
+      body.title === undefined ? row.title : wanted(body.title),
+      body.dir === undefined ? row.dir : dirOf(body.dir),
+      code,
+    ]);
+    forgetWstg();
+    return { categories: (await wstgIndex(true)).categories };
+  },
+
+  'DELETE /api/wstg/categories/:code': async (ctx) => {
+    requireDeleter(ctx, 'a WSTG category');
+    const code = String(ctx.params.code || '').toUpperCase();
+    const row = await db.get('SELECT * FROM wstg_categories WHERE code = ?', [code]);
+    if (!row) throw new HttpError(404, 'That WSTG category no longer exists');
+    const cases = await db.get('SELECT COUNT(*) AS n FROM wstg_cases WHERE category_code = ?', [code]);
+    const count = Number(cases?.n) || 0;
+    if (count > 0) {
+      throw new HttpError(
+        409,
+        `${code} still holds ${count} test case(s) — delete or move them first`
+      );
+    }
+    const cited = await db.get('SELECT COUNT(*) AS n FROM test_guides WHERE wstg = ?', [code]);
+    const guides = Number(cited?.n) || 0;
+    if (guides > 0) {
+      throw new HttpError(
+        409,
+        `${guides} guide(s) cite ${code} — point them at another category first`
+      );
+    }
+    await db.run('DELETE FROM wstg_categories WHERE code = ?', [code]);
+    forgetWstg();
+    return { categories: (await wstgIndex(true)).categories };
+  },
+
+  'POST /api/wstg/cases': async (ctx) => {
+    requireCatalogManager(ctx);
+    const body = ctx.body || {};
+    const code = text(body.code, 20).toUpperCase();
+    if (!/^WSTG-[A-Z]{4}-\d{2}$/.test(code)) {
+      throw new HttpError(400, 'A test case code looks like WSTG-ATHZ-04');
+    }
+    const category = String(body.categoryCode || code.split('-').slice(0, 2).join('-')).toUpperCase();
+    const index = await wstgIndex();
+    if (!index.byCategory.has(category)) {
+      throw new HttpError(400, `${category} is not a WSTG category — create it first`);
+    }
+    if (await db.get('SELECT code FROM wstg_cases WHERE code = ?', [code])) {
+      throw new HttpError(409, `${code} already exists`);
+    }
+    const max = await db.get('SELECT COALESCE(MAX(position), -1) AS p FROM wstg_cases WHERE category_code = ?', [category]);
+    await db.run(
+      'INSERT INTO wstg_cases (code, category_code, title, slug, position) VALUES (?, ?, ?, ?, ?)',
+      [
+        code,
+        category,
+        wanted(body.title),
+        String(body.slug || '')
+          .replace(/^\/+|\/+$/g, ''),
+        Number(max && max.p) + 1,
+      ]
+    );
+    forgetWstg();
+    const fresh = await wstgIndex(true);
+    return { categories: fresh.categories, cases: fresh.cases };
+  },
+
+  'PATCH /api/wstg/cases/:code': async (ctx) => {
+    requireCatalogManager(ctx);
+    const code = String(ctx.params.code || '').toUpperCase();
+    const row = await db.get('SELECT * FROM wstg_cases WHERE code = ?', [code]);
+    if (!row) throw new HttpError(404, 'That WSTG test case no longer exists');
+    const body = ctx.body || {};
+    let category = row.category_code;
+    if (body.categoryCode !== undefined) {
+      category = String(body.categoryCode || '').toUpperCase();
+      if (!(await wstgIndex()).byCategory.has(category)) {
+        throw new HttpError(400, `${category} is not a WSTG category`);
+      }
+    }
+    await db.run('UPDATE wstg_cases SET category_code = ?, title = ?, slug = ? WHERE code = ?', [
+      category,
+      body.title === undefined ? row.title : wanted(body.title),
+      body.slug === undefined
+        ? row.slug
+        : String(body.slug || '')
+            .replace(/^\/+|\/+$/g, ''),
+      code,
+    ]);
+    forgetWstg();
+    const fresh = await wstgIndex(true);
+    return { categories: fresh.categories, cases: fresh.cases };
+  },
+
+  'DELETE /api/wstg/cases/:code': async (ctx) => {
+    requireDeleter(ctx, 'a WSTG test case');
+    const code = String(ctx.params.code || '').toUpperCase();
+    const row = await db.get('SELECT * FROM wstg_cases WHERE code = ?', [code]);
+    if (!row) throw new HttpError(404, 'That WSTG test case no longer exists');
+    // The shipped checklist is written from this table, so deleting a case that a
+    // checklist row already names would leave a row citing a page that is gone.
+    const rows = await db.get('SELECT COUNT(*) AS n FROM checklist_items WHERE title LIKE ?', [
+      `${code} %`,
+    ]);
+    const count = Number(rows?.n) || 0;
+    if (count > 0) {
+      throw new HttpError(
+        409,
+        `${code} is asked by ${count} checklist row(s) — remove those rows in Admin → Checklists first`
+      );
+    }
+    await db.run('DELETE FROM wstg_cases WHERE code = ?', [code]);
+    forgetWstg();
+    const fresh = await wstgIndex(true);
+    return { categories: fresh.categories, cases: fresh.cases };
+  },
+
   // A finding has no category of its own: it belongs to the category of the test
   // that proves it, which is the checklist's category, which is the project's.
   // One chain, no second vocabulary to keep in step by hand.
   'GET /api/findings': async () => {
-    const category = new Map((await guidesWithChecklist()).map((g) => [g.id, g.category]));
+    const index = await wstgIndex();
+    const category = new Map((await guidesWithChecklist(index)).map((g) => [g.id, g.category]));
     return { findings: COMMON_FINDINGS.map((f) => ({ ...f, category: category.get(f.guide) || '' })) };
   },
 };

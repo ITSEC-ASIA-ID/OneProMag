@@ -195,4 +195,13 @@ export const api = {
   updateGuide: (id, payload) => request('PATCH', `/api/tests/${id}`, payload),
   deleteGuide: (id) => request('DELETE', `/api/tests/${id}`),
   findings: () => request('GET', '/api/findings'),
+  // The WSTG, read and written. Its categories and cases are rows an admin owns,
+  // so the guide editor's citation list and this page cannot disagree.
+  wstg: () => request('GET', '/api/wstg'),
+  createWstgCategory: (payload) => request('POST', '/api/wstg/categories', payload),
+  updateWstgCategory: (code, payload) => request('PATCH', `/api/wstg/categories/${code}`, payload),
+  deleteWstgCategory: (code) => request('DELETE', `/api/wstg/categories/${code}`),
+  createWstgCase: (payload) => request('POST', '/api/wstg/cases', payload),
+  updateWstgCase: (code, payload) => request('PATCH', `/api/wstg/cases/${code}`, payload),
+  deleteWstgCase: (code) => request('DELETE', `/api/wstg/cases/${code}`),
 };

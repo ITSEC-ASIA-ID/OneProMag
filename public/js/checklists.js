@@ -521,6 +521,7 @@ function sectionsHTML(checklists) {
 const CATALOG_TABS = [
   { id: 'checklists', label: 'Checklists' },
   { id: 'guides', label: 'Test guides' },
+  { id: 'wstg', label: 'WSTG' },
 ];
 
 function catalogSwitchHTML(tab) {
@@ -842,8 +843,288 @@ function openGuideEditor(guide, checklists, wstg = []) {
 
 
 /* ------------------------------------------------------------
-   One template, on its own page
+   The WSTG, edited where it is read
+   ------------------------------------------------------------
+   Twelve categories and 116 test cases, as tables. It used to be a module, which
+   meant a typo OWASP had already corrected on their own site needed a release
+   from us — and a guide's citation, the checklist template and every project row
+   all read from here, so a correction is one edit and one refresh.
    ------------------------------------------------------------ */
+
+export function wstgPageHTML() {
+  return `<div class="admin">
+    <div class="admin-head">
+      <p>
+        The OWASP Web Security Testing Guide as published: its categories, and one
+        row per test case with the page that publishes it. Every guide cites one of
+        these categories, and the OWASP WSTG checklist is written from these rows.
+      </p>
+      <span class="admin-head-actions">
+        <button class="btn btn-sm" data-catalog-new="wstg-category">${icon.plus(13)} Category</button>
+        <button class="btn btn-sm" data-catalog-new="wstg-case">${icon.plus(13)} Test case</button>
+      </span>
+    </div>
+    ${catalogSwitchHTML('wstg')}
+    <div id="wstg-admin-body"><div class="empty"><h3>Loading…</h3></div></div>
+  </div>`;
+}
+
+function wstgCategoryRowHTML(category, cases) {
+  const held = cases.filter((c) => c.category === category.code);
+  return `<tr data-wstg-cat-row="${h(category.code)}">
+    <td class="dev-name">
+      <button type="button" class="ck-open" data-wstg-cat-edit="${h(category.code)}">${h(category.code)}</button>
+      <span class="ck-sub">${h(category.title)}</span>
+    </td>
+    <td class="dev-mono-cell">${h(category.dir)}</td>
+    <td class="dev-mono-cell">${held.length}</td>
+    <td class="dev-acts"><span class="dev-acts-inner">
+      <button type="button" class="btn btn-icon" data-wstg-cat-edit="${h(category.code)}"
+        title="Edit" aria-label="Edit ${h(category.code)}">${icon.edit(13)}</button>
+      <button type="button" class="btn btn-icon btn-icon-danger" data-wstg-cat-del="${h(category.code)}"
+        title="Delete" aria-label="Delete ${h(category.code)}">${icon.trash(13)}</button>
+    </span></td>
+  </tr>`;
+}
+
+function wstgCaseRowHTML(one) {
+  return `<tr data-wstg-case-row="${h(one.code)}">
+    <td class="dev-name">
+      <button type="button" class="ck-open" data-wstg-case-edit="${h(one.code)}">${h(one.title)}</button>
+      <span class="ck-sub">${h(one.code)}</span>
+    </td>
+    <td class="dev-mono-cell">${h(one.category)}</td>
+    <td class="dev-mono-cell"><a class="link-btn" href="${h(one.url)}" target="_blank" rel="noopener"
+      title="Read it on wstg.owasp.org">${h(one.slug)}${icon.external(11)}</a></td>
+    <td class="dev-acts"><span class="dev-acts-inner">
+      <button type="button" class="btn btn-icon" data-wstg-case-edit="${h(one.code)}"
+        title="Edit" aria-label="Edit ${h(one.code)}">${icon.edit(13)}</button>
+      <button type="button" class="btn btn-icon btn-icon-danger" data-wstg-case-del="${h(one.code)}"
+        title="Delete" aria-label="Delete ${h(one.code)}">${icon.trash(13)}</button>
+    </span></td>
+  </tr>`;
+}
+
+function wstgSectionsHTML({ categories, cases }) {
+  return `<section class="admin-sec">
+    <div class="admin-sec-head">
+      <h3>Categories</h3>
+      <span class="admin-count">${categories.length}</span>
+      <p>A category is what a guide cites. Deleting one is refused while it holds cases or a guide names it.</p>
+    </div>
+    <div class="dev-tablewrap">
+      <table class="dev-table">
+        <thead><tr>
+          <th class="dev-h-label"><span class="dev-h-inner"><span class="dev-h-label">Category</span></span></th>
+          <th class="dev-h-key"><span class="dev-h-inner"><span class="dev-h-label">Directory</span></span></th>
+          <th class="dev-h-key"><span class="dev-h-inner"><span class="dev-h-label">Cases</span></span></th>
+          <th class="dev-h-acts"><span class="sr-only">Actions</span></th>
+        </tr></thead>
+        <tbody>${categories.map((c) => wstgCategoryRowHTML(c, cases)).join('')}</tbody>
+      </table>
+    </div>
+  </section>
+  <section class="admin-sec">
+    <div class="admin-sec-head">
+      <h3>Test cases</h3>
+      <span class="admin-count">${cases.length}</span>
+      <p>The OWASP WSTG checklist is written from these rows, so a case a checklist row already asks about cannot be deleted.</p>
+    </div>
+    <div class="dev-tablewrap">
+      <table class="dev-table">
+        <thead><tr>
+          <th class="dev-h-label"><span class="dev-h-inner"><span class="dev-h-label">Test case</span></span></th>
+          <th class="dev-h-key"><span class="dev-h-inner"><span class="dev-h-label">Category</span></span></th>
+          <th class="dev-h-key"><span class="dev-h-inner"><span class="dev-h-label">Page</span></span></th>
+          <th class="dev-h-acts"><span class="sr-only">Actions</span></th>
+        </tr></thead>
+        <tbody>${cases.map(wstgCaseRowHTML).join('')}</tbody>
+      </table>
+    </div>
+  </section>`;
+}
+
+export async function refreshWstg() {
+  const host = document.getElementById('wstg-admin-body');
+  if (!host) return;
+  bindCatalogSwitch();
+  let wstg = { categories: [], cases: [] };
+  try {
+    wstg = await api.wstg();
+  } catch (err) {
+    host.innerHTML = `<div class="empty"><h3>Could not load the WSTG</h3><p>${h(err.message)}</p></div>`;
+    return;
+  }
+
+  host.innerHTML = wstgSectionsHTML(wstg);
+  document
+    .querySelector('[data-catalog-new="wstg-category"]')
+    ?.addEventListener('click', () => openWstgCategoryEditor(null), { once: true });
+  document
+    .querySelector('[data-catalog-new="wstg-case"]')
+    ?.addEventListener('click', () => openWstgCaseEditor(null, wstg.categories), { once: true });
+
+  host.querySelectorAll('[data-wstg-cat-edit]').forEach((b) =>
+    b.addEventListener('click', () => {
+      const row = wstg.categories.find((c) => c.code === b.dataset.wstgCatEdit);
+      if (row) openWstgCategoryEditor(row);
+    })
+  );
+  host.querySelectorAll('[data-wstg-cat-del]').forEach((b) =>
+    b.addEventListener('click', async () => {
+      const row = wstg.categories.find((c) => c.code === b.dataset.wstgCatDel);
+      if (!row) return;
+      const ok = await confirmDialog({
+        title: `Delete ${row.code}?`,
+        message: `"${row.title}" will be removed from the WSTG. A category that still holds test cases, or that a guide cites, refuses the delete.`,
+        confirmLabel: 'Delete category',
+      });
+      if (!ok) return;
+      try {
+        await api.deleteWstgCategory(row.code);
+        toast('Category deleted');
+        await refreshWstg();
+      } catch (err) {
+        toast(err.message, 'err');
+      }
+    })
+  );
+  host.querySelectorAll('[data-wstg-case-edit]').forEach((b) =>
+    b.addEventListener('click', () => {
+      const row = wstg.cases.find((c) => c.code === b.dataset.wstgCaseEdit);
+      if (row) openWstgCaseEditor(row, wstg.categories);
+    })
+  );
+  host.querySelectorAll('[data-wstg-case-del]').forEach((b) =>
+    b.addEventListener('click', async () => {
+      const row = wstg.cases.find((c) => c.code === b.dataset.wstgCaseDel);
+      if (!row) return;
+      const ok = await confirmDialog({
+        title: 'Delete this test case?',
+        message: `"${row.code} ${row.title}" will be removed from the WSTG, and from the method as this app publishes it. A case a checklist row already asks about refuses the delete.`,
+        confirmLabel: 'Delete case',
+      });
+      if (!ok) return;
+      try {
+        await api.deleteWstgCase(row.code);
+        toast('Test case deleted');
+        await refreshWstg();
+      } catch (err) {
+        toast(err.message, 'err');
+      }
+    })
+  );
+}
+
+function wstgCategoryEditorBody(row) {
+  const field = (id, label, value, readOnly) =>
+    `<div class="field">
+       <label for="wc-${id}">${label}</label>
+       <input id="wc-${id}" class="input" value="${h(value || '')}"${
+         readOnly ? ' readonly' : ''
+       }>
+     </div>`;
+  return `<div class="form-row">
+      ${field('code', 'Code', row?.code || 'WSTG-', Boolean(row))}
+      ${field('title', 'Title', row?.title || '')}
+    </div>
+    ${field('dir', 'Directory on wstg.owasp.org', row?.dir || '')}
+    <p class="note-line">The code is what a guide cites and what a checklist section is named, so it cannot be renamed. The directory is the folder the case pages live in, like <code>05-Authorization</code>.</p>`;
+}
+
+function openWstgCategoryEditor(row) {
+  const editing = Boolean(row);
+  const modal = openModal({
+    title: editing ? 'Edit WSTG category' : 'New WSTG category',
+    subtitle: editing ? row.code : 'A category a guide can cite',
+    body: wstgCategoryEditorBody(row),
+    footer: `<button class="btn" data-cancel>Cancel</button>
+             <button class="btn btn-primary" data-save>${editing ? 'Save category' : 'Create category'}</button>`,
+    initialFocus: editing ? '#wc-title' : '#wc-code',
+  });
+  const value = (id) => modal.modal.querySelector(`#wc-${id}`).value.trim();
+  modal.modal.querySelector('[data-cancel]').addEventListener('click', () => modal.close());
+  modal.modal.querySelector('[data-save]').addEventListener('click', async (event) => {
+    event.currentTarget.disabled = true;
+    try {
+      if (editing) {
+        await api.updateWstgCategory(row.code, { title: value('title'), dir: value('dir') });
+      } else {
+        await api.createWstgCategory({ code: value('code'), title: value('title'), dir: value('dir') });
+      }
+      modal.close();
+      toast(editing ? 'Category saved' : 'Category created');
+      await refreshWstg();
+    } catch (err) {
+      event.currentTarget.disabled = false;
+      toast(err.message, 'err');
+    }
+  });
+}
+
+function openWstgCaseEditor(row, categories) {
+  const editing = Boolean(row);
+  const options = categories
+    .map(
+      (c) =>
+        `<option value="${h(c.code)}"${
+          row && row.category === c.code ? ' selected' : ''
+        }>${h(c.code)} — ${h(c.title)}</option>`
+    )
+    .join('');
+  const body = `<div class="form-row">
+      <div class="field">
+        <label for="ww-code">Code</label>
+        <input id="ww-code" class="input" value="${h(row?.code || 'WSTG-')}"${editing ? ' readonly' : ''}>
+      </div>
+      <div class="field">
+        <label for="ww-category">Category</label>
+        <select id="ww-category" class="input">${options}</select>
+      </div>
+    </div>
+    <div class="field">
+      <label for="ww-title">Title</label>
+      <input id="ww-title" class="input" value="${h(row?.title || '')}">
+    </div>
+    <div class="field">
+      <label for="ww-slug">Page slug</label>
+      <input id="ww-slug" class="input" value="${h(row?.slug || '')}">
+    </div>
+    <p class="note-line">The slug is the page name OWASP publishes, like <code>04-Insecure_Direct_Object_References</code> — copy it from the URL rather than from the title. A checklist row titled with the code (<code>WSTG-ATHZ-04 …</code>) links straight to it.</p>`;
+
+  const modal = openModal({
+    title: editing ? 'Edit WSTG test case' : 'New WSTG test case',
+    subtitle: editing ? row.code : 'One published test case',
+    body,
+    wide: true,
+    footer: `<button class="btn" data-cancel>Cancel</button>
+             <button class="btn btn-primary" data-save>${editing ? 'Save case' : 'Create case'}</button>`,
+    initialFocus: '#ww-title',
+  });
+  const value = (id) => modal.modal.querySelector(`#ww-${id}`).value.trim();
+  modal.modal.querySelector('[data-cancel]').addEventListener('click', () => modal.close());
+  modal.modal.querySelector('[data-save]').addEventListener('click', async (event) => {
+    event.currentTarget.disabled = true;
+    const payload = {
+      code: value('code'),
+      categoryCode: value('category'),
+      title: value('title'),
+      slug: value('slug'),
+    };
+    try {
+      if (editing) await api.updateWstgCase(row.code, payload);
+      else await api.createWstgCase(payload);
+      modal.close();
+      toast(editing ? 'Test case saved' : 'Test case created');
+      await refreshWstg();
+    } catch (err) {
+      event.currentTarget.disabled = false;
+      toast(err.message, 'err');
+    }
+  });
+}
+
+/* One template, on its own page */
 export function checklistEditorHTML() {
   return `<div class="cke"><div id="cke-body"><div class="empty"><h3>Loading…</h3></div></div></div>`;
 }

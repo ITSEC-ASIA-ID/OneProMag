@@ -1,6 +1,6 @@
 import { openAccountMenu, renderAuth } from './auth.js';
 import { forgetProjectPage, mountProjectPage } from './project-page.js';
-import { mountChecklistEditor, refreshChecklists, refreshGuides } from './checklists.js';
+import { mountChecklistEditor, refreshChecklists, refreshGuides, refreshWstg } from './checklists.js';
 import { openRetestForm } from './drawer.js';
 import { loadDevices } from './devices.js';
 import { loadDirectory } from './directory.js';
@@ -224,6 +224,7 @@ export function finishNav(historyMode = 'push') {
     state.nav === 'properties' ||
     state.nav === 'checklists' ||
     state.nav === 'guides' ||
+    state.nav === 'wstg' ||
     state.nav === 'info' ||
     state.nav === 'devices' ||
     state.nav === 'directory' ||
@@ -238,6 +239,7 @@ export function finishNav(historyMode = 'push') {
     // Checklists owns its own load: the page is a catalogue, not the project list.
     if (state.nav === 'checklists') refreshChecklists();
     if (state.nav === 'guides') refreshGuides();
+    if (state.nav === 'wstg') refreshWstg();
     // The two libraries paint a skeleton, then fill it from one fetch.
     if (state.nav === 'tests') void loadTests();
     if (state.nav === 'findings') void loadFindings();
@@ -562,6 +564,7 @@ export async function boot() {
     if (state.nav === 'clients' || state.nav === 'properties') return;
     if (state.nav === 'checklists') return void refreshChecklists();
     if (state.nav === 'guides') return void refreshGuides();
+    if (state.nav === 'wstg') return void refreshWstg();
     if (state.nav === 'checklist-edit') return void mountChecklistEditor();
     if (state.nav === 'project') return void mountProjectPage();
     if (state.nav === 'directory') return void loadDirectory();

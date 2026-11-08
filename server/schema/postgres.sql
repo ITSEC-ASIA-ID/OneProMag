@@ -332,6 +332,30 @@ CREATE TABLE IF NOT EXISTS test_guides (
   updated_at   TEXT NOT NULL DEFAULT ''
 );
 
+-- The OWASP Web Security Testing Guide, as data an admin owns.
+-- Seeded once from server/knowledge.js (WSTG_SEED) and never rewritten after
+-- that: the twelve categories and their cases are content, and a code change is
+-- the wrong way to fix a typo OWASP has already fixed.
+CREATE TABLE IF NOT EXISTS wstg_categories (
+  -- `WSTG-ATHZ`. This is what `test_guides.wstg` cites.
+  code     TEXT PRIMARY KEY,
+  title    TEXT NOT NULL DEFAULT '',
+  -- The site's directory (`05-Authorization`). Stored, not derived from the
+  -- title: the two disagree in places, and a guessed URL that 404s is worse
+  -- than no link.
+  dir      TEXT NOT NULL DEFAULT '',
+  position INTEGER NOT NULL DEFAULT 0
+);
+
+-- One row per test case: `WSTG-ATHZ-04`, its category, and its page slug.
+CREATE TABLE IF NOT EXISTS wstg_cases (
+  code          TEXT PRIMARY KEY,
+  category_code TEXT NOT NULL DEFAULT '',
+  title         TEXT NOT NULL DEFAULT '',
+  slug          TEXT NOT NULL DEFAULT '',
+  position      INTEGER NOT NULL DEFAULT 0
+);
+
 -- A template attached to an engagement. The project LINKS the template instead
 -- of copying its text, so fixing a typo fixes it everywhere; the price is that
 -- editing mid-engagement changes what an old project shows, which this app

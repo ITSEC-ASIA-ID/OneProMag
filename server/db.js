@@ -2,8 +2,8 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { GUIDE_CHECKLISTS, TEST_GUIDES, guideKeyFor } from './knowledge.js';
-import { WSTG_CASES } from './wstg.js';
+import { GUIDE_CHECKLISTS, TEST_GUIDES, WSTG_SEED, guideKeyFor } from './knowledge.js';
+import { forgetWstg, wstgChecklistItems, wstgClaims } from './wstg-store.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const SCHEMA_DIR = path.join(__dirname, 'schema');
@@ -965,19 +965,19 @@ async function seedPropertiesIfEmpty() {
  * sync never touches one of those.
  */
 /**
- * The WSTG as checklist rows: `WSTG-ATHZ — Authorization`, one row per test case.
+ * The rows a shipped template is written with.
  *
- * Generated from server/wstg.js rather than typed twice — the case list is the
- * method, and a checklist that disagrees with the citation a guide carries is
- * two sources of truth. `help` is empty on purpose: the guide that teaches the
- * category is one book button away, and inventing a pass criterion for 116 cases
- * would be writing a fifth standard.
+ * Every template carries its rows in this file, except the WSTG: that one is the
+ * `wstg_cases` table written out (`server/wstg-store.js`), because the table is
+ * what the Admin panel edits. A copy in code would make a checklist row that
+ * disagrees with the citation a guide carries — two sources of truth for one
+ * method. `help` is empty on purpose: the guide that teaches the category is one
+ * book button away, and inventing a pass criterion for 116 cases would be writing
+ * a fifth standard.
  */
-const WSTG_ITEMS = WSTG_CASES.map((one) => [
-  `${one.category} — ${one.categoryTitle}`,
-  `${one.code} ${one.title}`,
-  '',
-]);
+async function templateItems(template) {
+  return template.key === 'owasp-wstg' ? await wstgChecklistItems() : template.items;
+}
 
 const DEFAULT_CHECKLISTS = [
   {
@@ -1139,12 +1139,49 @@ const DEFAULT_CHECKLISTS = [
       'The OWASP Web Security Testing Guide as published: twelve categories, 116 test cases. Attach it when the client asks for the method, not only the Top 10.',
     category: 'Web',
     isDefault: false,
-    items: WSTG_ITEMS,
+    // Filled at seed time from `wstg_cases` — see `templateItems`.
+    items: [],
   },
 ];
 
 /** Ship-then-withdraw: a template we no longer publish, dropped on boot. */
 const RETIRED_CHECKLISTS = ['OWASP Top 10 2021'];
+
+/**
+ * Puts the WSTG in the database, once.
+ *
+ * Insert-if-missing, like the guides: a boot must not undo an admin's correction
+ * to a title, a slug or a whole category. A case that arrives in a later release
+ * is still written, because it is missing rather than edited.
+ */
+async function seedWstg() {
+  const cats = new Set((await db.all('SELECT code FROM wstg_categories')).map((r) => r.code));
+  const cases = new Set((await db.all('SELECT code FROM wstg_cases')).map((r) => r.code));
+  let categories = 0;
+  let added = 0;
+
+  for (const [index, category] of WSTG_SEED.entries()) {
+    if (!cats.has(category.code)) {
+      await db.run('INSERT INTO wstg_categories (code, title, dir, position) VALUES (?, ?, ?, ?)', [
+        category.code,
+        category.title,
+        category.dir,
+        index,
+      ]);
+      categories += 1;
+    }
+    for (const [position, [code, title, slug]] of category.cases.entries()) {
+      if (cases.has(code)) continue;
+      await db.run(
+        'INSERT INTO wstg_cases (code, category_code, title, slug, position) VALUES (?, ?, ?, ?, ?)',
+        [code, category.code, title, slug, position]
+      );
+      added += 1;
+    }
+  }
+  forgetWstg();
+  return { categories, cases: added };
+}
 
 /**
  * Puts the shipped how-to-test library in the database, once.
@@ -1215,6 +1252,9 @@ async function seedTestGuides() {
 async function syncSeededChecklists() {
   const stamp = now();
   const live = DEFAULT_CHECKLISTS.map((template) => template.key);
+  // Which guide answers which WSTG category, read once: every item of the WSTG
+  // template asks, and the answer is a row an admin can change.
+  const claims = await wstgClaims();
   let written = 0;
   let retired = 0;
 
@@ -1241,7 +1281,13 @@ async function syncSeededChecklists() {
          VALUES (?, ?, ?, ${template.isDefault ? 'TRUE' : 'FALSE'}, ?, ?, ?) RETURNING id`,
         [template.name, template.description, template.category, template.key, template.version, stamp]
       );
-      await writeChecklistItems(db, inserted.lastInsertId, template.items, template.key);
+      await writeChecklistItems(
+        db,
+        inserted.lastInsertId,
+        await templateItems(template),
+        template.key,
+        claims
+      );
       written += 1;
       continue;
     }
@@ -1256,7 +1302,7 @@ async function syncSeededChecklists() {
 
     await db.transaction(async (tx) => {
       await tx.run('DELETE FROM checklist_items WHERE checklist_id = ?', [row.id]);
-      await writeChecklistItems(tx, row.id, template.items, template.key);
+      await writeChecklistItems(tx, row.id, await templateItems(template), template.key, claims);
       await tx.run('UPDATE checklists SET seed_version = ? WHERE id = ?', [
         template.version,
         row.id,
@@ -1291,12 +1337,12 @@ async function syncSeededChecklists() {
   return { seeded: written > 0, checklists: written, retired };
 }
 
-async function writeChecklistItems(conn, checklistId, items, checklistKey = '') {
+async function writeChecklistItems(conn, checklistId, items, checklistKey = '', claims) {
   for (let i = 0; i < items.length; i += 1) {
     const [section, title, help] = items[i];
     await conn.run(
       'INSERT INTO checklist_items (checklist_id, section, title, help, guide_key, position) VALUES (?, ?, ?, ?, ?, ?)',
-      [checklistId, section, title, help, guideKeyFor(checklistKey, section), i]
+      [checklistId, section, title, help, guideKeyFor(checklistKey, section, claims), i]
     );
   }
 }
@@ -1317,9 +1363,10 @@ async function backfillGuideKeys() {
        JOIN checklists c ON c.id = i.checklist_id
       WHERE i.guide_key = ''`
   );
+  const claims = await wstgClaims();
   let filled = 0;
   for (const row of rows) {
-    const key = guideKeyFor(row.checklist_key, row.section);
+    const key = guideKeyFor(row.checklist_key, row.section, claims);
     if (!key) continue;
     await db.run('UPDATE checklist_items SET guide_key = ? WHERE id = ?', [key, row.id]);
     filled += 1;
@@ -1348,9 +1395,11 @@ async function backfillGuideKeys() {
  * 25 — the how-to-test library is a table an admin edits, seeded from
  *      server/knowledge.js once and never rewritten.
  * 26 — the WSTG arrives as a shipped checklist (116 test cases, twelve sections)
- *      and every guide cites the category its work lands in (server/wstg.js).
+ *      and every guide cites the category its work lands in.
+ * 27 — the WSTG is data (`wstg_categories`, `wstg_cases`) an admin owns, seeded
+ *      once from server/knowledge.js; the checklist template is written from it.
  */
-export const SCHEMA_VERSION = 26;
+export const SCHEMA_VERSION = 27;
 
 let appliedSchemaVersion = 0;
 
@@ -1418,18 +1467,31 @@ export async function initDatabase() {
   // Properties before the demo seed: the seeded projects carry category/status keys
   // that must already mean something.
   const properties = await seedPropertiesIfEmpty();
+  // Before the checklists: the WSTG template is written from these tables.
+  const wstg = await seedWstg();
   const checklists = await syncSeededChecklists();
-  // After the sync: a freshly regenerated template already carries its links, and
-  // this only fills in the rows an older install kept in place.
-  const guideLinks = await backfillGuideKeys();
   // After the checklists exist, so a guide can point at the one it teaches.
   const guides = await seedTestGuides();
+  // Last, so a template seeded on this same boot already has its guides to link to;
+  // a freshly regenerated template carries its links, and this only fills the rows
+  // an older install kept in place.
+  const guideLinks = await backfillGuideKeys();
   const result = SEED_DEMO ? await seed() : await seedBootstrapAdmin();
   // Runs after seed() on purpose: a brand-new database gets its devices from
   // seed() itself, and only an EXISTING install needs the backfill. With demo
   // data off there is nothing to backfill into either.
   const devices = SEED_DEMO ? await seedDevicesIfEmpty() : { seeded: false };
-  return { engine: db.engine, ...result, devices, properties, checklists, guideLinks, guides, demo: SEED_DEMO };
+  return {
+    engine: db.engine,
+    ...result,
+    devices,
+    properties,
+    wstg,
+    checklists,
+    guides,
+    guideLinks,
+    demo: SEED_DEMO,
+  };
 }
 
 /**

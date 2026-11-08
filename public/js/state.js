@@ -52,6 +52,7 @@ export const ADMIN_NAV = new Set([
   'properties',
   'checklists',
   'guides',
+  'wstg',
   'checklist-edit',
 ]);
 
@@ -105,6 +106,12 @@ export const NAV = {
     title: 'Test guides',
     sub: 'How to test each part of a checklist, edited here',
   },
+  // The OWASP WSTG itself: twelve categories, 116 test cases, the method the
+  // guides cite. A table rather than a module, so a correction is an edit.
+  wstg: {
+    title: 'WSTG',
+    sub: 'The OWASP Web Security Testing Guide: categories and test cases',
+  },
   // Reference, not workspace data: the method behind the checklists, and what a
   // failure looks like once you have one. Readable by anyone signed in, because
   // knowing how to test something is not a privilege.
@@ -153,6 +160,7 @@ export const NAV_PATHS = {
   properties: '/admin/properties',
   checklists: '/admin/checklists',
   guides: '/admin/tests',
+  wstg: '/admin/wstg',
   tests: '/tests',
   findings: '/findings',
 };

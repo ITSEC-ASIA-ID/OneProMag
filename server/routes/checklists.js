@@ -1,8 +1,8 @@
 import { db } from '../db.js';
 import { HttpError, nowISO } from '../auth.js';
-import { guideKeyFor, sectionCode } from '../knowledge.js';
 import { assertProject, requireCatalogManager, requireDeleter } from '../shared.js';
-import { isWstgCode, wstgCategoryCode, wstgUrl as wstgPage } from '../wstg.js';
+import { WSTG_SHAPE, guideKeyFor, sectionCode } from '../knowledge.js';
+import { categoryOf, wstgClaims, wstgIndex, wstgUrlOf } from '../wstg-store.js';
 
 /* Security checklists, in two halves that live in one file because they cannot
  * be understood apart:
@@ -61,18 +61,19 @@ function wanted(value) {
 }
 
 /** The WSTG category a row asks about, read from its section — empty for a row that is not WSTG. */
-function wstgOf(section, title = '') {
+function wstgOf(index, section, title = '') {
   const code = sectionCode(section || '');
-  const wstg = isWstgCode(code) ? wstgCategoryCode(code) : '';
+  const wstg = categoryOf(index, code);
   if (!wstg) return { wstg: '', wstgUrl: '' };
   // A row titled with the case id (`WSTG-ATHZ-04 Insecure Direct Object References`)
   // links to that case; anything else links to its category. Never a guessed URL:
-  // `wstgPage` returns '' for an id the method does not publish.
+  // `wstgUrlOf` returns '' for an id the tables do not hold.
   const one = /^(WSTG-[A-Z]{4}-\d{2})\b/.exec(String(title || ''));
-  return { wstg, wstgUrl: (one && wstgPage(one[1])) || wstgPage(wstg) };
+  const url = (one && wstgUrlOf(index, one[1]).url) || wstgUrlOf(index, wstg).url;
+  return { wstg, wstgUrl: url };
 }
 
-function shapeItem(row) {
+function shapeItem(row, index) {
   return {
     id: Number(row.id),
     checklistId: Number(row.checklist_id),
@@ -86,7 +87,7 @@ function shapeItem(row) {
     // A WSTG row also names the page that publishes the test, so a pentester can
     // read the method itself rather than only our summary of it. Derived from the
     // section like the guide, never stored: the section IS the citation.
-    ...wstgOf(row.section, row.title),
+    ...wstgOf(index, row.section, row.title),
     position: Number(row.position || 0),
   };
 }
@@ -149,7 +150,7 @@ function progressOf(items, answers) {
 }
 
 /** The whole engagement view: attached templates, their items, the answers. */
-async function projectChecklists(projectId) {
+async function projectChecklists(projectId, index) {
   const attached = await db.all(
     `SELECT pc.id, pc.checklist_id, pc.created_at, c.name, c.description,
             c.category, c.is_default
@@ -192,7 +193,7 @@ async function projectChecklists(projectId) {
       items: mine.map((item) => {
         const answer = answerByItem.get(Number(item.id));
         return {
-          ...shapeItem(item),
+          ...shapeItem(item, index),
           status: answer ? answer.status : OPEN,
           note: answer ? answer.note : '',
           fileId: answer && answer.file_id ? Number(answer.file_id) : null,
@@ -265,7 +266,10 @@ export const routes = {
       'SELECT * FROM checklist_items WHERE checklist_id = ? ORDER BY position, id',
       [row.id]
     );
-    return { checklist: { ...shapeChecklist(row), items: items.map(shapeItem) } };
+    const index = await wstgIndex();
+    return {
+      checklist: { ...shapeChecklist(row), items: items.map((item) => shapeItem(item, index)) },
+    };
   },
 
   'POST /api/checklists': async (ctx) => {
@@ -346,6 +350,9 @@ export const routes = {
       'SELECT COALESCE(MAX(position), -1) AS p FROM checklist_items WHERE checklist_id = ?',
       [row.id]
     );
+    const index = await wstgIndex();
+    // Which guide answers each WSTG category, from the table an admin edits.
+    const claims = await wstgClaims();
     let position = Number(max && max.p) + 1;
     const created = [];
     await db.transaction(async (tx) => {
@@ -353,13 +360,20 @@ export const routes = {
         const info = await tx.run(
           `INSERT INTO checklist_items (checklist_id, section, title, help, guide_key, position)
            VALUES (?, ?, ?, ?, ?, ?) RETURNING id`,
-          [row.id, item.section, item.title, item.help, guideKeyFor(row.seed_key, item.section), position]
+          [
+            row.id,
+            item.section,
+            item.title,
+            item.help,
+            guideKeyFor(row.seed_key, item.section, claims),
+            position,
+          ]
         );
         created.push({
           id: Number(info.lastInsertId),
           ...item,
-          guide: guideKeyFor(row.seed_key, item.section),
-          ...wstgOf(item.section, item.title),
+          guide: guideKeyFor(row.seed_key, item.section, claims),
+          ...wstgOf(index, item.section, item.title),
           position,
         });
         position += 1;
@@ -390,12 +404,16 @@ export const routes = {
         next.help,
         // Moving an item to another section re-derives its guide, which is the
         // whole point of the link being a column the standard owns.
-        guideKeyFor((await checklistRow(row.checklist_id)).seed_key, next.section),
+        guideKeyFor(
+          (await checklistRow(row.checklist_id)).seed_key,
+          next.section,
+          await wstgClaims()
+        ),
         next.position,
         row.id,
       ]
     );
-    return { item: shapeItem(await itemRow(row.id)) };
+    return { item: shapeItem(await itemRow(row.id), await wstgIndex()) };
   },
 
   'DELETE /api/checklist-items/:id': async (ctx) => {
@@ -407,7 +425,7 @@ export const routes = {
 
   'GET /api/projects/:id/checklists': async (ctx) => {
     await assertProject(ctx.params.id);
-    return { checklists: await projectChecklists(ctx.params.id) };
+    return { checklists: await projectChecklists(ctx.params.id, await wstgIndex()) };
   },
 
   'POST /api/projects/:id/checklists': async (ctx) => {
@@ -427,7 +445,10 @@ export const routes = {
     let answered = 0;
     if (existing) {
       if (Number(existing.checklist_id) === checklistId) {
-        return { checklists: await projectChecklists(project.id), replaced: false };
+        return {
+          checklists: await projectChecklists(project.id, await wstgIndex()),
+          replaced: false,
+        };
       }
       const count = await db.get(
         `SELECT COUNT(*) AS n FROM project_checklist_items
@@ -444,7 +465,11 @@ export const routes = {
       'INSERT INTO project_checklists (project_id, checklist_id, created_at) VALUES (?, ?, ?)',
       [project.id, checklistId, nowISO()]
     );
-    return { checklists: await projectChecklists(project.id), replaced: Boolean(existing), answered };
+    return {
+      checklists: await projectChecklists(project.id, await wstgIndex()),
+      replaced: Boolean(existing),
+      answered,
+    };
   },
 
   'DELETE /api/project-checklists/:id': async (ctx) => {

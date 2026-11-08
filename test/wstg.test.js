@@ -1,76 +1,226 @@
+/**
+ * The WSTG as data: the seed, the tables, and the admin edits on top of them.
+ *
+ * These run against a real database (a temp SQLite file, like `api.test.js`) because
+ * the point of moving the method out of a module is that the tables are the truth —
+ * a unit test over a constant would have passed just as happily when the tables and
+ * the constant disagreed, which is exactly the bug this shape prevents.
+ */
+import test, { before, after } from 'node:test';
 import assert from 'node:assert/strict';
-import test from 'node:test';
-import {
-  WSTG_BASE,
-  WSTG_CASES,
-  WSTG_CATEGORIES,
-  isWstgCode,
-  wstgCategoryCode,
-  wstgTitle,
-  wstgUrl,
-} from '../server/wstg.js';
-import { TEST_GUIDES, guideKeyFor } from '../server/knowledge.js';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { WSTG_SEED } from '../server/knowledge.js';
 
-test('the WSTG is twelve categories and the test cases they publish', () => {
-  // The count is the contract: the checklist shipped from this list says "116 test
-  // cases", and a silent drop to 115 would still render.
-  assert.equal(WSTG_CATEGORIES.length, 12);
-  assert.equal(WSTG_CASES.length, 116);
-  assert.equal(new Set(WSTG_CASES.map((c) => c.code)).size, 116, 'two test cases share a code');
+// Imported in `before()`: `server/wstg-store.js` pulls in `server/db.js`, whose data
+// directory is read when the module loads. A static import here would open the
+// developer's own database before the temp one is chosen.
+let WSTG_BASE;
+
+const DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'opm-wstg-'));
+
+let api;
+let db;
+let admin;
+
+async function asUser(username) {
+  const row = await db.get('SELECT * FROM users WHERE username = ?', [username]);
+  return {
+    id: row.id,
+    username: row.username,
+    name: row.name,
+    role: row.role,
+    subrole: row.subrole || 'Member',
+    parentId: row.parent_id ?? null,
+    phone: row.phone || '',
+    email: row.email || '',
+  };
+}
+
+function call(route, user, { params = {}, body = null } = {}) {
+  return api[route]({ user, params, query: {}, body });
+}
+
+before(async () => {
+  process.env.DB = 'sqlite';
+  process.env.DATA_DIR = DATA_DIR;
+  process.env.SEED_DEMO = '1';
+  process.env.ALLOW_REGISTER = '0';
+  WSTG_BASE = (await import('../server/wstg-store.js')).WSTG_BASE;
+  const dbModule = await import('../server/db.js');
+  api = (await import('../server/api.js')).api;
+  db = dbModule.db;
+  await dbModule.initDatabase();
+  admin = await asUser('admin');
+});
+
+after(async () => {
+  try {
+    await db.close();
+  } finally {
+    fs.rmSync(DATA_DIR, { recursive: true, force: true });
+  }
+});
+
+test('the shipped seed is twelve categories and the cases they publish', () => {
+  // The seed is what a fresh install gets, so its shape is the contract: 116 rows in
+  // twelve sections is what the checklist promises on the page.
+  assert.equal(WSTG_SEED.length, 12);
+  assert.equal(
+    WSTG_SEED.reduce((n, c) => n + c.cases.length, 0),
+    116,
+    'the seed lost a test case'
+  );
   assert.deepEqual(
-    WSTG_CATEGORIES.map((c) => c.key),
-    ['INFO', 'CONF', 'IDNT', 'ATHN', 'ATHZ', 'SESS', 'INPV', 'ERRH', 'CRYP', 'BUSL', 'CLNT', 'APIT']
+    WSTG_SEED.map((c) => c.code),
+    [
+      'WSTG-INFO',
+      'WSTG-CONF',
+      'WSTG-IDNT',
+      'WSTG-ATHN',
+      'WSTG-ATHZ',
+      'WSTG-SESS',
+      'WSTG-INPV',
+      'WSTG-ERRH',
+      'WSTG-CRYP',
+      'WSTG-BUSL',
+      'WSTG-CLNT',
+      'WSTG-APIT',
+    ]
+  );
+  for (const category of WSTG_SEED) {
+    assert.ok(category.dir, `${category.code} has no directory`);
+    for (const [code, title, slug] of category.cases) {
+      assert.match(code, /^WSTG-[A-Z]{4}-\d{2}$/, code);
+      assert.ok(title.trim().length > 3, `${code} has no title`);
+      assert.ok(slug && !slug.startsWith('/'), `${code} has no page slug`);
+    }
+  }
+});
+
+test('every case is seeded with its category and a page on wstg.owasp.org', async () => {
+  const { categories, cases } = await call('GET /api/wstg', admin);
+  assert.equal(categories.length, 12);
+  assert.equal(cases.length, 116);
+  assert.equal(new Set(cases.map((c) => c.code)).size, 116, 'two test cases share a code');
+
+  const dir = new Map(categories.map((c) => [c.code, c.dir]));
+  for (const one of cases) {
+    assert.match(one.code, /^WSTG-[A-Z]{4}-\d{2}$/, one.code);
+    assert.ok(dir.has(one.category), `${one.code} belongs to no category`);
+    assert.ok(
+      one.url.startsWith(`${WSTG_BASE}/${dir.get(one.category)}/`),
+      `${one.code} points outside its category`
+    );
+  }
+  // A category and a case are different questions with different pages, and the
+  // slugs the site spells against their titles are stored, not derived.
+  const idor = cases.find((c) => c.code === 'WSTG-ATHZ-04');
+  assert.equal(idor.url, `${WSTG_BASE}/05-Authorization/04-Insecure_Direct_Object_References/`);
+  assert.equal(idor.categoryTitle, 'Authorization');
+});
+
+test('a guide cites a category, and a case id is refused with the category named', async () => {
+  const { guides } = await call('GET /api/tests', admin);
+  const guide = guides[0];
+  await assert.rejects(() => call('PATCH /api/tests/:id', admin, { params: { id: guide.id }, body: { wstg: 'WSTG-ATHZ-04' } }), {
+    status: 400,
+    message: /cites a category/,
+  });
+  await assert.rejects(
+    () => call('PATCH /api/tests/:id', admin, { params: { id: guide.id }, body: { wstg: 'NONSENSE' } }),
+    { status: 400 }
+  );
+  const saved = await call('PATCH /api/tests/:id', admin, {
+    params: { id: guide.id },
+    body: { wstg: 'WSTG-INFO' },
+  });
+  assert.equal(saved.guide.wstg, 'WSTG-INFO');
+  assert.ok(saved.guide.wstgUrl.endsWith('/01-Information_Gathering/'));
+  await call('PATCH /api/tests/:id', admin, {
+    params: { id: guide.id },
+    body: { wstg: 'WSTG-ATHZ' },
+  });
+});
+
+test('an admin adds a category and a case, and the guide citation follows it', async () => {
+  // The reason the method is a table: a correction is an edit, not a release.
+  const added = await call('POST /api/wstg/categories', admin, {
+    body: { code: 'wstg-zzzz', title: 'Certification Checks', dir: '/20-Certification/' },
+  });
+  const category = added.categories.find((c) => c.code === 'WSTG-ZZZZ');
+  assert.ok(category, 'a new category was not created');
+  assert.equal(category.dir, '20-Certification', 'the directory keeps its slashes off');
+
+  const withCase = await call('POST /api/wstg/cases', admin, {
+    body: { code: 'wstg-zzzz-01', title: 'Check the certificate chain', slug: '01-Check_The_Chain' },
+  });
+  const one = withCase.cases.find((c) => c.code === 'WSTG-ZZZZ-01');
+  assert.ok(one, 'a new case was not created');
+  assert.equal(one.category, 'WSTG-ZZZZ');
+  assert.equal(one.url, `${WSTG_BASE}/20-Certification/01-Check_The_Chain/`);
+
+  // A guide can cite the new category on the same boot, because nothing validates
+  // against a constant any more.
+  const { guides } = await call('GET /api/tests', admin);
+  const guide = guides[0];
+  const was = guide.wstg;
+  const saved = await call('PATCH /api/tests/:id', admin, {
+    params: { id: guide.id },
+    body: { wstg: 'WSTG-ZZZZ' },
+  });
+  assert.equal(saved.guide.wstgTitle, 'Certification Checks');
+  assert.ok(saved.guide.wstgUrl.endsWith('/20-Certification/'));
+
+  // A case nobody asks about can be removed again.
+  await call('DELETE /api/wstg/cases/:code', admin, { params: { code: 'WSTG-ZZZZ-01' } });
+  await call('PATCH /api/tests/:id', admin, { params: { id: guide.id }, body: { wstg: was } });
+  const gone = await call('DELETE /api/wstg/categories/:code', admin, { params: { code: 'WSTG-ZZZZ' } });
+  assert.ok(!gone.categories.some((c) => c.code === 'WSTG-ZZZZ'));
+});
+
+test('a case a checklist row asks about, and a category that still holds cases, refuse deletion', async () => {
+  await assert.rejects(
+    () => call('DELETE /api/wstg/cases/:code', admin, { params: { code: 'WSTG-ATHZ-04' } }),
+    { status: 409, message: /checklist row/ }
+  );
+  await assert.rejects(
+    () => call('DELETE /api/wstg/categories/:code', admin, { params: { code: 'WSTG-APIT' } }),
+    { status: 409, message: /test case/ }
+  );
+  await assert.rejects(
+    () => call('DELETE /api/wstg/categories/:code', admin, { params: { code: 'WSTG-ATHZ' } }),
+    { status: 409 }
   );
 });
 
-test('every case is named the way a report cites it', () => {
-  for (const one of WSTG_CASES) {
-    assert.match(one.code, /^WSTG-[A-Z]{4}-\d{2}$/, one.code);
-    assert.ok(one.title.trim().length > 3, `${one.code} has no title`);
-    assert.ok(one.url.startsWith(`${WSTG_BASE}/`), `${one.code} has no page on wstg.owasp.org`);
-    const category = WSTG_CATEGORIES.find((c) => c.code === one.category);
-    assert.ok(category, `${one.code} belongs to no category`);
-    assert.ok(one.url.includes(`/${category.dir}/`), `${one.code} points outside its category`);
-  }
+test('a plain member cannot edit the method', async () => {
+  const member = await asUser('bagas');
+  await assert.rejects(
+    () => call('POST /api/wstg/categories', member, { body: { code: 'WSTG-ZZZZ', title: 'x' } }),
+    { status: 403 }
+  );
+  await assert.rejects(
+    () => call('PATCH /api/wstg/cases/:code', member, {
+      params: { code: 'WSTG-ATHZ-04' },
+      body: { title: 'Renamed' },
+    }),
+    { status: 403 }
+  );
 });
 
-test('a category and a case both resolve to the page that publishes them', () => {
-  assert.equal(wstgUrl('WSTG-ATHZ'), `${WSTG_BASE}/05-Authorization/`);
-  assert.equal(wstgUrl('WSTG-ATHZ-04'), `${WSTG_BASE}/05-Authorization/04-Insecure_Direct_Object_References/`);
-  assert.equal(wstgTitle('WSTG-ATHZ-04'), 'Authorization');
-  assert.equal(wstgCategoryCode('WSTG-ERRH-01'), 'WSTG-ERRH');
-  assert.equal(wstgUrl('WSTG-NOPE'), '', 'an unknown category must not build a URL');
-});
-
-test('a citation is one of the twelve categories, or nothing', () => {
-  for (const good of ['WSTG-INFO', 'WSTG-APIT', 'WSTG-BUSL', 'WSTG-ATHZ-04']) {
-    assert.ok(isWstgCode(good), `${good} should be accepted`);
+test('the shipped WSTG template carries the rows the table holds', async () => {
+  const { checklists } = await call('GET /api/checklists', admin);
+  const template = checklists.find((c) => c.name === 'OWASP WSTG');
+  assert.ok(template, 'the WSTG template is not shipped');
+  const full = await call('GET /api/checklists/:id', admin, { params: { id: template.id } });
+  assert.equal(full.checklist.items.length, 116);
+  assert.equal(new Set(full.checklist.items.map((i) => i.section)).size, 12);
+  // 75 of the rows are taught by a guide; the rest are honestly unlinked.
+  const linked = full.checklist.items.filter((i) => i.guide);
+  assert.equal(linked.length, 75, 'the template lost its guide links');
+  for (const item of linked) {
+    assert.match(item.wstgUrl, /^https:\/\/wstg\.owasp\.org\//, `${item.title} carries no link`);
   }
-  for (const bad of ['', 'ATHZ', 'WSTG-', 'WSTG-XXXX', 'wstg-athz', 'WSTG-ATHZ-4', null, undefined]) {
-    assert.equal(isWstgCode(bad), false, `${JSON.stringify(bad)} should be refused`);
-  }
-});
-
-test('every guide cites a category the guide actually publishes', () => {
-  const codes = new Set(WSTG_CATEGORIES.map((c) => c.code));
-  for (const guide of TEST_GUIDES) {
-    assert.ok(codes.has(guide.wstg), `${guide.id} cites ${guide.wstg}, which is not a WSTG category`);
-  }
-  // Not every category has a guide: the library is written around risk categories,
-  // and this method has phases (information gathering, sessions, client-side) that
-  // no Top-10 entry names. The list is here so a missing one is a decision, not a
-  // surprise — the WSTG row still links to wstg.owasp.org.
-  const uncovered = WSTG_CATEGORIES.map((c) => c.code).filter((code) => !TEST_GUIDES.some((g) => g.wstg === code));
-  assert.deepEqual(uncovered, ['WSTG-INFO', 'WSTG-IDNT', 'WSTG-SESS', 'WSTG-CLNT']);
-});
-
-test('a WSTG checklist row finds the guide that claimed its category', () => {
-  // The section is a category, not a Top-10 code, so the link ignores the
-  // checklist it sits in — the WSTG template is its own standard.
-  assert.equal(guideKeyFor('owasp-wstg', 'WSTG-ATHZ — Authorization'), 'A01');
-  assert.equal(guideKeyFor('owasp-wstg', 'WSTG-INPV — Injection'), 'A05');
-  assert.equal(guideKeyFor('owasp-wstg', 'WSTG-SESS — Session Management'), '', 'a phase no guide covers links to nothing');
-  // A Top-10 row still resolves through the checklist, exactly as before.
-  assert.equal(guideKeyFor('owasp-web', 'A05:2025 — Injection'), 'A05');
-  assert.equal(guideKeyFor('owasp-api', 'API1:2023 — Broken Object Level Authorization'), 'API1');
 });
