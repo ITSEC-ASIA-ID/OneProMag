@@ -6657,41 +6657,50 @@ svg { display: block; }
 }
 .cke-acts { display: inline-flex; gap: 2px; opacity: 0.42; transition: opacity 0.12s ease; }
 .cke-item { flex-wrap: wrap; }
-.cke-guide {
+/* The guide, as sub-items: numbered steps and a book button each. */
+.cke-steps {
   flex: 1 0 100%;
   display: flex;
   flex-direction: column;
-  gap: 5px;
-  margin: 2px 0 3px;
-  padding: 8px 10px 9px;
-  background: var(--surface-2);
+  gap: 3px;
+  margin: 0 0 4px 4px;
+  padding: 5px 0 5px 10px;
   border-left: 2px solid var(--border);
-  border-radius: 0 var(--r-sm) var(--r-sm) 0;
 }
-.cke-guide-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.cke-guide-what { margin: 0; font-size: 12.4px; color: var(--muted); line-height: 1.55; }
-.cke-steps {
-  margin: 2px 0 0 0;
-  padding-left: 18px;
+.cke-step-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
   display: flex;
   flex-direction: column;
-  gap: 3px;
-  font-size: 12.4px;
+  gap: 1px;
+}
+.cke-step {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+  font-size: 12px;
   color: var(--ink-2);
-  line-height: 1.5;
+  line-height: 1.65;
 }
-.cke-steps li::marker { color: var(--faint); font-variant-numeric: tabular-nums; }
-.cke-guide-line { margin: 0; font-size: 11.8px; color: var(--muted); line-height: 1.5; }
-.cke-guide-line span {
-  display: inline-block;
-  min-width: 62px;
+.cke-step-n {
+  flex: 0 0 14px;
   font-size: 10px;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
   color: var(--faint);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
 }
-.cke-guide-bare { border-left-color: var(--border); }
-.cke-guide-wstg { font-size: 11.5px; color: var(--faint); }
+.cke-step-text { flex: 1 1 auto; min-width: 0; }
+.cke-step .btn-icon-sm { opacity: 0.35; transition: opacity 0.12s ease; }
+.cke-step:hover .btn-icon-sm, .cke-step .btn-icon-sm:focus-visible { opacity: 1; }
+.cke-step-foot {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin: 2px 0 0;
+  font-size: 11px;
+}
 
 .cke-item:hover .cke-acts, .cke-item:focus-within .cke-acts { opacity: 1; }
 .cke-empty {

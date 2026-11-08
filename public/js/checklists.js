@@ -1148,38 +1148,44 @@ function editorGroups() {
   return groups;
 }
 
-/** The guide for a row, as sub-items under it: what it is, then the steps to run. */
+/**
+ * A row's guide, as sub-items: one line per step, and a button on each that opens the
+ * guide for editing. The prose (what it is, what passing looks like, the tools) is
+ * not repeated here — it is one click away, not 40 lines under every row.
+ */
 function itemGuideHTML(row) {
   if (!row.guide) return '';
   const guide = editorGuides.get(row.guide);
   if (!guide) {
-    return `<div class="cke-guide cke-guide-bare"><span class="note-line">No guide is written for this category yet.</span></div>`;
+    return `<div class="cke-steps"><span class="note-line">No guide is written for this category yet.</span></div>`;
   }
-  const steps = Array.isArray(guide.steps) ? guide.steps.filter(Boolean) : [];
-  const list = (label, rows) =>
-    rows && rows.length
-      ? `<p class="cke-guide-line"><span>${label}</span> ${rows.map(h).join(' · ')}</p>`
-      : '';
-  return `<div class="cke-guide" data-cke-guide="${h(guide.id)}">
-    <div class="cke-guide-head">
-      <span class="badge badge-outline" data-tone="slate">${h(guide.code)}</span>
-      <button type="button" class="link-btn" data-guide-edit="${h(guide.id)}">${h(guide.title)}</button>
-      ${
-        guide.wstgUrl
-          ? `<a class="link-btn cke-guide-wstg" href="${h(guide.wstgUrl)}" target="_blank" rel="noopener"
-               title="Read it on wstg.owasp.org">${h(guide.wstg)}${icon.external(10)}</a>`
-          : ''
-      }
-    </div>
-    ${guide.what ? `<p class="cke-guide-what">${h(guide.what)}</p>` : ''}
+  const steps = (guide.steps || []).filter(Boolean);
+  return `<div class="cke-steps">
     ${
       steps.length
-        ? `<ol class="cke-steps">${steps.map((step) => `<li>${h(step)}</li>`).join('')}</ol>`
+        ? `<ol class="cke-step-list">${steps
+            .map(
+              (step, i) => `<li class="cke-step">
+          <span class="cke-step-n">${i + 1}</span>
+          <span class="cke-step-text">${h(step)}</span>
+          <button type="button" class="btn btn-icon btn-icon-sm" data-guide-edit="${h(guide.id)}"
+            title="Edit the test guide" aria-label="Edit the test guide">${icon.book(12)}</button>
+        </li>`
+            )
+            .join('')}</ol>`
         : ''
     }
-    ${list('Passing', guide.passes)}
-    ${list('Tools', guide.tools)}
-    ${list('Watch for', guide.watch)}
+    <p class="cke-step-foot">
+      <button type="button" class="link-btn" data-guide-edit="${h(guide.id)}">${h(guide.code)} · ${h(
+        guide.title
+      )}</button>
+      ${
+        guide.wstgUrl
+          ? `<a class="link-btn" href="${h(guide.wstgUrl)}" target="_blank" rel="noopener"
+              title="Read it on wstg.owasp.org">${h(guide.wstg)}${icon.external(10)}</a>`
+          : ''
+      }
+    </p>
   </div>`;
 }
 
