@@ -1,8 +1,8 @@
 import { db } from '../db.js';
 import { HttpError, nowISO } from '../auth.js';
 import { assertProject, requireCatalogManager, requireDeleter } from '../shared.js';
-import { WSTG_SHAPE, guideKeyFor, sectionCode } from '../knowledge.js';
-import { categoryOf, wstgClaims, wstgIndex, wstgUrlOf } from '../wstg-store.js';
+import { guideKeyFor, sectionCode } from '../knowledge.js';
+import { wstgClaims, wstgIndex, wstgUrlOf } from './knowledge.js';
 
 /* Security checklists, in two halves that live in one file because they cannot
  * be understood apart:
@@ -62,8 +62,10 @@ function wanted(value) {
 
 /** The WSTG category a row asks about, read from its section — empty for a row that is not WSTG. */
 function wstgOf(index, section, title = '') {
-  const code = sectionCode(section || '');
-  const wstg = categoryOf(index, code);
+  const code = sectionCode(section || '').toUpperCase();
+  // The tables answer "is this a category", so a section the method does not
+  // publish is simply a row with no citation.
+  const wstg = index.byCategory.has(code) ? code : '';
   if (!wstg) return { wstg: '', wstgUrl: '' };
   // A row titled with the case id (`WSTG-ATHZ-04 Insecure Direct Object References`)
   // links to that case; anything else links to its category. Never a guessed URL:

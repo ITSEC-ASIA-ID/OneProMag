@@ -11,9 +11,8 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { WSTG_SEED } from '../server/knowledge.js';
 
-// Imported in `before()`: `server/wstg-store.js` pulls in `server/db.js`, whose data
+// Imported in `before()`: the route module pulls in `server/db.js`, whose data
 // directory is read when the module loads. A static import here would open the
 // developer's own database before the temp one is chosen.
 let WSTG_BASE;
@@ -47,7 +46,7 @@ before(async () => {
   process.env.DATA_DIR = DATA_DIR;
   process.env.SEED_DEMO = '1';
   process.env.ALLOW_REGISTER = '0';
-  WSTG_BASE = (await import('../server/wstg-store.js')).WSTG_BASE;
+  WSTG_BASE = (await import('../server/routes/knowledge.js')).WSTG_BASE;
   const dbModule = await import('../server/db.js');
   api = (await import('../server/api.js')).api;
   db = dbModule.db;
@@ -63,17 +62,15 @@ after(async () => {
   }
 });
 
-test('the shipped seed is twelve categories and the cases they publish', () => {
-  // The seed is what a fresh install gets, so its shape is the contract: 116 rows in
-  // twelve sections is what the checklist promises on the page.
-  assert.equal(WSTG_SEED.length, 12);
-  assert.equal(
-    WSTG_SEED.reduce((n, c) => n + c.cases.length, 0),
-    116,
-    'the seed lost a test case'
+test('the shipped seed is twelve categories and the cases they publish', async () => {
+  // The seed is `server/schema/wstg.sql`, run on every boot, so what the tables hold
+  // after one boot IS the shipped contract: 116 rows in twelve sections is what the
+  // checklist promises on the page.
+  const categories = await db.all(
+    'SELECT code, dir, position FROM wstg_categories ORDER BY position, code'
   );
   assert.deepEqual(
-    WSTG_SEED.map((c) => c.code),
+    categories.map((c) => c.code),
     [
       'WSTG-INFO',
       'WSTG-CONF',
@@ -89,13 +86,27 @@ test('the shipped seed is twelve categories and the cases they publish', () => {
       'WSTG-APIT',
     ]
   );
-  for (const category of WSTG_SEED) {
+  for (const category of categories) {
     assert.ok(category.dir, `${category.code} has no directory`);
-    for (const [code, title, slug] of category.cases) {
-      assert.match(code, /^WSTG-[A-Z]{4}-\d{2}$/, code);
-      assert.ok(title.trim().length > 3, `${code} has no title`);
-      assert.ok(slug && !slug.startsWith('/'), `${code} has no page slug`);
-    }
+  }
+
+  const cases = await db.all('SELECT code, title, slug, category_code FROM wstg_cases');
+  assert.equal(cases.length, 116, 'the seed lost a test case');
+  for (const one of cases) {
+    assert.match(one.code, /^WSTG-[A-Z]{4}-\d{2}$/, one.code);
+    assert.ok(one.title.trim().length > 3, `${one.code} has no title`);
+    assert.ok(one.slug && !one.slug.startsWith('/'), `${one.code} has no page slug`);
+    assert.ok(
+      categories.some((c) => c.code === one.category_code),
+      `${one.code} sits in ${one.category_code}, which is not a category`
+    );
+  }
+  // Every category publishes at least one case, so none is a dead heading.
+  for (const category of categories) {
+    assert.ok(
+      cases.some((one) => one.category_code === category.code),
+      `${category.code} publishes no case`
+    );
   }
 });
 

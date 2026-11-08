@@ -350,7 +350,7 @@ CREATE TABLE IF NOT EXISTS test_guides (
 );
 
 -- The OWASP Web Security Testing Guide, as data an admin owns.
--- Seeded once from server/knowledge.js (WSTG_SEED) and never rewritten after
+-- Seeded once from server/schema/wstg.sql and never rewritten after
 -- that: the twelve categories and their cases are content, and a code change is
 -- the wrong way to fix a typo OWASP has already fixed.
 CREATE TABLE IF NOT EXISTS wstg_categories (

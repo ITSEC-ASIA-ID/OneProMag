@@ -2,8 +2,7 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { GUIDE_CHECKLISTS, TEST_GUIDES, WSTG_SEED, guideKeyFor } from './knowledge.js';
-import { forgetWstg, wstgChecklistItems, wstgClaims } from './wstg-store.js';
+import { GUIDE_CHECKLISTS, TEST_GUIDES, guideKeyFor } from './knowledge.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const SCHEMA_DIR = path.join(__dirname, 'schema');
@@ -28,6 +27,34 @@ const DATA_DIR = process.env.DATA_DIR
 
 function readSchema(engine) {
   return fs.readFileSync(path.join(SCHEMA_DIR, `${engine}.sql`), 'utf8');
+}
+
+/**
+ * The shipped content of the WSTG.
+ *
+ * Plain SQL beside the schema, not a module: the tables are what the Admin panel
+ * edits, so the seed must be data too, or the two disagree the moment someone
+ * corrects a title. `INSERT … WHERE NOT EXISTS` in the file keeps a boot from
+ * undoing an edit, on both engines.
+ */
+function readWstgSeed() {
+  return fs.readFileSync(path.join(SCHEMA_DIR, 'wstg.sql'), 'utf8');
+}
+
+/**
+ * Which guide answers which WSTG category — the first in library order that
+ * claims it. A category no guide claims is a gap in the library, not an error:
+ * the checklist row simply has no book button.
+ */
+async function wstgClaims() {
+  const rows = await db.all(
+    "SELECT wstg, id FROM test_guides WHERE wstg <> '' ORDER BY position, id"
+  );
+  const claims = new Map();
+  for (const row of rows) {
+    if (!claims.has(row.wstg)) claims.set(row.wstg, row.id);
+  }
+  return claims;
 }
 
 /**
@@ -967,16 +994,26 @@ async function seedPropertiesIfEmpty() {
 /**
  * The rows a shipped template is written with.
  *
- * Every template carries its rows in this file, except the WSTG: that one is the
- * `wstg_cases` table written out (`server/wstg-store.js`), because the table is
- * what the Admin panel edits. A copy in code would make a checklist row that
- * disagrees with the citation a guide carries — two sources of truth for one
- * method. `help` is empty on purpose: the guide that teaches the category is one
+ * Every template carries its rows in this file, except the WSTG: that one is
+ * written from the `wstg_cases` table, because the table is what the Admin panel
+ * edits. A copy in code would make a checklist row that disagrees with the
+ * citation a guide carries — two sources of truth for one method. `help` is empty on purpose: the guide that teaches the category is one
  * book button away, and inventing a pass criterion for 116 cases would be writing
  * a fifth standard.
  */
 async function templateItems(template) {
-  return template.key === 'owasp-wstg' ? await wstgChecklistItems() : template.items;
+  if (template.key !== 'owasp-wstg') return template.items;
+  const rows = await db.all(
+    `SELECT c.code AS category, c.title AS category_title, i.code AS code, i.title AS title
+       FROM wstg_cases i
+       JOIN wstg_categories c ON c.code = i.category_code
+      ORDER BY c.position, i.position, i.code`
+  );
+  return rows.map((one) => [
+    `${one.category} — ${one.category_title}`,
+    `${one.code} ${one.title}`,
+    '',
+  ]);
 }
 
 const DEFAULT_CHECKLISTS = [
@@ -1146,42 +1183,6 @@ const DEFAULT_CHECKLISTS = [
 
 /** Ship-then-withdraw: a template we no longer publish, dropped on boot. */
 const RETIRED_CHECKLISTS = ['OWASP Top 10 2021'];
-
-/**
- * Puts the WSTG in the database, once.
- *
- * Insert-if-missing, like the guides: a boot must not undo an admin's correction
- * to a title, a slug or a whole category. A case that arrives in a later release
- * is still written, because it is missing rather than edited.
- */
-async function seedWstg() {
-  const cats = new Set((await db.all('SELECT code FROM wstg_categories')).map((r) => r.code));
-  const cases = new Set((await db.all('SELECT code FROM wstg_cases')).map((r) => r.code));
-  let categories = 0;
-  let added = 0;
-
-  for (const [index, category] of WSTG_SEED.entries()) {
-    if (!cats.has(category.code)) {
-      await db.run('INSERT INTO wstg_categories (code, title, dir, position) VALUES (?, ?, ?, ?)', [
-        category.code,
-        category.title,
-        category.dir,
-        index,
-      ]);
-      categories += 1;
-    }
-    for (const [position, [code, title, slug]] of category.cases.entries()) {
-      if (cases.has(code)) continue;
-      await db.run(
-        'INSERT INTO wstg_cases (code, category_code, title, slug, position) VALUES (?, ?, ?, ?, ?)',
-        [code, category.code, title, slug, position]
-      );
-      added += 1;
-    }
-  }
-  forgetWstg();
-  return { categories, cases: added };
-}
 
 /**
  * Puts the shipped how-to-test library in the database, once.
@@ -1449,6 +1450,7 @@ export async function initDatabase() {
     await migrateSupervisorNames();
     await dedupeProjectChecklists();
     await createIndexes();
+    await db.exec(readWstgSeed());
   } else {
     const { createSqliteDriver } = await import('./drivers/sqlite.js');
     fs.mkdirSync(DATA_DIR, { recursive: true });
@@ -1460,6 +1462,7 @@ export async function initDatabase() {
     await migrateSupervisorNames();
     await dedupeProjectChecklists();
     await createIndexes();
+    await db.exec(readWstgSeed());
   }
   fs.mkdirSync(UPLOAD_DIR, { recursive: true });
   await pruneOrphanNotes();
@@ -1468,7 +1471,10 @@ export async function initDatabase() {
   // that must already mean something.
   const properties = await seedPropertiesIfEmpty();
   // Before the checklists: the WSTG template is written from these tables.
-  const wstg = await seedWstg();
+  // The rows themselves arrive with the schema seed (`server/schema/wstg.sql`).
+  const wstg = await db.get(
+    'SELECT (SELECT COUNT(*) FROM wstg_categories) AS categories, (SELECT COUNT(*) FROM wstg_cases) AS cases'
+  );
   const checklists = await syncSeededChecklists();
   // After the checklists exist, so a guide can point at the one it teaches.
   const guides = await seedTestGuides();

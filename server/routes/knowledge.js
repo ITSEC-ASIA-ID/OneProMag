@@ -1,8 +1,87 @@
 import { db } from '../db.js';
 import { HttpError, nowISO } from '../auth.js';
-import { COMMON_FINDINGS, WSTG_SHAPE } from '../knowledge.js';
-import { forgetWstg, wstgIndex, wstgUrlOf } from '../wstg-store.js';
+import { COMMON_FINDINGS } from '../knowledge.js';
 import { requireCatalogManager, requireDeleter } from '../shared.js';
+
+
+/* ------------------------------------------------------------
+   The WSTG, read out of its tables
+   ------------------------------------------------------------
+   Twelve categories and their test cases are rows (`wstg_categories`,
+   `wstg_cases`), seeded by `server/schema/wstg.sql`, edited in the Admin panel.
+   Three things are derived here and never stored: a case's category title, its
+   URL (category directory + case slug — the site spells two slugs against their
+   titles, so the slug is a column), and whether a code is real, which is the same
+   question as "is it a row". The index is cached because every checklist row asks
+   for it; every write below calls `forgetWstg()` so the next read is the truth.
+   ------------------------------------------------------------ */
+
+export const WSTG_BASE =
+  'https://wstg.owasp.org/latest/4-Web_Application_Security_Testing';
+
+let wstgCached = null;
+
+export function forgetWstg() {
+  wstgCached = null;
+}
+
+/** Categories and cases, each case joined to its category and its page. */
+export async function wstgIndex(force = false) {
+  if (wstgCached && !force) return wstgCached;
+
+  const [categories, rows] = await Promise.all([
+    db.all('SELECT code, title, dir, position FROM wstg_categories ORDER BY position, code'),
+    db.all('SELECT code, category_code, title, slug, position FROM wstg_cases ORDER BY position, code'),
+  ]);
+
+  const byCategory = new Map(categories.map((one) => [one.code, one]));
+  const byCase = new Map();
+  for (const row of rows) {
+    const category = byCategory.get(row.category_code);
+    if (!category) continue; // a case with no category is not reachable
+    byCase.set(row.code, {
+      code: row.code,
+      title: row.title,
+      slug: row.slug,
+      position: row.position,
+      category: category.code,
+      categoryTitle: category.title,
+      url: `${WSTG_BASE}/${category.dir}/${row.slug}/`,
+    });
+  }
+
+  wstgCached = { categories, cases: [...byCase.values()], byCategory, byCase };
+  return wstgCached;
+}
+
+/** Title and page for a category or case code; empty when it is not real. */
+export function wstgUrlOf(index, value) {
+  const code = String(value ?? '')
+    .trim()
+    .toUpperCase();
+  if (index.byCategory.has(code)) {
+    const category = index.byCategory.get(code);
+    return { title: category.title, url: `${WSTG_BASE}/${category.dir}/` };
+  }
+  const one = index.byCase.get(code);
+  return one ? { title: one.title, url: one.url } : { title: '', url: '' };
+}
+
+/**
+ * Which guide answers a category: the first in library order that claims it.
+ * A category no guide claims is not an error — it is a gap in the library, and
+ * the checklist row simply has no guide to open.
+ */
+export async function wstgClaims() {
+  const rows = await db.all(
+    "SELECT wstg, id FROM test_guides WHERE wstg <> '' ORDER BY position, id"
+  );
+  const claims = new Map();
+  for (const row of rows) {
+    if (!claims.has(row.wstg)) claims.set(row.wstg, row.id);
+  }
+  return claims;
+}
 
 /* ============================================================
    The reference libraries
@@ -184,7 +263,7 @@ async function nextGuide(body, row, index) {
       .toUpperCase();
     if (!wanted_) wstg = '';
     else if (index.byCategory.has(wanted_)) wstg = wanted_;
-    else if (WSTG_SHAPE.test(wanted_) || wanted_.startsWith('WSTG-')) {
+    else if (wanted_.startsWith('WSTG-')) {
       // A case id (`WSTG-ATHZ-04`) is a real thing, but a guide covers a
       // category: say so instead of guessing which one it meant.
       throw new HttpError(400, `A guide cites a category, not a test case — pick ${wanted_.split('-').slice(0, 2).join('-')} or another category`);
@@ -339,7 +418,7 @@ export const routes = {
     requireCatalogManager(ctx);
     const body = ctx.body || {};
     const code = text(body.code, 20).toUpperCase();
-    if (!WSTG_SHAPE.test(code)) {
+    if (!/^WSTG-[A-Z]{2,8}$/.test(code)) {
       throw new HttpError(400, 'A category code looks like WSTG-ATHZ');
     }
     if (await db.get('SELECT code FROM wstg_categories WHERE code = ?', [code])) {
