@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { GUIDE_CHECKLISTS, TEST_GUIDES, guideKeyFor } from './knowledge.js';
+import { WSTG_CASES } from './wstg.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const SCHEMA_DIR = path.join(__dirname, 'schema');
@@ -963,6 +964,21 @@ async function seedPropertiesIfEmpty() {
  * project uses them. `seed_key = ''` marks a template an admin made, and the
  * sync never touches one of those.
  */
+/**
+ * The WSTG as checklist rows: `WSTG-ATHZ — Authorization`, one row per test case.
+ *
+ * Generated from server/wstg.js rather than typed twice — the case list is the
+ * method, and a checklist that disagrees with the citation a guide carries is
+ * two sources of truth. `help` is empty on purpose: the guide that teaches the
+ * category is one book button away, and inventing a pass criterion for 116 cases
+ * would be writing a fifth standard.
+ */
+const WSTG_ITEMS = WSTG_CASES.map((one) => [
+  `${one.category} — ${one.categoryTitle}`,
+  `${one.code} ${one.title}`,
+  '',
+]);
+
 const DEFAULT_CHECKLISTS = [
   {
     key: 'owasp-web',
@@ -1115,6 +1131,16 @@ const DEFAULT_CHECKLISTS = [
       ['Backup and restore', 'Confirm a backup exists, then read what it contains.', 'Backups taken on schedule, stored off the host, and a restore has been rehearsed.'],
     ],
   },
+  {
+    key: 'owasp-wstg',
+    version: 1,
+    name: 'OWASP WSTG',
+    description:
+      'The OWASP Web Security Testing Guide as published: twelve categories, 116 test cases. Attach it when the client asks for the method, not only the Top 10.',
+    category: 'Web',
+    isDefault: false,
+    items: WSTG_ITEMS,
+  },
 ];
 
 /** Ship-then-withdraw: a template we no longer publish, dropped on boot. */
@@ -1143,12 +1169,13 @@ async function seedTestGuides() {
     const list = byKey.get(GUIDE_CHECKLISTS[guide.checklist]) || byName.get(guide.checklist);
     await db.run(
       `INSERT INTO test_guides
-         (id, code, area, title, checklist_id, what, steps, passes, tools, watch, position, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         (id, code, area, wstg, title, checklist_id, what, steps, passes, tools, watch, position, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         guide.id,
         guide.code,
         guide.area,
+        guide.wstg || '',
         guide.title,
         list ? Number(list.id) : null,
         guide.what,
@@ -1163,7 +1190,19 @@ async function seedTestGuides() {
     );
     seeded += 1;
   }
-  return { seeded };
+
+  // A guide seeded before `wstg` existed carries the column default. Fill it from
+  // the module, and only while it is still empty: an admin's own citation stands,
+  // the same rule the seeding above follows.
+  let cited = 0;
+  for (const guide of TEST_GUIDES) {
+    const info = await db.run("UPDATE test_guides SET wstg = ? WHERE id = ? AND wstg = ''", [
+      guide.wstg || '',
+      guide.id,
+    ]);
+    cited += Number(info?.rowCount) || 0;
+  }
+  return { seeded, cited };
 }
 
 /**
@@ -1308,8 +1347,10 @@ async function backfillGuideKeys() {
  *      and impact, and its severity is the product of the two (server/risk.js).
  * 25 — the how-to-test library is a table an admin edits, seeded from
  *      server/knowledge.js once and never rewritten.
+ * 26 — the WSTG arrives as a shipped checklist (116 test cases, twelve sections)
+ *      and every guide cites the category its work lands in (server/wstg.js).
  */
-export const SCHEMA_VERSION = 25;
+export const SCHEMA_VERSION = 26;
 
 let appliedSchemaVersion = 0;
 
@@ -1838,6 +1879,8 @@ async function migrateSqlite() {
   // given, and the form asks for both ratings the first time one is edited.
   await addColumnIfMissing('project_findings', 'likelihood', 'INTEGER NOT NULL DEFAULT 0');
   await addColumnIfMissing('project_findings', 'impact_score', 'INTEGER NOT NULL DEFAULT 0');
+  // v1.26: a guide names the WSTG category its work lands in.
+  await addColumnIfMissing('test_guides', 'wstg', "TEXT NOT NULL DEFAULT ''");
 }
 
 async function migratePostgres() {
@@ -1901,6 +1944,8 @@ async function migratePostgres() {
   // v1.24: a finding's severity is derived from likelihood × impact.
   await addColumnIfMissing('project_findings', 'likelihood', 'INTEGER NOT NULL DEFAULT 0');
   await addColumnIfMissing('project_findings', 'impact_score', 'INTEGER NOT NULL DEFAULT 0');
+  // v1.26: a guide names the WSTG category its work lands in.
+  await addColumnIfMissing('test_guides', 'wstg', "TEXT NOT NULL DEFAULT ''");
 }
 
 export { seed };

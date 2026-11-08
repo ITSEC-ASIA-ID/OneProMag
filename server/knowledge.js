@@ -1,3 +1,5 @@
+import { wstgCategoryCode } from './wstg.js';
+
 /*
    The two reference libraries: how to test an area, and what a finding looks
    like when the test fails.
@@ -16,6 +18,13 @@
    A guide is keyed to the seeded checklist section it teaches (`A01:2025`,
    `API1:2023`), so the two libraries and the checklist read as one body of
    knowledge rather than three lists that happen to mention OWASP.
+
+   Each guide also names the WSTG category its work lands in (`wstg`), because the
+   WSTG is the published method a report is judged against and a client may ask
+   "which of the twelve did you do?" — the answer should not depend on the reader
+   guessing. It is a citation, not a merge: the categories are OWASP's, several
+   guides can honestly claim one (three claim WSTG-ATHZ), and the guide text is
+   still ours.
 */
 
 /* ============================================================
@@ -34,6 +43,7 @@ export const TEST_GUIDES = [
     area: 'Web',
     title: 'Broken Access Control',
     checklist: 'OWASP Top 10:2025',
+    wstg: 'WSTG-ATHZ',
     what: 'The app checks who you are but not what you may touch. Any request that names an object — a project id, an invoice number, a file name, a user id — is a candidate: the session proves you are somebody, and nothing proves the object is yours.',
     steps: [
       'Map every endpoint that takes an identifier, including the ones the UI never calls: read the JavaScript, the mobile APK, or the API docs and collect each id-bearing path and body field.',
@@ -63,6 +73,7 @@ export const TEST_GUIDES = [
     area: 'Web',
     title: 'Security Misconfiguration',
     checklist: 'OWASP Top 10:2025',
+    wstg: 'WSTG-CONF',
     what: 'Nothing is coded wrong; the deployment simply exposes itself. Debug pages, default accounts, permissive CORS, directory listings, a framework admin panel left on a public path, and files the build should have excluded.',
     steps: [
       'Read the full response headers on the landing page and on a JSON API call: Server, X-Powered-By, X-AspNet-Version, and whether a CSP, HSTS, X-Content-Type-Options or Referrer-Policy exists at all.',
@@ -92,6 +103,7 @@ export const TEST_GUIDES = [
     area: 'Web',
     title: 'Software Supply Chain Failures',
     checklist: 'OWASP Top 10:2025',
+    wstg: 'WSTG-CONF',
     what: 'The code you wrote is fine; the code you imported is not, or the pipeline that turns it into a running system can be made to run something else. This covers vulnerable dependencies, unpinned builds, and a package or image fetched from wherever it happens to resolve.',
     steps: [
       'Identify the stack from headers, error pages, cookies and static asset names, then list the components: framework, web server, database driver, JS libraries and their versions.',
@@ -120,6 +132,7 @@ export const TEST_GUIDES = [
     area: 'Web',
     title: 'Cryptographic Failures',
     checklist: 'OWASP Top 10:2025',
+    wstg: 'WSTG-CRYP',
     what: 'Data that should be secret is readable, or the protection is technically present but hollow: a password hashed with MD5, a token that never expires, TLS that negotiates a 1990s cipher, a PAN in a URL that ends up in a proxy log.',
     steps: [
       'Find what is sensitive by reading the app: card numbers, tokens, national ids, health data, credentials. Write the list down; it is the scope of the rest.',
@@ -148,6 +161,7 @@ export const TEST_GUIDES = [
     area: 'Web',
     title: 'Injection',
     checklist: 'OWASP Top 10:2025',
+    wstg: 'WSTG-INPV',
     what: 'Untrusted text reaches an interpreter that gives it meaning: SQL, a shell, a template, an LDAP filter, a regex, a log parser, an HTML sink. The classic is a quote in a search box; the modern one is a name field rendered into innerHTML.',
     steps: [
       'Enumerate every input that could reach a query or a renderer: search, filters, sort and column names, ids, headers (User-Agent, X-Forwarded-For), filenames, and JSON values the UI never exposes.',
@@ -177,6 +191,7 @@ export const TEST_GUIDES = [
     area: 'Web',
     title: 'Insecure Design',
     checklist: 'OWASP Top 10:2025',
+    wstg: 'WSTG-BUSL',
     what: 'No line of code is wrong; the flow was designed with a hole. A refund that can be requested twice, a discount that stacks, an approval step that can be skipped by calling the next endpoint, a password reset that trusts a value the user controls.',
     steps: [
       'Draw the intended flow from the UI — every step, every screen, every state the object moves through.',
@@ -206,6 +221,7 @@ export const TEST_GUIDES = [
     area: 'Web',
     title: 'Authentication Failures',
     checklist: 'OWASP Top 10:2025',
+    wstg: 'WSTG-ATHN',
     what: 'The login can be guessed, bypassed, or outlived its logout. Weak password rules, no lockout, a session that keeps working after sign-out, a reset token that never expires, MFA that can be skipped by calling the step before it.',
     steps: [
       'Read the password policy by trying: a 4-character password, "password", the username as password. What the form accepts is the policy.',
@@ -235,6 +251,7 @@ export const TEST_GUIDES = [
     area: 'Web',
     title: 'Software or Data Integrity Failures',
     checklist: 'OWASP Top 10:2025',
+    wstg: 'WSTG-INPV',
     what: 'The app trusts data it never verified: a serialized object from a cookie, an update package with no signature, a webhook with no HMAC, a JWT whose header it obeys, a CDN script that anyone can replace.',
     steps: [
       'Decode every token and blob the client carries: JWT header and payload, base64 cookies, a serialized session object. Note what the server trusts.',
@@ -263,6 +280,7 @@ export const TEST_GUIDES = [
     area: 'Web',
     title: 'Security Logging and Alerting Failures',
     checklist: 'OWASP Top 10:2025',
+    wstg: 'WSTG-ERRH',
     what: 'An attack leaves no trace, or a trace nobody reads. The failure is invisible in a scan and shows up in the incident review: nobody can say when the admin account was created, and no alert fired on 4,000 failed logins.',
     steps: [
       'Do something hostile and legitimate-looking — a failed login burst, a 403 storm, a privileged action — then ask the client to show the log lines and the alert.',
@@ -291,6 +309,7 @@ export const TEST_GUIDES = [
     area: 'Web',
     title: 'Mishandling of Exceptional Conditions',
     checklist: 'OWASP Top 10:2025',
+    wstg: 'WSTG-ERRH',
     what: 'The happy path is handled; the edge is not. A malformed body returns a stack trace, one bad request takes the process down, a timeout leaves a half-written record, or a null in the wrong place turns into a 500 that leaks the ORM.',
     steps: [
       'Feed malformed input to every parser: a string where a number belongs, null, [], {}, a 10 MB string, an emoji, an invalid date, a negative id, a float for an int.',
@@ -319,6 +338,7 @@ export const TEST_GUIDES = [
     area: 'API',
     title: 'Broken Object Level Authorization',
     checklist: 'OWASP API Security Top 10 2023',
+    wstg: 'WSTG-ATHZ',
     what: 'The API answers by object id and trusts the session for ownership. Because there is no screen in the way, every id-bearing endpoint in the spec — and every one that is not in the spec — is directly reachable.',
     steps: [
       'Build the endpoint inventory from the OpenAPI document, the mobile app, and the JS bundle; add every /v1 and /v2 variant you can guess.',
@@ -347,6 +367,7 @@ export const TEST_GUIDES = [
     area: 'API',
     title: 'Broken Authentication',
     checklist: 'OWASP API Security Top 10 2023',
+    wstg: 'WSTG-ATHN',
     what: 'The token is the only identity an API has, so its lifetime, storage and revocation are the whole authentication story. Common failures: a token that never expires, one that survives logout, a refresh flow that mints a token for anyone, a key in a query string.',
     steps: [
       'Capture the token from login and decode it: what identity does it carry, when does it expire, is it signed, and can the client influence its claims?',
@@ -376,6 +397,7 @@ export const TEST_GUIDES = [
     area: 'API',
     title: 'Broken Object Property Level Authorization',
     checklist: 'OWASP API Security Top 10 2023',
+    wstg: 'WSTG-ATHZ',
     what: 'Two halves: the response returns fields the screen never asked for (a password hash, an internal flag, another user\'s email), and the request accepts fields the client must not set (role, owner_id, balance, is_admin).',
     steps: [
       'Capture a create and an update response and compare the field list to what the UI displays. Every extra field is a question: is it sensitive?',
@@ -404,6 +426,7 @@ export const TEST_GUIDES = [
     area: 'API',
     title: 'Unrestricted Resource Consumption',
     checklist: 'OWASP API Security Top 10 2023',
+    wstg: 'WSTG-BUSL',
     what: 'Every call costs the server CPU, memory, bandwidth or money, and nothing bounds how often or how large. A page size of 100000, an unbounded export, a resize endpoint that takes any dimensions, an SMS endpoint that sends for free.',
     steps: [
       'Find the parameters that size the work: limit, per_page, page_size, offset, fields, expand, include, sort, format, width, height.',
@@ -432,6 +455,7 @@ export const TEST_GUIDES = [
     area: 'API',
     title: 'Broken Function Level Authorization',
     checklist: 'OWASP API Security Top 10 2023',
+    wstg: 'WSTG-ATHZ',
     what: 'The endpoint exists and is protected by the UI hiding its button. An admin route reachable with a member token, or a member route reachable with no token at all, because authorization was enforced per router mount instead of per function.',
     steps: [
       'Collect every route from the spec, the JS bundle, the mobile app, and a guess list (/admin, /internal, /debug, /v1/admin/users, /users/export).',
@@ -460,6 +484,7 @@ export const TEST_GUIDES = [
     area: 'API',
     title: 'Unrestricted Access to Sensitive Business Flows',
     checklist: 'OWASP API Security Top 10 2023',
+    wstg: 'WSTG-BUSL',
     what: 'A flow that is meant to be slow and human can be automated: ticket scalping, coupon farming, signup bonuses, referral credit, one-time claims. No single request is wrong; the absence of a limit is the vulnerability.',
     steps: [
       'Identify the flows where volume itself is the abuse: purchase, claim, vote, signup, referral, comment, password reset for many accounts.',
@@ -488,6 +513,7 @@ export const TEST_GUIDES = [
     area: 'API',
     title: 'Server Side Request Forgery',
     checklist: 'OWASP API Security Top 10 2023',
+    wstg: 'WSTG-INPV',
     what: 'The server fetches a URL the user supplied: an avatar import, a webhook test, a PDF renderer, an RSS reader. Point it at the metadata service or an internal host and the server becomes a proxy with its own credentials.',
     steps: [
       'Find every parameter that takes a URL, host, path or "import from" value — including JSON bodies, form fields, headers and file references.',
@@ -516,6 +542,7 @@ export const TEST_GUIDES = [
     area: 'API',
     title: 'Security Misconfiguration',
     checklist: 'OWASP API Security Top 10 2023',
+    wstg: 'WSTG-CONF',
     what: 'The API deployment is loud: wildcard CORS with credentials, a verbose error envelope, an open /docs or /graphql playground, a version banner, an unused method enabled. Nothing is coded wrong; the surface is just wider than intended.',
     steps: [
       'Read the headers on an authenticated and an unauthenticated call: Server, X-Powered-By, CSP, HSTS, X-Content-Type-Options.',
@@ -544,6 +571,7 @@ export const TEST_GUIDES = [
     area: 'API',
     title: 'Improper Inventory Management',
     checklist: 'OWASP API Security Top 10 2023',
+    wstg: 'WSTG-APIT',
     what: 'Old versions and forgotten hosts are still up. /v1 with the bug fixed in /v2, /beta with debug on, a staging host with the same data and no WAF. The vulnerable surface is the one nobody listed.',
     steps: [
       'Ask for the inventory, then test it: every host, every version, every environment. The gap between the list and reality is the finding.',
@@ -572,6 +600,7 @@ export const TEST_GUIDES = [
     area: 'API',
     title: 'Unsafe Consumption of APIs',
     checklist: 'OWASP API Security Top 10 2023',
+    wstg: 'WSTG-APIT',
     what: 'The app calls somebody else and trusts the answer. A third-party API returns a redirect to an internal host, a 10 GB body, a TLS downgrade, or a field that lands in the database unchecked — and the app passes it straight through.',
     steps: [
       'Find the outbound calls: integrations, webhooks, payment, KYC, maps, SMS, an exchange rate or a shipping quote. Read the code or the docs to see which are fetched at runtime.',
@@ -616,7 +645,7 @@ export const GUIDE_CHECKLISTS = {
  * only thing standing between an item and its guide, so it is read once here rather
  * than in every page that wants the link.
  */
-function sectionCode(section) {
+export function sectionCode(section) {
   return String(section || '')
     .split(/\s+[—–]\s+|\s+-\s+/)[0]
     .trim();
@@ -631,6 +660,15 @@ function sectionCode(section) {
 export function guideKeyFor(checklistKey, section) {
   const code = sectionCode(section);
   if (!code) return '';
+  // A WSTG section is a category (`WSTG-ATHZ`), not a Top-10 code, so it is not
+  // narrowed by the checklist: the WSTG template is its own standard. More than
+  // one guide can claim a category; the first in library order answers, which is
+  // the guide written for the web case the viewer is most likely holding.
+  const wstg = wstgCategoryCode(code);
+  if (wstg) {
+    const claim = TEST_GUIDES.find((g) => g.wstg === wstg);
+    return claim ? claim.id : '';
+  }
   const of = (g) => !checklistKey || GUIDE_CHECKLISTS[g.checklist] === checklistKey;
   const exact = TEST_GUIDES.find((g) => of(g) && g.code === code);
   if (exact) return exact.id;

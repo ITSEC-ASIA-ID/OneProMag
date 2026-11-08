@@ -6914,6 +6914,27 @@ svg { display: block; }
   line-height: 1.65;
   color: var(--ink-2);
 }
+/* The method this guide's work belongs to, as a citation rather than a claim:
+   it links out, so the reader can read OWASP's own words. */
+.guide-wstg {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  font-size: 11.5px;
+  color: var(--muted);
+}
+.guide-wstg a {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--ink-2);
+  text-decoration: none;
+  border-bottom: 1px solid var(--border);
+}
+.guide-wstg a:hover { color: var(--ink); border-bottom-color: var(--faint); }
+.guide-wstg-note { color: var(--faint); font-size: 11px; }
 .guide-section { display: flex; flex-direction: column; gap: 8px; }
 .lib-h {
   margin: 0;

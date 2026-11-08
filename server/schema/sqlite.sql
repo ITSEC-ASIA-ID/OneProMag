@@ -329,6 +329,9 @@ CREATE TABLE IF NOT EXISTS test_guides (
   id           TEXT PRIMARY KEY,
   code         TEXT NOT NULL DEFAULT '',
   area         TEXT NOT NULL DEFAULT '',
+  -- The WSTG category this work lands in (`WSTG-ATHZ`), '' when the guide is
+  -- about something the guide does not test (a supply chain, a process).
+  wstg         TEXT NOT NULL DEFAULT '',
   title        TEXT NOT NULL,
   -- The checklist this guide teaches, and where its category comes from.
   -- SET NULL rather than CASCADE: deleting a template must not delete the method

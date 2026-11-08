@@ -1722,14 +1722,40 @@ test('a checklist item names the guide that teaches it, and the guide names wher
       if (!item.guide) continue;
       linked.push(item);
       // A guide is derived from the section, so a link that disagrees with the
-      // section means the row was moved and kept a stale guide.
-      assert.ok(
-        item.section.startsWith(codeOf.get(item.guide)),
-        `${item.title} sits in "${item.section}" but links ${item.guide}`
-      );
+      // section means the row was moved and kept a stale guide. A WSTG row names a
+      // category rather than a Top-10 code, so it is matched against the citation
+      // the guide carries instead.
+      const sectionCode = item.section.split(/\s+[—–]\s+/)[0].trim();
+      if (sectionCode.startsWith('WSTG-')) {
+        const guide = guides.find((g) => g.id === item.guide);
+        assert.equal(
+          guide.wstg,
+          sectionCode,
+          `${item.title} sits in "${item.section}" but links ${item.guide}, which cites ${guide.wstg}`
+        );
+        assert.ok(item.wstgUrl.startsWith('https://wstg.owasp.org/'), `${item.title} carries no WSTG link`);
+      } else {
+        assert.ok(
+          item.section.startsWith(codeOf.get(item.guide)),
+          `${item.title} sits in "${item.section}" but links ${item.guide}`
+        );
+      }
     }
   }
   assert.ok(linked.length >= 30, `expected the shipped items to be linked, got ${linked.length}`);
+
+  // The WSTG ships as a template of its own: twelve sections, one row per test
+  // case, and every row can name the page that publishes it.
+  const wstg = checklists.find((c) => c.name === 'OWASP WSTG');
+  assert.ok(wstg, 'the WSTG template is not shipped');
+  const full = await call('GET /api/checklists/:id', who, { params: { id: wstg.id } });
+  assert.equal(new Set(full.checklist.items.map((i) => i.section)).size, 12, 'the WSTG template lost a section');
+  assert.equal(full.checklist.items.length, 116, 'the WSTG template lost a test case');
+  assert.deepEqual(
+    full.checklist.items.filter((i) => !i.wstg || !i.wstgUrl).map((i) => i.title),
+    [],
+    'a WSTG row does not carry its category link'
+  );
 
   // A seeded guide has to say where it is asked: the template that teaches it asks
   // it, and its count comes from the rows, not from a number in the seed file.

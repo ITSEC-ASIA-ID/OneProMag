@@ -202,6 +202,16 @@ function guideDetailHTML(g) {
 function guideContentHTML(g) {
   return `<p class="guide-what">${h(g.what)}</p>
 
+      ${
+        g.wstg
+          ? `<p class="guide-wstg">${icon.shield(12)}
+               <a href="${h(g.wstgUrl)}" target="_blank" rel="noopener">${h(g.wstg)} · ${h(
+                 g.wstgTitle
+               )}${icon.external(11)}</a>
+               <span class="guide-wstg-note">on wstg.owasp.org</span></p>`
+          : ''
+      }
+
       <section class="guide-section">
         <h3 class="lib-h">How to test it</h3>
         <ol class="guide-steps">${(g.steps || []).map((s) => `<li>${h(s)}</li>`).join('')}</ol>

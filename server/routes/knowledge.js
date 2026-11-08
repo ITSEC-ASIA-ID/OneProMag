@@ -1,6 +1,7 @@
 import { db } from '../db.js';
 import { HttpError, nowISO } from '../auth.js';
 import { COMMON_FINDINGS } from '../knowledge.js';
+import { isWstgCode, wstgCategoryCode, wstgTitle, wstgUrl, WSTG_CATEGORIES } from '../wstg.js';
 import { requireCatalogManager, requireDeleter } from '../shared.js';
 
 /* ============================================================
@@ -79,6 +80,10 @@ function shapeGuide(row) {
     id: row.id,
     code: row.code || '',
     area: row.area || '',
+    // A citation, resolved here so a page never has to build a URL for it.
+    wstg: row.wstg || '',
+    wstgTitle: wstgTitle(row.wstg || ''),
+    wstgUrl: wstgUrl(row.wstg || ''),
     title: row.title,
     what: row.what || '',
     steps: parseList(row.steps),
@@ -162,9 +167,18 @@ async function nextGuide(body, row) {
       ? row.checklist_id
       : Number(body.checklistId);
   const list = checklistId ? await checklistById(checklistId) : null;
+  // One of the twelve, or nothing. Checked rather than free text: the value is a
+  // link on a published page, and a typo would render as a dead one.
+  let wstg = row.wstg || '';
+  if (body.wstg !== undefined) {
+    if (body.wstg === '' || body.wstg === null) wstg = '';
+    else if (isWstgCode(body.wstg)) wstg = wstgCategoryCode(body.wstg);
+    else throw new HttpError(400, 'A WSTG citation is one of the twelve categories, like WSTG-ATHZ');
+  }
   return {
     code: body.code === undefined ? row.code || '' : text(body.code, 40),
     title: body.title === undefined ? row.title : wanted(body.title),
+    wstg,
     what: body.what === undefined ? row.what || '' : text(body.what, 8000),
     steps: body.steps === undefined ? parseList(row.steps) : lines(body.steps),
     passes: body.passes === undefined ? parseList(row.passes) : lines(body.passes),
@@ -176,7 +190,12 @@ async function nextGuide(body, row) {
 }
 
 export const routes = {
-  'GET /api/tests': async () => ({ guides: await guidesWithChecklist() }),
+  'GET /api/tests': async () => ({
+    guides: await guidesWithChecklist(),
+    // The twelve categories travel with the guides so the editor can offer them
+    // without a second call, and a client never hard-codes OWASP's vocabulary.
+    wstg: WSTG_CATEGORIES.map(({ code, title }) => ({ code, title })),
+  }),
 
   'POST /api/tests': async (ctx) => {
     requireCatalogManager(ctx);
@@ -195,12 +214,13 @@ export const routes = {
     const max = await db.get('SELECT COALESCE(MAX(position), -1) AS p FROM test_guides');
     await db.run(
       `INSERT INTO test_guides
-         (id, code, area, title, checklist_id, what, steps, passes, tools, watch, position, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         (id, code, area, wstg, title, checklist_id, what, steps, passes, tools, watch, position, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         id,
         next.code,
         next.area,
+        next.wstg,
         next.title,
         next.checklistId,
         next.what,
@@ -223,12 +243,13 @@ export const routes = {
     const next = await nextGuide(ctx.body || {}, row);
     await db.run(
       `UPDATE test_guides
-          SET code = ?, area = ?, title = ?, checklist_id = ?, what = ?,
+          SET code = ?, area = ?, wstg = ?, title = ?, checklist_id = ?, what = ?,
               steps = ?, passes = ?, tools = ?, watch = ?, updated_at = ?
         WHERE id = ?`,
       [
         next.code,
         next.area,
+        next.wstg,
         next.title,
         next.checklistId,
         next.what,

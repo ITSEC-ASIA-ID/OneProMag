@@ -91,6 +91,10 @@ export const icon = {
     s2(size, '<path d="M12 17v5"/><path d="M9 3h6l-1 7 3 3H7l3-3-1-7z"/>'),
   copy: (size = 14) =>
     s2(size, '<rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/>'),
+  // A citation that leaves the app: the arrow-out-of-a-box every reader already
+  // knows, so a link to wstg.owasp.org does not look like another tab in here.
+  external: (size = 13) =>
+    s2(size, '<path d="M14 4h6v6"/><path d="M20 4 11 13"/><path d="M18 14v4.5A1.5 1.5 0 0 1 16.5 20h-11A1.5 1.5 0 0 1 4 18.5v-11A1.5 1.5 0 0 1 5.5 6H10"/>'),
   android: (size = 16) => s2(size, '<path d="M6 10.5v6a1.5 1.5 0 0 0 1.5 1.5h9a1.5 1.5 0 0 0 1.5-1.5v-6"/><path d="M6 10.5a6 6 0 0 1 12 0"/><path d="M7.5 6 6 4M16.5 6 18 4"/><circle cx="9" cy="9" r=".7" fill="currentColor" stroke="none"/><circle cx="15" cy="9" r=".7" fill="currentColor" stroke="none"/><path d="M3 11v5M21 11v5"/>'),
   apple: (size = 16) => s2(size, '<path d="M16.2 12.6c0-2.2 1.8-3.3 1.9-3.4-1-1.5-2.6-1.7-3.2-1.7-1.4-.1-2.6.8-3.3.8-.7 0-1.7-.8-2.9-.8-1.5 0-2.9.9-3.7 2.2-1.6 2.7-.4 6.8 1.1 9 .8 1.1 1.7 2.3 2.9 2.2 1.2 0 1.6-.7 3-.7s1.8.7 3 .7c1.2 0 2.1-1.1 2.8-2.2.6-.9.9-1.6 1.3-2.6-2.1-.8-2.9-2.8-2.9-3.5z"/><path d="M14.1 5.8c.6-.8 1.1-1.9 1-3-1 .1-2.2.7-2.9 1.5-.6.7-1.1 1.8-1 2.9 1.1.1 2.2-.6 2.9-1.4z"/>'),
   queue: () => s('<rect x="3" y="4" width="18" height="4.5" rx="1.6"/><rect x="3" y="10.5" width="18" height="4.5" rx="1.6"/><path d="M6 18.5h12"/><path d="M8.5 6.2h.01M8.5 12.8h.01"/>'),

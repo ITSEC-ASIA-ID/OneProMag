@@ -1,7 +1,8 @@
 import { db } from '../db.js';
 import { HttpError, nowISO } from '../auth.js';
-import { guideKeyFor } from '../knowledge.js';
+import { guideKeyFor, sectionCode } from '../knowledge.js';
 import { assertProject, requireCatalogManager, requireDeleter } from '../shared.js';
+import { isWstgCode, wstgCategoryCode, wstgUrl as wstgPage } from '../wstg.js';
 
 /* Security checklists, in two halves that live in one file because they cannot
  * be understood apart:
@@ -59,6 +60,18 @@ function wanted(value) {
   return text(raw);
 }
 
+/** The WSTG category a row asks about, read from its section — empty for a row that is not WSTG. */
+function wstgOf(section, title = '') {
+  const code = sectionCode(section || '');
+  const wstg = isWstgCode(code) ? wstgCategoryCode(code) : '';
+  if (!wstg) return { wstg: '', wstgUrl: '' };
+  // A row titled with the case id (`WSTG-ATHZ-04 Insecure Direct Object References`)
+  // links to that case; anything else links to its category. Never a guessed URL:
+  // `wstgPage` returns '' for an id the method does not publish.
+  const one = /^(WSTG-[A-Z]{4}-\d{2})\b/.exec(String(title || ''));
+  return { wstg, wstgUrl: (one && wstgPage(one[1])) || wstgPage(wstg) };
+}
+
 function shapeItem(row) {
   return {
     id: Number(row.id),
@@ -70,6 +83,10 @@ function shapeItem(row) {
     // derived from the section when the row is written, so the admin edits the
     // standard and the link follows it instead of drifting on its own.
     guide: row.guide_key || '',
+    // A WSTG row also names the page that publishes the test, so a pentester can
+    // read the method itself rather than only our summary of it. Derived from the
+    // section like the guide, never stored: the section IS the citation.
+    ...wstgOf(row.section, row.title),
     position: Number(row.position || 0),
   };
 }
@@ -338,7 +355,13 @@ export const routes = {
            VALUES (?, ?, ?, ?, ?, ?) RETURNING id`,
           [row.id, item.section, item.title, item.help, guideKeyFor(row.seed_key, item.section), position]
         );
-        created.push({ id: Number(info.lastInsertId), ...item, guide: guideKeyFor(row.seed_key, item.section), position });
+        created.push({
+          id: Number(info.lastInsertId),
+          ...item,
+          guide: guideKeyFor(row.seed_key, item.section),
+          ...wstgOf(item.section, item.title),
+          position,
+        });
         position += 1;
       }
     });

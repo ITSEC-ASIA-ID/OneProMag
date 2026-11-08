@@ -84,6 +84,14 @@ function itemHTML(item, files) {
           : ''
       }
       ${
+        item.wstgUrl
+          ? `<a class="btn btn-icon btn-icon-sm" href="${h(item.wstgUrl)}" target="_blank" rel="noopener"
+               title="${h(`${item.wstg} on wstg.owasp.org`)}" aria-label="Read ${h(item.wstg)} on wstg.owasp.org">${icon.external(
+                 13
+               )}</a>`
+          : ''
+      }
+      ${
         item.help
           ? `<button type="button" class="btn btn-icon btn-icon-sm" data-ck-help
                aria-expanded="false" title="What this is about" aria-label="What ${h(item.title)} is about">${icon.alert(13)}</button>`
@@ -621,7 +629,7 @@ export function guidesPageHTML() {
 
 function guideRowHTML(g) {
   const asked = (g.asked || []).reduce((n, a) => n + Number(a.items || 0), 0);
-  const words = [g.code, g.checklistName].filter(Boolean).join(' · ');
+  const words = [g.code, g.wstg, g.checklistName].filter(Boolean).join(' · ');
   return `<tr data-gd-row="${h(g.id)}">
     <td class="dev-name">
       <button type="button" class="ck-open" data-gd-edit="${h(g.id)}">${h(g.title)}</button>
@@ -682,8 +690,9 @@ export async function refreshGuides() {
   bindCatalogSwitch();
   let guides = [];
   let checklists = [];
+  let wstg = [];
   try {
-    [{ guides }, { checklists }] = await Promise.all([api.tests(), api.checklists()]);
+    [{ guides, wstg }, { checklists }] = await Promise.all([api.tests(), api.checklists()]);
   } catch (err) {
     host.innerHTML = `<div class="empty"><h3>Could not load the test guides</h3><p>${h(err.message)}</p></div>`;
     return;
@@ -692,11 +701,11 @@ export async function refreshGuides() {
   host.innerHTML = guidesSectionHTML(guides);
   document
     .querySelector('[data-catalog-new="guides"]')
-    ?.addEventListener('click', () => openGuideEditor(null, checklists), { once: true });
+    ?.addEventListener('click', () => openGuideEditor(null, checklists, wstg), { once: true });
   host.querySelectorAll('[data-gd-edit]').forEach((b) =>
     b.addEventListener('click', () => {
       const guide = guides.find((g) => g.id === b.dataset.gdEdit);
-      if (guide) openGuideEditor(guide, checklists);
+      if (guide) openGuideEditor(guide, checklists, wstg);
     })
   );
   host.querySelectorAll('[data-gd-del]').forEach((b) =>
@@ -721,7 +730,7 @@ export async function refreshGuides() {
 }
 
 /** One guide, in a dialog: six short fields and four lists, one line each. */
-function openGuideEditor(guide, checklists) {
+function openGuideEditor(guide, checklists, wstg = []) {
   const editing = Boolean(guide);
   const listOptions = [`<option value="">No checklist</option>`]
     .concat(
@@ -749,6 +758,32 @@ function openGuideEditor(guide, checklists) {
       <div class="field">
         <label for="gd-checklist">Checklist</label>
         <select id="gd-checklist" class="input">${listOptions}</select>
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="field">
+        <label for="gd-wstg">WSTG category</label>
+        <select id="gd-wstg" class="input">
+          <option value=""${guide?.wstg ? '' : ' selected'}>No citation</option>
+          ${wstg
+            .map(
+              (c) =>
+                `<option value="${h(c.code)}"${guide?.wstg === c.code ? ' selected' : ''}>${h(
+                  c.code
+                )} — ${h(c.title)}</option>`
+            )
+            .join('')}
+        </select>
+      </div>
+      <div class="field">
+        <span class="field-label">Where the citation points</span>
+        ${
+          guide?.wstgUrl
+            ? `<a class="link-btn" href="${h(guide.wstgUrl)}" target="_blank" rel="noopener">${h(
+                guide.wstg
+              )}${icon.external(11)}</a>`
+            : `<span class="note-line">The OWASP test cases this guide's work belongs to.</span>`
+        }
       </div>
     </div>
     ${field('what', 'What this category means', guide?.what, true)}
@@ -784,6 +819,7 @@ function openGuideEditor(guide, checklists) {
       code: value('code').trim(),
       title: value('title').trim(),
       checklistId: value('checklist') || '',
+      wstg: value('wstg') || '',
       what: value('what').trim(),
       steps: list('steps'),
       passes: list('passes'),
@@ -914,7 +950,7 @@ function editorBodyHTML() {
         placeholder="One line on what this list is for (optional)" aria-label="Description" />
       <div class="cke-meta">
         <label class="cke-field">
-          <span class="label">Category</span>
+          <span class="field-label">Category</span>
           <select class="input" id="cke-cat">${categoryOptions(editor.category)}</select>
         </label>
         <label class="switch-row cke-default">
