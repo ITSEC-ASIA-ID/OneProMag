@@ -1399,8 +1399,10 @@ async function backfillGuideKeys() {
  *      and every guide cites the category its work lands in.
  * 27 — the WSTG is data (`wstg_categories`, `wstg_cases`) an admin owns, seeded
  *      once from server/knowledge.js; the checklist template is written from it.
+ * 28 — a checklist item owns its sub-items (`checklist_item_steps`), each one
+ *      optionally pointing at a test guide it can open.
  */
-export const SCHEMA_VERSION = 27;
+export const SCHEMA_VERSION = 28;
 
 let appliedSchemaVersion = 0;
 

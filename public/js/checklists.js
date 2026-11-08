@@ -1121,6 +1121,11 @@ function emptyEditor() {
   return { id: null, name: '', description: '', category: '', isDefault: false, rows: [], removed: new Set() };
 }
 
+/** What a row's sub-items say, so an untouched list is not rewritten on every save. */
+function stepsSignature(steps) {
+  return JSON.stringify((steps || []).map((step) => [String(step.text || '').trim(), step.guide || '']));
+}
+
 function sectionChoices(extra = '') {
   const names = [];
   for (const row of editor.rows) {
@@ -1149,44 +1154,60 @@ function editorGroups() {
 }
 
 /**
- * A row's guide, as sub-items: one line per step, and a button on each that opens the
- * guide for editing. The prose (what it is, what passing looks like, the tools) is
- * not repeated here — it is one click away, not 40 lines under every row.
+ * The sub-items under an item: text the admin owns, one line each, and on every line a
+ * button for the guide it may point at — a book when it has one, a plus when it could.
+ * The guide's prose is never rendered here; the button opens the guide itself.
  */
-function itemGuideHTML(row) {
-  if (!row.guide) return '';
-  const guide = editorGuides.get(row.guide);
-  if (!guide) {
-    return `<div class="cke-steps"><span class="note-line">No guide is written for this category yet.</span></div>`;
-  }
-  const steps = (guide.steps || []).filter(Boolean);
-  return `<div class="cke-steps">
+function stepRowHTML(index, step, stepIndex) {
+  const guide = step.guide ? editorGuides.get(step.guide) : null;
+  return `<div class="cke-step-row" data-si="${stepIndex}">
+    <span class="cke-step-n">${stepIndex + 1}</span>
+    <input class="input cke-step-text" data-step-f="text" value="${h(step.text || '')}"
+      placeholder="Sub-item (optional)" aria-label="Sub-item" autocomplete="off" />
     ${
-      steps.length
-        ? `<ol class="cke-step-list">${steps
-            .map(
-              (step, i) => `<li class="cke-step">
-          <span class="cke-step-n">${i + 1}</span>
-          <span class="cke-step-text">${h(step)}</span>
-          <button type="button" class="btn btn-icon btn-icon-sm" data-guide-edit="${h(guide.id)}"
-            title="Edit the test guide" aria-label="Edit the test guide">${icon.book(12)}</button>
-        </li>`
-            )
-            .join('')}</ol>`
-        : ''
+      guide
+        ? `<button type="button" class="btn btn-sm btn-ghost cke-step-guide" data-step-guide="open"
+            title="Edit the test guide">${icon.book(12)}<span>${h(guide.code)}</span></button>`
+        : `<button type="button" class="btn btn-icon btn-icon-sm" data-step-guide="pick"
+            title="Link a test guide" aria-label="Link a test guide">${icon.plus(12)}</button>`
     }
-    <p class="cke-step-foot">
-      <button type="button" class="link-btn" data-guide-edit="${h(guide.id)}">${h(guide.code)} · ${h(
-        guide.title
-      )}</button>
-      ${
-        guide.wstgUrl
-          ? `<a class="link-btn" href="${h(guide.wstgUrl)}" target="_blank" rel="noopener"
-              title="Read it on wstg.owasp.org">${h(guide.wstg)}${icon.external(10)}</a>`
-          : ''
-      }
-    </p>
+    <button type="button" class="btn btn-icon btn-icon-sm btn-icon-danger" data-step-del
+      title="Remove sub-item" aria-label="Remove sub-item">${icon.trash(12)}</button>
   </div>`;
+}
+
+function itemStepsHTML(row, index) {
+  const steps = row.steps || [];
+  return `<div class="cke-steps" data-steps="${index}">
+    ${steps.map((step, si) => stepRowHTML(index, step, si)).join('')}
+    <button type="button" class="link-btn cke-step-add" data-step-add>${icon.plus(11)} sub-item</button>
+  </div>`;
+}
+
+/** Picks the guide a sub-item points at, or clears it. */
+function openStepGuidePicker(step, done) {
+  const options = [...editorGuides.values()]
+    .sort((a, b) => String(a.code).localeCompare(String(b.code)))
+    .map(
+      (g) =>
+        `<option value="${h(g.id)}"${g.id === step.guide ? ' selected' : ''}>${h(g.code)} · ${h(g.title)}</option>`
+    )
+    .join('');
+  openModal({
+    title: 'Link a test guide',
+    subtitle: 'The sub-item keeps its own text; the guide opens from its book button.',
+    body: `<div class="field"><label for="step-guide-pick">Guide</label>
+      <select id="step-guide-pick" class="input"><option value="">No guide</option>${options}</select></div>`,
+    footer: `<button class="btn" data-close>Cancel</button>
+      <button class="btn btn-primary" data-save-guide>Link guide</button>`,
+    onMount(modal, close) {
+      modal.querySelector('[data-save-guide]').addEventListener('click', () => {
+        step.guide = modal.querySelector('#step-guide-pick').value;
+        close();
+        done();
+      });
+    },
+  });
 }
 
 function editorItemHTML(row, index) {
@@ -1211,7 +1232,7 @@ function editorItemHTML(row, index) {
         )}</button>
       </span>
     </div>
-    ${itemGuideHTML(row)}
+    ${itemStepsHTML(row, index)}
   </div>`;
 }
 
@@ -1316,7 +1337,9 @@ export async function mountChecklistEditor() {
           title: item.title || '',
           help: item.help || '',
           guide: item.guide || '',
+          steps: (item.steps || []).map((step) => ({ text: step.text || '', guide: step.guide || '' })),
           orig: { section: item.section || '', title: item.title || '', help: item.help || '' },
+          origSteps: stepsSignature(item.steps),
         })),
         removed: new Set(),
       };
@@ -1358,7 +1381,7 @@ function bindEditor(host) {
   };
 
   const addRow = (section = '', at = null) => {
-    const row = { id: null, section, title: '', help: '' };
+    const row = { id: null, section, title: '', help: '', steps: [] };
     if (at === null) editor.rows.push(row);
     else editor.rows.splice(at, 0, row);
     repaintList();
@@ -1370,11 +1393,35 @@ function bindEditor(host) {
   function bindRows() {
     list.querySelectorAll('.cke-item').forEach((el) => {
       const index = Number(el.dataset.idx);
-      // The guide under a row opens for editing in place; the list re-mounts after,
-      // because a renamed guide changes the row's sub-items, not just the dialog.
-      el.querySelector('[data-guide-edit]')?.addEventListener('click', () => {
-        const guide = editorGuides.get(el.querySelector('[data-guide-edit]').dataset.guideEdit);
-        if (guide) openGuideEditor(guide, editorChecklists, editorWstg, () => mountChecklistEditor());
+      // Sub-items: text the admin owns, and a button that opens the guide the
+      // sub-item points at (or a plus to pick one). Editing a guide repaints the list
+      // because its code is on the button, not because the sub-item text changes.
+      el.querySelectorAll('.cke-step-row').forEach((stepEl) => {
+        const si = Number(stepEl.dataset.si);
+        const step = editor.rows[index]?.steps?.[si];
+        if (!step) return;
+        stepEl.querySelector('[data-step-f="text"]')?.addEventListener('input', (e) => {
+          step.text = e.target.value;
+        });
+        stepEl.querySelector('[data-step-guide]')?.addEventListener('click', (e) => {
+          if (e.currentTarget.dataset.stepGuide === 'open') {
+            const guide = editorGuides.get(step.guide);
+            if (guide) openGuideEditor(guide, editorChecklists, editorWstg, repaintList);
+          } else {
+            openStepGuidePicker(step, repaintList);
+          }
+        });
+        stepEl.querySelector('[data-step-del]')?.addEventListener('click', () => {
+          editor.rows[index].steps.splice(si, 1);
+          repaintList();
+        });
+      });
+      el.querySelector('[data-step-add]')?.addEventListener('click', () => {
+        const row = editor.rows[index];
+        if (!row) return;
+        if (!row.steps) row.steps = [];
+        row.steps.push({ text: '', guide: '' });
+        repaintList();
       });
       el.querySelectorAll('[data-f]').forEach((input) => {
         const field = input.dataset.f;
@@ -1484,27 +1531,36 @@ function bindEditor(host) {
       // Positions are rewritten from the array order, so a reorder is a real
       // reorder even when nothing else changed.
       const fresh = [];
+      const freshRows = [];
       for (let i = 0; i < editor.rows.length; i += 1) {
         const row = editor.rows[i];
         const title = (row.title || '').trim();
         if (!title) continue;
         const next = { section: (row.section || '').trim(), title, help: (row.help || '').trim(), position: i };
+        // Sub-items are written only when they changed: a save of the title alone
+        // must not delete and rebuild ten step rows.
+        const stepsDirty = stepsSignature(row.steps) !== (row.origSteps ?? stepsSignature(row.steps));
         if (!row.id) {
           fresh.push(next);
+          freshRows.push(row);
           continue;
         }
         const before = row.orig || { section: '', title: '', help: '' };
         const moved = before.section !== next.section || before.title !== next.title || before.help !== next.help;
         if (moved || row.position !== i) await api.updateChecklistItem(row.id, next);
+        if (stepsDirty) await api.saveChecklistSteps(row.id, row.steps);
       }
       if (fresh.length) {
         const created = (await api.createChecklistItems(targetId, fresh)).items || [];
         // The bulk insert appends, so its positions are placeholders: put each
-        // new row where the list says it belongs.
-        for (const item of created) {
-          const wantedIndex = fresh.findIndex((f) => f.title === item.title && f.section === item.section);
-          const target = wantedIndex >= 0 ? fresh[wantedIndex].position : null;
-          if (target !== null) await api.updateChecklistItem(item.id, { position: target });
+        // new row where the list says it belongs, then write its sub-items — the
+        // rows come back in the order they were posted, so they pair by index.
+        for (let k = 0; k < created.length; k += 1) {
+          const item = created[k];
+          const target = fresh[k]?.position;
+          if (target !== null && target !== undefined) await api.updateChecklistItem(item.id, { position: target });
+          const row = freshRows[k];
+          if (row && (row.steps || []).length) await api.saveChecklistSteps(item.id, row.steps);
         }
       }
 

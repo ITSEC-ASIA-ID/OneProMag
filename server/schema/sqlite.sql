@@ -319,6 +319,17 @@ CREATE TABLE IF NOT EXISTS checklist_items (
   position     INTEGER NOT NULL DEFAULT 0
 );
 
+-- The sub-items of a checklist row: the admin's own steps, not a copy of a guide.
+-- `guide_key` is optional — a step may name the guide that explains it, and that
+-- link is edited from the step, so a guide can be attached to any single step.
+CREATE TABLE IF NOT EXISTS checklist_item_steps (
+  id        INTEGER PRIMARY KEY AUTOINCREMENT,
+  item_id   INTEGER NOT NULL REFERENCES checklist_items(id) ON DELETE CASCADE,
+  text      TEXT NOT NULL DEFAULT '',
+  guide_key TEXT NOT NULL DEFAULT '',
+  position  INTEGER NOT NULL DEFAULT 0
+);
+
 -- The how-to-test library: one row per area of a checklist. Shipped with the
 -- app (server/knowledge.js) but edited here, because the text is advice an admin
 -- improves, not a fact about the code. Seeded once and never overwritten, unlike

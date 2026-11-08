@@ -162,6 +162,7 @@ export const api = {
   createChecklistItems: (id, items) => request('POST', `/api/checklists/${id}/items`, { items }),
   updateChecklistItem: (id, payload) => request('PATCH', `/api/checklist-items/${id}`, payload),
   deleteChecklistItem: (id) => request('DELETE', `/api/checklist-items/${id}`),
+  saveChecklistSteps: (id, steps) => request('PUT', `/api/checklist-items/${id}/steps`, { steps }),
 
   // Checklists on an engagement.
   projectChecklists: (projectId) => request('GET', `/api/projects/${projectId}/checklists`),

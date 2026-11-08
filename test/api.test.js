@@ -1431,6 +1431,60 @@ test('only a lead may create or edit a template, and a pasted list imports as it
   );
 });
 
+test('a checklist item owns its sub-items, each optionally pointing at a guide', async () => {
+  const leadUser = await lead();
+  const { checklist } = await call('POST /api/checklists', leadUser, { body: { name: 'Sub-items list' } });
+  const { items } = await call('POST /api/checklists/:id/items', leadUser, {
+    params: { id: checklist.id },
+    body: { section: 'Auth', title: 'MFA on admin', help: 'Check the enrolment path' },
+  });
+  const item = items[0];
+  const { guides } = await call('GET /api/tests', leadUser);
+  const guide = guides[0];
+
+  const saved = await call('PUT /api/checklist-items/:id/steps', leadUser, {
+    params: { id: item.id },
+    body: { steps: [{ text: 'Sign in as an admin' }, { text: 'Open the security tab', guide: guide.id }] },
+  });
+  assert.equal(saved.steps.length, 2);
+  assert.equal(saved.steps[1].guide, guide.id, 'a sub-item may point at a guide');
+  assert.equal(saved.steps[0].guide, '', 'and pointing is optional');
+
+  const full = await call('GET /api/checklists/:id', leadUser, { params: { id: checklist.id } });
+  assert.deepEqual(
+    full.checklist.items[0].steps.map((s) => s.text),
+    ['Sign in as an admin', 'Open the security tab']
+  );
+
+  // The list is authoritative: blank lines are dropped, the rest replaces what was there.
+  const replaced = await call('PUT /api/checklist-items/:id/steps', leadUser, {
+    params: { id: item.id },
+    body: { steps: [{ text: 'Only this one' }, { text: '   ' }] },
+  });
+  assert.equal(replaced.steps.length, 1);
+
+  await assert.rejects(
+    () =>
+      call('PUT /api/checklist-items/:id/steps', leadUser, {
+        params: { id: item.id },
+        body: { steps: [{ text: 'Points nowhere', guide: 'no-such-guide' }] },
+      }),
+    { status: 400 }
+  );
+  const after = await call('GET /api/checklists/:id', leadUser, { params: { id: checklist.id } });
+  assert.equal(after.checklist.items[0].steps.length, 1, 'a rejected write leaves the list alone');
+
+  const user = await member();
+  await assert.rejects(
+    () => call('PUT /api/checklist-items/:id/steps', user, { params: { id: item.id }, body: { steps: [] } }),
+    { status: 403 }
+  );
+
+  await call('DELETE /api/checklist-items/:id', leadUser, { params: { id: item.id } });
+  const left = await db.get('SELECT COUNT(*) AS n FROM checklist_item_steps WHERE item_id = ?', [item.id]);
+  assert.equal(Number(left.n), 0, 'sub-items go with the item');
+});
+
 test('attach, answer, progress and detach — with the in-use delete refused', async () => {
   const leadUser = await lead();
   const user = await member();
