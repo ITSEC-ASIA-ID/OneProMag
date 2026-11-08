@@ -704,7 +704,7 @@ export async function refreshGuides() {
 }
 
 /** One guide, in a dialog: six short fields and four lists, one line each. */
-function openGuideEditor(guide, checklists, wstg = []) {
+function openGuideEditor(guide, checklists, wstg = [], after = null) {
   const editing = Boolean(guide);
   const listOptions = [`<option value="">No checklist</option>`]
     .concat(
@@ -805,7 +805,8 @@ function openGuideEditor(guide, checklists, wstg = []) {
       else await api.createGuide(payload);
       modal.close();
       toast(editing ? 'Guide saved' : 'Guide created');
-      await refreshGuides();
+      if (after) await after();
+      else await refreshGuides();
     } catch (err) {
       event.currentTarget.disabled = false;
       toast(err.message, 'err');
@@ -1110,6 +1111,11 @@ export function checklistEditorHTML() {
 // delete, move, re-group), so typing never fights a repaint: only structural
 // actions repaint, and every text field writes back on `input`.
 let editor = null;
+// The guides, checklists and WSTG categories the editor needs: a test row shows the
+// guide that teaches it, and editing that guide has to offer the same vocabulary.
+let editorGuides = new Map();
+let editorChecklists = [];
+let editorWstg = [];
 
 function emptyEditor() {
   return { id: null, name: '', description: '', category: '', isDefault: false, rows: [], removed: new Set() };
@@ -1142,6 +1148,41 @@ function editorGroups() {
   return groups;
 }
 
+/** The guide for a row, as sub-items under it: what it is, then the steps to run. */
+function itemGuideHTML(row) {
+  if (!row.guide) return '';
+  const guide = editorGuides.get(row.guide);
+  if (!guide) {
+    return `<div class="cke-guide cke-guide-bare"><span class="note-line">No guide is written for this category yet.</span></div>`;
+  }
+  const steps = Array.isArray(guide.steps) ? guide.steps.filter(Boolean) : [];
+  const list = (label, rows) =>
+    rows && rows.length
+      ? `<p class="cke-guide-line"><span>${label}</span> ${rows.map(h).join(' · ')}</p>`
+      : '';
+  return `<div class="cke-guide" data-cke-guide="${h(guide.id)}">
+    <div class="cke-guide-head">
+      <span class="badge badge-outline" data-tone="slate">${h(guide.code)}</span>
+      <button type="button" class="link-btn" data-guide-edit="${h(guide.id)}">${h(guide.title)}</button>
+      ${
+        guide.wstgUrl
+          ? `<a class="link-btn cke-guide-wstg" href="${h(guide.wstgUrl)}" target="_blank" rel="noopener"
+               title="Read it on wstg.owasp.org">${h(guide.wstg)}${icon.external(10)}</a>`
+          : ''
+      }
+    </div>
+    ${guide.what ? `<p class="cke-guide-what">${h(guide.what)}</p>` : ''}
+    ${
+      steps.length
+        ? `<ol class="cke-steps">${steps.map((step) => `<li>${h(step)}</li>`).join('')}</ol>`
+        : ''
+    }
+    ${list('Passing', guide.passes)}
+    ${list('Tools', guide.tools)}
+    ${list('Watch for', guide.watch)}
+  </div>`;
+}
+
 function editorItemHTML(row, index) {
   return `<div class="cke-item" data-idx="${index}">
     <div class="cke-item-main">
@@ -1164,6 +1205,7 @@ function editorItemHTML(row, index) {
         )}</button>
       </span>
     </div>
+    ${itemGuideHTML(row)}
   </div>`;
 }
 
@@ -1248,7 +1290,14 @@ export async function mountChecklistEditor() {
   editor = emptyEditor();
   if (id) {
     try {
-      const { checklist } = await api.checklist(id);
+      const [{ checklist }, { guides, wstg }, { checklists }] = await Promise.all([
+        api.checklist(id),
+        api.tests(),
+        api.checklists(),
+      ]);
+      editorGuides = new Map(guides.map((guide) => [guide.id, guide]));
+      editorChecklists = checklists;
+      editorWstg = wstg;
       editor = {
         id: checklist.id,
         name: checklist.name || '',
@@ -1260,6 +1309,7 @@ export async function mountChecklistEditor() {
           section: item.section || '',
           title: item.title || '',
           help: item.help || '',
+          guide: item.guide || '',
           orig: { section: item.section || '', title: item.title || '', help: item.help || '' },
         })),
         removed: new Set(),
@@ -1314,6 +1364,12 @@ function bindEditor(host) {
   function bindRows() {
     list.querySelectorAll('.cke-item').forEach((el) => {
       const index = Number(el.dataset.idx);
+      // The guide under a row opens for editing in place; the list re-mounts after,
+      // because a renamed guide changes the row's sub-items, not just the dialog.
+      el.querySelector('[data-guide-edit]')?.addEventListener('click', () => {
+        const guide = editorGuides.get(el.querySelector('[data-guide-edit]').dataset.guideEdit);
+        if (guide) openGuideEditor(guide, editorChecklists, editorWstg, () => mountChecklistEditor());
+      });
       el.querySelectorAll('[data-f]').forEach((input) => {
         const field = input.dataset.f;
         const handler = () => {
