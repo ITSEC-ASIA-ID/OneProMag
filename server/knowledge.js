@@ -25,6 +25,11 @@
    still ours.
 */
 
+/* The WSTG's own guides ship beside this file: one published method page per test
+   case, quoted rather than rewritten. They are imported here so a checklist item
+   can resolve to its own case's guide by the case id its title starts with. */
+import { WSTG_GUIDES } from './wstg-guides.js';
+
 /* ============================================================
    Testing guides — one per risk category in the default checklists
    ------------------------------------------------------------
@@ -635,6 +640,7 @@ export const TEST_GUIDES = [
 export const GUIDE_CHECKLISTS = {
   'OWASP Top 10:2025': 'owasp-web',
   'OWASP API Security Top 10 2023': 'owasp-api',
+  'OWASP WSTG': 'owasp-wstg',
 };
 
 /**
@@ -649,15 +655,25 @@ export function sectionCode(section) {
     .trim();
 }
 
+/** Case id → the guide that answers it, from the WSTG guides' own `items` list. */
+const CASE_GUIDE = new Map(
+  WSTG_GUIDES.flatMap((guide) => guide.items.map((code) => [code, guide.id]))
+);
+
 /**
  * The guide that teaches one checklist item: by section code, narrowed to the
  * checklist the item belongs to so two standards that both publish an "A01" cannot
  * cross-link. `''` is a legitimate answer — an admin's own item about password
  * policy is not covered by any OWASP category, and a wrong link is worse than none.
  */
-export function guideKeyFor(checklistKey, section, claims = new Map()) {
+export function guideKeyFor(checklistKey, section, claims = new Map(), title = '') {
   const code = sectionCode(section);
   if (!code) return '';
+  // A WSTG item is one case and its title starts with that case's id, so it is
+  // answered by the guide written for that case. Falling through to the category
+  // claim instead would point all 23 Injection rows at the same page.
+  const own = title ? CASE_GUIDE.get(String(title).trim().split(/\s+/)[0]) : '';
+  if (own) return own;
   // A WSTG section is a category (`WSTG-ATHZ`), not a Top-10 code, so it is not
   // narrowed by the checklist: the WSTG template is its own standard. Which guide
   // answers a category is a question for the guide table, so the caller passes the

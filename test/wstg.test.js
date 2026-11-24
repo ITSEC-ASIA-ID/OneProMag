@@ -249,10 +249,28 @@ test('the shipped WSTG template carries the rows the table holds', async () => {
   const full = await call('GET /api/checklists/:id', admin, { params: { id: template.id } });
   assert.equal(full.checklist.items.length, 116);
   assert.equal(new Set(full.checklist.items.map((i) => i.section)).size, 12);
-  // 75 of the rows are taught by a guide; the rest are honestly unlinked.
+  // Every row is taught by the guide written for its own case, so the link carries
+  // the case id rather than the category's first claimant.
   const linked = full.checklist.items.filter((i) => i.guide);
-  assert.equal(linked.length, 75, 'the template lost its guide links');
+  assert.equal(linked.length, 116, 'the template lost its guide links');
   for (const item of linked) {
-    assert.match(item.wstgUrl, /^https:\/\/wstg\.owasp\.org\//, `${item.title} carries no link`);
+    const own = item.guide === item.title.split(' ')[0].toLowerCase();
+    // The framework page answers two cases: its own, and the one merged into it.
+    const merged = item.title.startsWith('WSTG-INFO-09') && item.guide === 'wstg-info-08';
+    assert.ok(own || merged, `${item.title} opens ${item.guide}`);
+    if (item.wstgUrl) assert.match(item.wstgUrl, /^https:\/\/wstg\.owasp\.org\//);
+  }
+});
+
+test('the WSTG method pages ship as guides, one per case', async () => {
+  const { guides } = await call('GET /api/tests', admin);
+  const imported = guides.filter((g) => g.id.startsWith('wstg-'));
+  assert.equal(imported.length, 115, 'a published method page is missing');
+  // Quoted, not rewritten: a guide that names a page carries what that page says.
+  for (const guide of imported) {
+    assert.match(guide.code, /^WSTG-[A-Z]{4}-\d{2}$/, `${guide.id} cites no case`);
+    assert.ok(guide.what.length > 200, `${guide.id} has no summary`);
+    assert.ok(guide.steps.length >= 2, `${guide.id} has no steps`);
+    assert.ok(guide.checklistId, `${guide.id} is filed under no checklist`);
   }
 });

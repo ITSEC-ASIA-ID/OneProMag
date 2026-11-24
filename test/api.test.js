@@ -1470,10 +1470,14 @@ test('a sub item owns its guide: derived by default, overridable, refusable', as
       items: [
         { section: 'WSTG-INFO — Information Gathering', title: 'WSTG-INFO-01 Conduct Search Engine Reconnaissance' },
         { section: 'WSTG-INFO — Information Gathering', title: 'A row with a guide of its own', guide: 'A01' },
+        { section: 'House rules — Nobody publishes this', title: 'Password policy the client wrote down' },
       ],
     },
   });
-  assert.equal(items[0].guide, '', 'a hand-made list derives no guide from its sections');
+  // The case id in the title is the strongest link there is: a WSTG row is answered
+  // by the guide written for that case, not by whichever guide claims its category.
+  assert.equal(items[0].guide, 'wstg-info-01', 'a WSTG row finds its own case guide');
+  assert.equal(items[2].guide, '', 'a row no standard covers stays unlinked');
   assert.equal(items[1].guide, 'A01', 'a row may name its own guide');
   assert.equal(items[1].guideOwned, true, 'and the row says the link is its own');
   assert.equal(items[0].guideOwned, false, 'a derived link is not owned by the row');

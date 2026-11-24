@@ -381,7 +381,7 @@ export const routes = {
             item.help,
             item.guide !== null && item.guide !== undefined
               ? item.guide
-              : guideKeyFor(row.seed_key, item.section, claims),
+              : guideKeyFor(row.seed_key, item.section, claims, item.title),
             position,
           ]
         );
@@ -392,7 +392,7 @@ export const routes = {
           guide:
             item.guide !== null && item.guide !== undefined
               ? item.guide
-              : guideKeyFor(row.seed_key, item.section, claims),
+              : guideKeyFor(row.seed_key, item.section, claims, item.title),
           ...wstgOf(index, item.section, item.title),
           position,
         });
@@ -425,7 +425,8 @@ export const routes = {
             : guideKeyFor(
                 (await checklistRow(row.checklist_id)).seed_key,
                 body.section === undefined ? row.section : text(body.section, 120),
-                await wstgClaims()
+                await wstgClaims(),
+                body.title === undefined ? row.title : text(body.title, 300)
               ),
     };
     await db.run(

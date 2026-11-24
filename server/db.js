@@ -2,7 +2,8 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { GUIDE_CHECKLISTS, TEST_GUIDES, guideKeyFor } from './knowledge.js';
+import { GUIDE_CHECKLISTS, TEST_GUIDES, guideKeyFor, sectionCode } from './knowledge.js';
+import { WSTG_GUIDES } from './wstg-guides.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const SCHEMA_DIR = path.join(__dirname, 'schema');
@@ -1199,7 +1200,10 @@ async function seedTestGuides() {
   const byName = new Map(lists.map((r) => [r.name, r]));
   let seeded = 0;
 
-  for (const [index, guide] of TEST_GUIDES.entries()) {
+  // The hand-written guides first, then the WSTG's published methods, so the
+  // position column keeps our prose ahead of the imported pages.
+  const all = [...TEST_GUIDES, ...WSTG_GUIDES];
+  for (const [index, guide] of all.entries()) {
     const existing = await db.get('SELECT id FROM test_guides WHERE id = ?', [guide.id]);
     if (existing) continue;
     // The same resolution the read path uses: seed key first, then the name,
@@ -1233,7 +1237,7 @@ async function seedTestGuides() {
   // the module, and only while it is still empty: an admin's own citation stands,
   // the same rule the seeding above follows.
   let cited = 0;
-  for (const guide of TEST_GUIDES) {
+  for (const guide of all) {
     const info = await db.run("UPDATE test_guides SET wstg = ? WHERE id = ? AND wstg = ''", [
       guide.wstg || '',
       guide.id,
@@ -1343,32 +1347,41 @@ async function writeChecklistItems(conn, checklistId, items, checklistKey = '', 
     const [section, title, help] = items[i];
     await conn.run(
       'INSERT INTO checklist_items (checklist_id, section, title, help, guide_key, position) VALUES (?, ?, ?, ?, ?, ?)',
-      [checklistId, section, title, help, guideKeyFor(checklistKey, section, claims), i]
+      [checklistId, section, title, help, guideKeyFor(checklistKey, section, claims, title), i]
     );
   }
 }
 
 /**
- * Fills `guide_key` on items written before the column existed, and on items whose
- * template was seeded before a guide was written for its section.
+ * Fills `guide_key` on items written before the column existed, on items whose
+ * template was seeded before a guide was written for its section, and on the WSTG
+ * rows that were linked to their category's first claimant before each case got its
+ * own guide.
  *
  * Runs on every boot rather than once behind a version gate: it is idempotent, it
  * only ever writes a non-empty key, and it fixes the one case a gate cannot reach — a
  * shipped template that did not bump its version when the link arrived, which is
- * exactly what happens on an install upgrading to this release.
+ * exactly what happens on an install upgrading to this release. That is also why the
+ * WSTG template keeps its version: a bump would delete and re-insert 116 rows, and
+ * `project_checklist_items` would take every ticked box with them.
  */
 async function backfillGuideKeys() {
   const rows = await db.all(
-    `SELECT i.id, i.section, c.seed_key AS checklist_key
+    `SELECT i.id, i.section, i.title, i.guide_key, c.seed_key AS checklist_key
        FROM checklist_items i
-       JOIN checklists c ON c.id = i.checklist_id
-      WHERE i.guide_key = ''`
+       JOIN checklists c ON c.id = i.checklist_id`
   );
   const claims = await wstgClaims();
   let filled = 0;
   for (const row of rows) {
-    const key = guideKeyFor(row.checklist_key, row.section, claims);
-    if (!key) continue;
+    const key = guideKeyFor(row.checklist_key, row.section, claims, row.title);
+    if (!key || key === row.guide_key) continue;
+    // Only a link the standard derives is ever corrected: an empty one, or the one
+    // the category's own claimant would give. A guide an admin picked by hand is a
+    // decision, and a boot that replaced it would be the silent edit this whole
+    // seed avoids.
+    const derived = !row.guide_key || row.guide_key === claims.get(sectionCode(row.section));
+    if (!derived) continue;
     await db.run('UPDATE checklist_items SET guide_key = ? WHERE id = ?', [key, row.id]);
     filled += 1;
   }
