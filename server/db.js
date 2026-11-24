@@ -1399,10 +1399,13 @@ async function backfillGuideKeys() {
  *      and every guide cites the category its work lands in.
  * 27 — the WSTG is data (`wstg_categories`, `wstg_cases`) an admin owns, seeded
  *      once from server/knowledge.js; the checklist template is written from it.
- * 28 — a checklist item owns its sub-items (`checklist_item_steps`), each one
- *      optionally pointing at a test guide it can open.
+ * 28 — a checklist item was briefly given its own sub-item rows
+ *      (`checklist_item_steps`); deleted again in 29, because the item *is* the
+ *      group (“WSTG-INFO — Information Gathering”) and the row under it is the
+ *      sub item (“WSTG-INFO-01 …”). The approved shape is two levels.
+ * 29 — `checklist_item_steps` is dropped: nothing else ever referred to it.
  */
-export const SCHEMA_VERSION = 28;
+export const SCHEMA_VERSION = 29;
 
 let appliedSchemaVersion = 0;
 
@@ -1951,6 +1954,8 @@ async function migrateSqlite() {
   await addColumnIfMissing('project_findings', 'impact_score', 'INTEGER NOT NULL DEFAULT 0');
   // v1.26: a guide names the WSTG category its work lands in.
   await addColumnIfMissing('test_guides', 'wstg', "TEXT NOT NULL DEFAULT ''");
+  // v1.29: the third level is gone — an item is a group, its rows are the sub items.
+  await db.exec('DROP TABLE IF EXISTS checklist_item_steps');
 }
 
 async function migratePostgres() {
@@ -2016,6 +2021,8 @@ async function migratePostgres() {
   await addColumnIfMissing('project_findings', 'impact_score', 'INTEGER NOT NULL DEFAULT 0');
   // v1.26: a guide names the WSTG category its work lands in.
   await addColumnIfMissing('test_guides', 'wstg', "TEXT NOT NULL DEFAULT ''");
+  // v1.29: the third level is gone — see migrateSqlite.
+  await db.exec('DROP TABLE IF EXISTS checklist_item_steps');
 }
 
 export { seed };

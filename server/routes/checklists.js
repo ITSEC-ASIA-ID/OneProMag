@@ -126,35 +126,6 @@ async function itemRow(id) {
   return row;
 }
 
-function shapeStep(row) {
-  return {
-    id: Number(row.id),
-    text: row.text || '',
-    // The guide this step may point at, '' when it points nowhere. Unlike an item's
-    // guide (derived from its section) this one is the admin's own choice.
-    guide: row.guide_key || '',
-    position: Number(row.position) || 0,
-  };
-}
-
-/** Every item's sub-items, keyed by item id, in one query rather than one per row. */
-async function stepsFor(items) {
-  const byItem = new Map();
-  const ids = items.map((item) => Number(item.id));
-  if (!ids.length) return byItem;
-  const rows = await db.all(
-    `SELECT * FROM checklist_item_steps WHERE item_id IN (${ids.map(() => '?').join(',')})
-      ORDER BY position, id`,
-    ids
-  );
-  for (const row of rows) {
-    const key = Number(row.item_id);
-    if (!byItem.has(key)) byItem.set(key, []);
-    byItem.get(key).push(shapeStep(row));
-  }
-  return byItem;
-}
-
 async function assertUniqueName(name, exceptId = null) {
   const clash = await db.get('SELECT id FROM checklists WHERE name = ?', [name]);
   if (clash && Number(clash.id) !== Number(exceptId)) {
@@ -298,12 +269,8 @@ export const routes = {
       [row.id]
     );
     const index = await wstgIndex();
-    const steps = await stepsFor(items);
     return {
-      checklist: {
-        ...shapeChecklist(row),
-        items: items.map((item) => ({ ...shapeItem(item, index), steps: steps.get(Number(item.id)) || [] })),
-      },
+      checklist: { ...shapeChecklist(row), items: items.map((item) => shapeItem(item, index)) },
     };
   },
 
@@ -451,34 +418,6 @@ export const routes = {
     return { item: shapeItem(await itemRow(row.id), await wstgIndex()) };
   },
 
-  /** Replaces an item's sub-items wholesale: the list is short, and a reorder is the point. */
-  'PUT /api/checklist-items/:id/steps': async (ctx) => {
-    requireCatalogManager(ctx);
-    const item = await itemRow(ctx.params.id);
-    const incoming = Array.isArray(ctx.body?.steps) ? ctx.body.steps : [];
-    const parsed = [];
-    for (const step of incoming) {
-      const label = text(step?.text, 500);
-      if (!label) continue;
-      const guide = String(step?.guide || '').trim();
-      if (guide && !(await db.get('SELECT id FROM test_guides WHERE id = ?', [guide]))) {
-        throw new HttpError(400, `No guide with the id ${guide}`);
-      }
-      parsed.push({ text: label, guide, position: parsed.length });
-    }
-    await db.transaction(async (tx) => {
-      await tx.run('DELETE FROM checklist_item_steps WHERE item_id = ?', [item.id]);
-      for (const step of parsed) {
-        await tx.run(
-          'INSERT INTO checklist_item_steps (item_id, text, guide_key, position) VALUES (?, ?, ?, ?)',
-          [item.id, step.text, step.guide, step.position]
-        );
-      }
-    });
-    return { steps: (await stepsFor([item])).get(Number(item.id)) || [] };
-  },
-
-  // The sub-items go with the item: `checklist_item_steps` cascades on delete.
   'DELETE /api/checklist-items/:id': async (ctx) => {
     requireCatalogManager(ctx);
     const row = await itemRow(ctx.params.id);

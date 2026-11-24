@@ -6657,40 +6657,39 @@ svg { display: block; }
 }
 .cke-acts { display: inline-flex; gap: 2px; opacity: 0.42; transition: opacity 0.12s ease; }
 .cke-item { flex-wrap: wrap; }
-/* Sub-items: one editable line each, with a button for the guide it opens. */
-.cke-steps {
-  flex: 1 0 100%;
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  margin: 2px 0 2px 2px;
-  padding: 6px 0 4px 12px;
-  border-left: 2px solid var(--border);
+/* An item is a group: a chevron that folds its sub items away, and a name that is
+   the section every row under it carries. */
+.cke-sec-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  flex: none;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: var(--r-sm, 6px);
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
 }
-.cke-step-row { display: flex; align-items: center; gap: 6px; }
-.cke-step-n {
-  flex: 0 0 14px;
-  font-size: 10px;
-  color: var(--faint);
-  font-variant-numeric: tabular-nums;
-  text-align: right;
-}
-.cke-step-text {
-  flex: 1 1 auto;
-  min-width: 0;
-  border-color: transparent;
+.cke-sec-toggle:hover { background: var(--surface-3, var(--surface)); color: var(--ink); border-color: var(--border); }
+.cke-sec-name {
+  flex: 0 1 420px;
+  min-width: 120px;
+  padding: 3px 7px;
+  font-size: 12.6px;
+  font-weight: 620;
+  letter-spacing: 0.01em;
+  color: var(--ink);
   background: transparent;
-  font-size: 12.4px;
-  color: var(--ink-2);
-  padding: 3px 6px;
+  border-color: transparent;
 }
-.cke-step-text:hover { border-color: var(--border); }
-.cke-step-text:focus { border-color: var(--accent); background: var(--surface); }
-.cke-step-guide { font-size: 11px; gap: 4px; color: var(--muted); }
-.cke-step-row .btn-icon-sm { opacity: 0.4; transition: opacity 0.12s ease; }
-.cke-step-row:hover .btn-icon-sm, .cke-step-row:focus-within .btn-icon-sm { opacity: 1; }
-.cke-step-add { align-self: flex-start; font-size: 11.5px; margin-left: 20px; color: var(--faint); }
-.cke-step-add:hover { color: var(--ink); }
+.cke-sec-name:hover { border-color: var(--border); }
+.cke-sec-name:focus { background: var(--surface); border-color: var(--accent); }
+.cke-sec-count { font-size: 11.6px; color: var(--faint); font-variant-numeric: tabular-nums; }
+.cke-guide-btn { color: var(--muted); }
+.cke-guide-btn:hover { color: var(--ink); }
 
 .cke-item:hover .cke-acts, .cke-item:focus-within .cke-acts { opacity: 1; }
 .cke-empty {

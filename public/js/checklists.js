@@ -1118,29 +1118,16 @@ let editorChecklists = [];
 let editorWstg = [];
 
 function emptyEditor() {
-  return { id: null, name: '', description: '', category: '', isDefault: false, rows: [], removed: new Set() };
-}
-
-/** What a row's sub-items say, so an untouched list is not rewritten on every save. */
-function stepsSignature(steps) {
-  return JSON.stringify((steps || []).map((step) => [String(step.text || '').trim(), step.guide || '']));
-}
-
-function sectionChoices(extra = '') {
-  const names = [];
-  for (const row of editor.rows) {
-    const name = (row.section || '').trim();
-    if (name && !names.includes(name)) names.push(name);
-  }
-  if (extra && !names.includes(extra)) names.push(extra);
-  return names;
-}
-
-function sectionSelect(selected) {
-  const names = sectionChoices(selected);
-  return [`<option value="">No section</option>`]
-    .concat(names.map((n) => `<option value="${h(n)}"${n === selected ? ' selected' : ''}>${h(n)}</option>`))
-    .join('');
+  return {
+    id: null,
+    name: '',
+    description: '',
+    category: '',
+    isDefault: false,
+    rows: [],
+    removed: new Set(),
+    collapsed: new Set(),
+  };
 }
 
 function editorGroups() {
@@ -1154,72 +1141,27 @@ function editorGroups() {
 }
 
 /**
- * The sub-items under an item: text the admin owns, one line each, and on every line a
- * button for the guide it may point at — a book when it has one, a plus when it could.
- * The guide's prose is never rendered here; the button opens the guide itself.
+ * An item is a group — “WSTG-INFO — Information Gathering” — and the rows under it
+ * are its sub-items — “WSTG-INFO-01 Conduct Search Engine Reconnaissance…”. The
+ * group's name is the row's section, so a sub-item is moved by being made in another
+ * item; there is no second field to keep in step.
  */
-function stepRowHTML(index, step, stepIndex) {
-  const guide = step.guide ? editorGuides.get(step.guide) : null;
-  return `<div class="cke-step-row" data-si="${stepIndex}">
-    <span class="cke-step-n">${stepIndex + 1}</span>
-    <input class="input cke-step-text" data-step-f="text" value="${h(step.text || '')}"
-      placeholder="Sub-item (optional)" aria-label="Sub-item" autocomplete="off" />
-    ${
-      guide
-        ? `<button type="button" class="btn btn-sm btn-ghost cke-step-guide" data-step-guide="open"
-            title="Edit the test guide">${icon.book(12)}<span>${h(guide.code)}</span></button>`
-        : `<button type="button" class="btn btn-icon btn-icon-sm" data-step-guide="pick"
-            title="Link a test guide" aria-label="Link a test guide">${icon.plus(12)}</button>`
-    }
-    <button type="button" class="btn btn-icon btn-icon-sm btn-icon-danger" data-step-del
-      title="Remove sub-item" aria-label="Remove sub-item">${icon.trash(12)}</button>
-  </div>`;
-}
-
-function itemStepsHTML(row, index) {
-  const steps = row.steps || [];
-  return `<div class="cke-steps" data-steps="${index}">
-    ${steps.map((step, si) => stepRowHTML(index, step, si)).join('')}
-    <button type="button" class="link-btn cke-step-add" data-step-add>${icon.plus(11)} sub-item</button>
-  </div>`;
-}
-
-/** Picks the guide a sub-item points at, or clears it. */
-function openStepGuidePicker(step, done) {
-  const options = [...editorGuides.values()]
-    .sort((a, b) => String(a.code).localeCompare(String(b.code)))
-    .map(
-      (g) =>
-        `<option value="${h(g.id)}"${g.id === step.guide ? ' selected' : ''}>${h(g.code)} · ${h(g.title)}</option>`
-    )
-    .join('');
-  openModal({
-    title: 'Link a test guide',
-    subtitle: 'The sub-item keeps its own text; the guide opens from its book button.',
-    body: `<div class="field"><label for="step-guide-pick">Guide</label>
-      <select id="step-guide-pick" class="input"><option value="">No guide</option>${options}</select></div>`,
-    footer: `<button class="btn" data-close>Cancel</button>
-      <button class="btn btn-primary" data-save-guide>Link guide</button>`,
-    onMount(modal, close) {
-      modal.querySelector('[data-save-guide]').addEventListener('click', () => {
-        step.guide = modal.querySelector('#step-guide-pick').value;
-        close();
-        done();
-      });
-    },
-  });
-}
-
 function editorItemHTML(row, index) {
+  const guide = row.guide ? editorGuides.get(row.guide) : null;
   return `<div class="cke-item" data-idx="${index}">
     <div class="cke-item-main">
       <input class="input cke-title" data-f="title" value="${h(row.title || '')}"
-        placeholder="What to check" aria-label="Item" autocomplete="off" />
+        placeholder="Sub item — WSTG-INFO-01 Conduct Search Engine Reconnaissance…" aria-label="Sub item" autocomplete="off" />
       <input class="input cke-help" data-f="help" value="${h(row.help || '')}"
         placeholder="How to check it (optional)" aria-label="How to check it" autocomplete="off" />
     </div>
     <div class="cke-item-side">
-      <select class="input cke-sec-pick" data-f="section" aria-label="Section">${sectionSelect((row.section || '').trim())}</select>
+      ${
+        guide
+          ? `<button type="button" class="btn btn-icon btn-icon-sm cke-guide-btn" data-guide-edit="${h(guide.id)}"
+              title="Edit the test guide: ${h(guide.title)}" aria-label="Edit the test guide">${icon.book(12)}</button>`
+          : ''
+      }
       <span class="cke-acts">
         <button type="button" class="btn btn-icon btn-icon-sm" data-act="up" title="Move up" aria-label="Move up">${icon.arrowUp(
           12
@@ -1227,12 +1169,11 @@ function editorItemHTML(row, index) {
         <button type="button" class="btn btn-icon btn-icon-sm" data-act="down" title="Move down" aria-label="Move down">${icon.arrowDown(
           12
         )}</button>
-        <button type="button" class="btn btn-icon btn-icon-sm btn-icon-danger" data-act="del" title="Remove" aria-label="Remove">${icon.trash(
+        <button type="button" class="btn btn-icon btn-icon-sm btn-icon-danger" data-act="del" title="Delete this sub item" aria-label="Delete this sub item">${icon.trash(
           12
         )}</button>
       </span>
     </div>
-    ${itemStepsHTML(row, index)}
   </div>`;
 }
 
@@ -1241,24 +1182,35 @@ function editorListHTML() {
     return `<div class="cke-empty">
       <div class="icon">${icon.shield(22)}</div>
       <h3>No items yet</h3>
-      <p>Add them one by one, or paste a whole list — <code>Section | What to check | How to check it</code>.</p>
+      <p>An <strong>item</strong> is a group of checks, a <strong>sub item</strong> is one check:
+        item “WSTG-INFO — Information Gathering”, sub item “WSTG-INFO-01 …”. Add an item, then its
+        sub items — or paste a list — <code>Item | Sub item | How to check it</code>.</p>
     </div>`;
   }
   const groups = editorGroups();
   return [...groups.entries()]
-    .map(
-      ([section, indexes]) => `<section class="cke-sec">
+    .map(([section, indexes]) => {
+      const open = !editor.collapsed.has(section);
+      const count = `${indexes.length} sub item${indexes.length === 1 ? '' : 's'}`;
+      return `<section class="cke-sec" data-sec="${h(section)}">
         <div class="cke-sec-head">
-          <h3 class="cke-sec-name">${section ? h(section) : '<span class="faint">No section</span>'}</h3>
-          <span class="admin-count">${indexes.length}</span>
+          <button type="button" class="cke-sec-toggle" data-sec-toggle aria-expanded="${open}"
+            title="${open ? 'Hide' : 'Show'} the sub items" aria-label="${open ? 'Hide' : 'Show'} the sub items">${
+              open ? icon.chevronDown(13) : icon.chevronRight(13)
+            }</button>
+          <input class="input cke-sec-name" data-sec-name value="${h(section)}"
+            placeholder="Item name" aria-label="Item name" autocomplete="off" />
+          <span class="cke-sec-count">${count}</span>
           <span class="spacer"></span>
           <button type="button" class="btn btn-sm btn-ghost" data-add-sec="${h(section)}">${icon.plus(
             12
-          )} item here</button>
+          )} sub item</button>
+          <button type="button" class="btn btn-icon btn-icon-sm btn-icon-danger" data-sec-del="${h(section)}"
+            title="Delete this item" aria-label="Delete this item">${icon.trash(12)}</button>
         </div>
-        ${indexes.map((i) => editorItemHTML(editor.rows[i], i)).join('')}
-      </section>`
-    )
+        ${open ? indexes.map((i) => editorItemHTML(editor.rows[i], i)).join('') : ''}
+      </section>`;
+    })
     .join('');
 }
 
@@ -1300,9 +1252,9 @@ function editorBodyHTML() {
     </div>
     <div class="ck-paste" hidden>
       <textarea class="input mono" id="cke-paste" rows="4"
-        placeholder="Section | What to check | How to check it"></textarea>
+        placeholder="Item | Sub item | How to check it"></textarea>
       <div class="ck-paste-foot">
-        <span class="form-hint">One item per line. Two columns read as <code>item | help</code>.</span>
+        <span class="form-hint">One sub item per line. Two columns read as <code>sub item | help</code>.</span>
         <span class="spacer"></span>
         <button type="button" class="btn btn-sm" data-cke-paste-apply>Add these</button>
       </div>
@@ -1337,11 +1289,10 @@ export async function mountChecklistEditor() {
           title: item.title || '',
           help: item.help || '',
           guide: item.guide || '',
-          steps: (item.steps || []).map((step) => ({ text: step.text || '', guide: step.guide || '' })),
           orig: { section: item.section || '', title: item.title || '', help: item.help || '' },
-          origSteps: stepsSignature(item.steps),
         })),
         removed: new Set(),
+        collapsed: new Set(),
       };
     } catch (err) {
       toast(err.message, 'err');
@@ -1352,6 +1303,13 @@ export async function mountChecklistEditor() {
   paintEditor();
 }
 
+/** "12 items · 116 sub items" — an item is a group, the rows are its sub items. */
+function editorCounts() {
+  const subItems = editor.rows.filter((row) => (row.title || '').trim()).length;
+  const items = editorGroups().size;
+  return `${items} item${items === 1 ? '' : 's'} · ${subItems} sub item${subItems === 1 ? '' : 's'}`;
+}
+
 function paintEditor() {
   const host = document.getElementById('cke-body');
   if (!host || !editor) return;
@@ -1359,8 +1317,7 @@ function paintEditor() {
   bindEditor(host);
   const total = host.querySelector('#cke-total');
   if (total) {
-    const n = editor.rows.filter((r) => (r.title || '').trim()).length;
-    total.textContent = `${n} item${n === 1 ? '' : 's'}`;
+    total.textContent = editorCounts();
   }
   const state_ = host.querySelector('#cke-state');
   if (state_) state_.textContent = editor.id ? '' : 'Not saved yet';
@@ -1375,8 +1332,7 @@ function bindEditor(host) {
     bindRows();
     const total = host.querySelector('#cke-total');
     if (total) {
-      const n = editor.rows.filter((r) => (r.title || '').trim()).length;
-      total.textContent = `${n} item${n === 1 ? '' : 's'}`;
+      total.textContent = editorCounts();
     }
   };
 
@@ -1384,7 +1340,7 @@ function bindEditor(host) {
   // the page scrolls to it. A list of 116 rows is longer than the screen, and a
   // row appended at the bottom looked like the button had done nothing at all.
   const addRow = (section = '', afterIndex = null) => {
-    const row = { id: null, section, title: '', help: '', steps: [] };
+    const row = { id: null, section, title: '', help: '' };
     const at = afterIndex === null ? editor.rows.length : afterIndex + 1;
     editor.rows.splice(at, 0, row);
     repaintList();
@@ -1406,7 +1362,7 @@ function bindEditor(host) {
     event.preventDefault();
     const here = editor.rows[index] || { section: '' };
     const section = (here.section || '').trim();
-    const rows = parsed.map((entry) => ({ id: null, ...entry, section: entry.section || section, steps: [] }));
+    const rows = parsed.map((entry) => ({ id: null, ...entry, section: entry.section || section }));
     const empty = !(here.title || '').trim() && !(here.help || '').trim();
     const at = empty ? index : index + 1;
     editor.rows.splice(at, empty ? 1 : 0, ...rows);
@@ -1426,48 +1382,18 @@ function bindEditor(host) {
   function bindRows() {
     list.querySelectorAll('.cke-item').forEach((el) => {
       const index = Number(el.dataset.idx);
-      // Sub-items: text the admin owns, and a button that opens the guide the
-      // sub-item points at (or a plus to pick one). Editing a guide repaints the list
-      // because its code is on the button, not because the sub-item text changes.
-      el.querySelectorAll('.cke-step-row').forEach((stepEl) => {
-        const si = Number(stepEl.dataset.si);
-        const step = editor.rows[index]?.steps?.[si];
-        if (!step) return;
-        stepEl.querySelector('[data-step-f="text"]')?.addEventListener('input', (e) => {
-          step.text = e.target.value;
-        });
-        stepEl.querySelector('[data-step-guide]')?.addEventListener('click', (e) => {
-          if (e.currentTarget.dataset.stepGuide === 'open') {
-            const guide = editorGuides.get(step.guide);
-            if (guide) openGuideEditor(guide, editorChecklists, editorWstg, repaintList);
-          } else {
-            openStepGuidePicker(step, repaintList);
-          }
-        });
-        stepEl.querySelector('[data-step-del]')?.addEventListener('click', () => {
-          editor.rows[index].steps.splice(si, 1);
-          repaintList();
-        });
-      });
-      el.querySelector('[data-step-add]')?.addEventListener('click', () => {
-        const row = editor.rows[index];
-        if (!row) return;
-        if (!row.steps) row.steps = [];
-        row.steps.push({ text: '', guide: '' });
-        repaintList();
+      // A sub item that has a guide can open it; the row keeps its own text either way.
+      el.querySelector('[data-guide-edit]')?.addEventListener('click', (event) => {
+        const guide = editorGuides.get(event.currentTarget.dataset.guideEdit);
+        if (guide) openGuideEditor(guide, editorChecklists, editorWstg, repaintList);
       });
       el.querySelectorAll('[data-f]').forEach((input) => {
         const field = input.dataset.f;
-        const handler = () => {
+        input.addEventListener('input', () => {
           if (!editor.rows[index]) return;
           editor.rows[index][field] = input.value;
-          if (field === 'section') repaintList();
-        };
-        if (field === 'section') input.addEventListener('change', handler);
-        else input.addEventListener('input', handler);
-        if (field === 'title' || field === 'help') {
-          input.addEventListener('paste', (event) => pasteList(event, index));
-        }
+        });
+        input.addEventListener('paste', (event) => pasteList(event, index));
       });
       el.querySelector('[data-act="del"]')?.addEventListener('click', () => {
         const row = editor.rows[index];
@@ -1478,9 +1404,62 @@ function bindEditor(host) {
       el.querySelector('[data-act="up"]')?.addEventListener('click', () => moveWithin(index, -1));
       el.querySelector('[data-act="down"]')?.addEventListener('click', () => moveWithin(index, +1));
     });
+    list.querySelectorAll('[data-sec-toggle]').forEach((btn) =>
+      btn.addEventListener('click', () => {
+        const section = btn.closest('.cke-sec')?.dataset.sec || '';
+        if (editor.collapsed.has(section)) editor.collapsed.delete(section);
+        else editor.collapsed.add(section);
+        repaintList();
+      })
+    );
+
+    list.querySelectorAll('[data-sec-name]').forEach((input) =>
+      input.addEventListener('change', () => {
+        const from = input.closest('.cke-sec')?.dataset.sec || '';
+        const to = input.value.trim();
+        if (to === from) {
+          input.value = from;
+          return;
+        }
+        // The item's name is the row's section, so renaming the item renames it on
+        // every sub item it holds — including ones the panel is not showing.
+        editor.rows.forEach((row) => {
+          if ((row.section || '').trim() === from) row.section = to;
+        });
+        if (editor.collapsed.delete(from)) editor.collapsed.add(to);
+        repaintList();
+      })
+    );
+
+    list.querySelectorAll('[data-sec-del]').forEach((btn) =>
+      btn.addEventListener('click', async () => {
+        const section = btn.dataset.secDel || '';
+        const held = editor.rows.filter((row) => (row.section || '').trim() === section);
+        const ok = await confirmDialog({
+          title: 'Delete this item?',
+          message: held.length
+            ? `"${section || 'No item'}" and its ${held.length} sub item${
+                held.length === 1 ? '' : 's'
+              } will be deleted.`
+            : 'This item holds no sub items.',
+          confirmLabel: 'Delete item',
+        });
+        if (!ok) return;
+        held.forEach((row) => {
+          if (row.id) editor.removed.add(row.id);
+        });
+        editor.rows = editor.rows.filter((row) => (row.section || '').trim() !== section);
+        repaintList();
+      })
+    );
+
     list.querySelectorAll('[data-add-sec]').forEach((btn) =>
       btn.addEventListener('click', () => {
         const section = btn.dataset.addSec || '';
+        if (editor.collapsed.has(section)) {
+          editor.collapsed.delete(section);
+          repaintList();
+        }
         addRow(section, lastIndexOfSection(section));
       })
     );
@@ -1504,11 +1483,41 @@ function bindEditor(host) {
 
   bindRows();
 
-  // The button above the list continues the last section rather than opening a
-  // stray "No section" group at the top of the page.
-  host.querySelector('[data-cke-add]')?.addEventListener('click', () =>
-    addRow((editor.rows[editor.rows.length - 1]?.section || '').trim())
-  );
+  // "+ Item" makes a group, not a row: the name is asked for once, then a group with
+  // one empty sub item to type into. Naming an item that exists just adds to it.
+  host.querySelector('[data-cke-add]')?.addEventListener('click', () => {
+    const names = [...editorGroups().keys()].filter(Boolean);
+    openModal({
+      title: 'New item',
+      subtitle: 'A group of checks — its name is the section every sub item under it carries.',
+      body: `<div class="field"><label for="cke-new-item">Item</label>
+        <input class="input" id="cke-new-item" autocomplete="off"
+          placeholder="WSTG-INFO — Information Gathering" list="cke-item-names" />
+        <datalist id="cke-item-names">${names.map((n) => `<option value="${h(n)}"></option>`).join('')}</datalist>
+        <span class="form-hint">Naming an item that already exists adds a sub item to it.</span></div>`,
+      footer: `<button class="btn" data-close>Cancel</button>
+        <button class="btn btn-primary" data-create-item>Add item</button>`,
+      onMount(modal, close) {
+        const input = modal.querySelector('#cke-new-item');
+        input.focus();
+        const create = () => {
+          const name = input.value.trim();
+          if (!name) {
+            toast('An item needs a name', 'err');
+            return;
+          }
+          close();
+          editor.collapsed.delete(name);
+          if (editorGroups().has(name)) addRow(name, lastIndexOfSection(name));
+          else addRow(name, editor.rows.length - 1);
+        };
+        modal.querySelector('[data-create-item]').addEventListener('click', create);
+        input.addEventListener('keydown', (event) => {
+          if (event.key === 'Enter') create();
+        });
+      },
+    });
+  });
   host.querySelector('[data-cke-paste-open]')?.addEventListener('click', () => {
     const box = host.querySelector('.ck-paste');
     box.hidden = !box.hidden;
@@ -1518,7 +1527,7 @@ function bindEditor(host) {
     const area = host.querySelector('#cke-paste');
     const parsed = parsePasted(area.value);
     if (!parsed.length) {
-      toast('Nothing to add — use "Section | What to check | How to check it" per line', 'err');
+      toast('Nothing to add — use "Item | Sub item | How to check it" per line', 'err');
       return;
     }
     parsed.forEach((item) => editor.rows.push({ id: null, ...item }));
@@ -1574,36 +1583,26 @@ function bindEditor(host) {
       // Positions are rewritten from the array order, so a reorder is a real
       // reorder even when nothing else changed.
       const fresh = [];
-      const freshRows = [];
       for (let i = 0; i < editor.rows.length; i += 1) {
         const row = editor.rows[i];
         const title = (row.title || '').trim();
         if (!title) continue;
         const next = { section: (row.section || '').trim(), title, help: (row.help || '').trim(), position: i };
-        // Sub-items are written only when they changed: a save of the title alone
-        // must not delete and rebuild ten step rows.
-        const stepsDirty = stepsSignature(row.steps) !== (row.origSteps ?? stepsSignature(row.steps));
         if (!row.id) {
           fresh.push(next);
-          freshRows.push(row);
           continue;
         }
         const before = row.orig || { section: '', title: '', help: '' };
         const moved = before.section !== next.section || before.title !== next.title || before.help !== next.help;
         if (moved || row.position !== i) await api.updateChecklistItem(row.id, next);
-        if (stepsDirty) await api.saveChecklistSteps(row.id, row.steps);
       }
       if (fresh.length) {
+        // The bulk insert appends, so its positions are placeholders: put each new
+        // row where the list says it belongs.
         const created = (await api.createChecklistItems(targetId, fresh)).items || [];
-        // The bulk insert appends, so its positions are placeholders: put each
-        // new row where the list says it belongs, then write its sub-items — the
-        // rows come back in the order they were posted, so they pair by index.
         for (let k = 0; k < created.length; k += 1) {
-          const item = created[k];
           const target = fresh[k]?.position;
-          if (target !== null && target !== undefined) await api.updateChecklistItem(item.id, { position: target });
-          const row = freshRows[k];
-          if (row && (row.steps || []).length) await api.saveChecklistSteps(item.id, row.steps);
+          if (target !== null && target !== undefined) await api.updateChecklistItem(created[k].id, { position: target });
         }
       }
 

@@ -302,14 +302,6 @@ CREATE TABLE IF NOT EXISTS checklist_items (
   position     INTEGER NOT NULL DEFAULT 0
 );
 
-CREATE TABLE IF NOT EXISTS checklist_item_steps (
-  id        SERIAL PRIMARY KEY,
-  item_id   INTEGER NOT NULL REFERENCES checklist_items(id) ON DELETE CASCADE,
-  text      TEXT NOT NULL DEFAULT '',
-  guide_key TEXT NOT NULL DEFAULT '',
-  position  INTEGER NOT NULL DEFAULT 0
-);
-
 -- The how-to-test library: one row per area of a checklist. Shipped with the
 -- app (server/knowledge.js) but edited here, because the text is advice an admin
 -- improves, not a fact about the code. Seeded once and never overwritten, unlike
