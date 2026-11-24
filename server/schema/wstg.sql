@@ -13,7 +13,10 @@
 -- The slug is a column, not something derived from the title: the site publishes
 -- 01-DOM-based_Cross_Site_Scripting and 15-Client-Side_Template_Injection, whose
 -- capitalisation no rule would guess, and a guessed URL that 404s is worse than
--- none. Each one is https://wstg.owasp.org/latest/4-Web_Application_Security_Testing/<dir>/<slug>/
+-- none. Each one is https://wstg.owasp.org/latest/<dir>/<slug>/ — the 2026 edition
+-- dropped the 4-Web_Application_Security_Testing part of the path and moved the
+-- folders from 01..12 to 05..16, so the repair at the end of this file rewrites
+-- the rows earlier versions seeded.
 
 -- 12 categories, in the order OWASP publishes them.
 
@@ -532,3 +535,91 @@ INSERT INTO wstg_cases (code, category_code, title, slug, position)
 INSERT INTO wstg_cases (code, category_code, title, slug, position)
   SELECT 'WSTG-INPV-23', 'WSTG-INPV', 'Insecure Deserialization', '23-Insecure_Deserialization', 22
   WHERE NOT EXISTS (SELECT 1 FROM wstg_cases WHERE code = 'WSTG-INPV-23');
+
+-- The 2026 edition republished every page under a new path: the guide moved
+-- from 4-Web_Application_Security_Testing/01-Information_Gathering to
+-- 05-Information_Gathering, and the cases were renumbered with it. Each
+-- statement only fires while the row still holds the old value, so a URL an
+-- admin corrected by hand is never overwritten by a reboot.
+
+UPDATE wstg_categories SET dir = '05-Information_Gathering' WHERE code = 'WSTG-INFO' AND dir = '01-Information_Gathering';
+UPDATE wstg_categories SET dir = '06-Configuration_and_Deployment_Management' WHERE code = 'WSTG-CONF' AND dir = '02-Configuration_and_Deployment_Management';
+UPDATE wstg_categories SET dir = '07-Identity_Management' WHERE code = 'WSTG-IDNT' AND dir = '03-Identity_Management';
+UPDATE wstg_categories SET dir = '08-Authentication' WHERE code = 'WSTG-ATHN' AND dir = '04-Authentication';
+UPDATE wstg_categories SET dir = '09-Authorization' WHERE code = 'WSTG-ATHZ' AND dir = '05-Authorization';
+UPDATE wstg_categories SET dir = '10-Session_Management' WHERE code = 'WSTG-SESS' AND dir = '06-Session_Management';
+UPDATE wstg_categories SET dir = '11-Injection' WHERE code = 'WSTG-INPV' AND dir = '07-Injection';
+UPDATE wstg_categories SET dir = '12-Error_Handling' WHERE code = 'WSTG-ERRH' AND dir = '08-Error_Handling';
+UPDATE wstg_categories SET dir = '13-Weak_Cryptography' WHERE code = 'WSTG-CRYP' AND dir = '09-Weak_Cryptography';
+UPDATE wstg_categories SET dir = '14-Business_Logic' WHERE code = 'WSTG-BUSL' AND dir = '10-Business_Logic';
+UPDATE wstg_categories SET dir = '15-Client-side' WHERE code = 'WSTG-CLNT' AND dir = '11-Client-side';
+UPDATE wstg_categories SET dir = '16-API_Testing' WHERE code = 'WSTG-APIT' AND dir = '12-API_Testing';
+
+UPDATE wstg_cases SET slug = '03-Sensitive_Information_Sent_via_Unencrypted_Channels' WHERE code = 'WSTG-ATHN-01' AND slug = '01-Credentials_Transported_over_an_Encrypted_Channel';
+UPDATE wstg_cases SET slug = '01-Default_Credentials' WHERE code = 'WSTG-ATHN-02' AND slug = '02-Default_Credentials';
+UPDATE wstg_cases SET slug = '02-Weak_Lock_Out_Mechanism' WHERE code = 'WSTG-ATHN-03' AND slug = '03-Weak_Lock_Out_Mechanism';
+UPDATE wstg_cases SET slug = '03-Bypassing_Authentication_Schema' WHERE code = 'WSTG-ATHN-04' AND slug = '04-Bypassing_Authentication_Schema';
+UPDATE wstg_cases SET slug = '04-Vulnerable_Remember_Password' WHERE code = 'WSTG-ATHN-05' AND slug = '05-Vulnerable_Remember_Password';
+UPDATE wstg_cases SET slug = '05-Browser_Cache_Weaknesses' WHERE code = 'WSTG-ATHN-06' AND slug = '06-Browser_Cache_Weaknesses';
+UPDATE wstg_cases SET slug = '06-Weak_Authentication_Methods' WHERE code = 'WSTG-ATHN-07' AND slug = '07-Weak_Authentication_Methods';
+UPDATE wstg_cases SET slug = '07-Weak_Security_Question_Answer' WHERE code = 'WSTG-ATHN-08' AND slug = '08-Weak_Security_Question_Answer';
+UPDATE wstg_cases SET slug = '08-Weak_Password_Change_or_Reset_Functionalities' WHERE code = 'WSTG-ATHN-09' AND slug = '09-Weak_Password_Change_or_Reset_Functionalities';
+UPDATE wstg_cases SET slug = '09-Weaker_Authentication_in_Alternative_Channel' WHERE code = 'WSTG-ATHN-10' AND slug = '10-Weaker_Authentication_in_Alternative_Channel';
+UPDATE wstg_cases SET slug = '10-Multi-Factor_Authentication' WHERE code = 'WSTG-ATHN-11' AND slug = '11-Multi-Factor_Authentication';
+UPDATE wstg_cases SET slug = '08-Clickjacking' WHERE code = 'WSTG-CLNT-09' AND slug = '09-Clickjacking';
+UPDATE wstg_cases SET slug = '09-WebSockets' WHERE code = 'WSTG-CLNT-10' AND slug = '10-WebSockets';
+UPDATE wstg_cases SET slug = '10-Web_Messaging' WHERE code = 'WSTG-CLNT-11' AND slug = '11-Web_Messaging';
+UPDATE wstg_cases SET slug = '11-Browser_Storage' WHERE code = 'WSTG-CLNT-12' AND slug = '12-Browser_Storage';
+UPDATE wstg_cases SET slug = '12-Cross_Site_Script_Inclusion' WHERE code = 'WSTG-CLNT-13' AND slug = '13-Cross_Site_Script_Inclusion';
+UPDATE wstg_cases SET slug = '13-Reverse_Tabnabbing' WHERE code = 'WSTG-CLNT-14' AND slug = '14-Reverse_Tabnabbing';
+UPDATE wstg_cases SET slug = '14-Client-Side_Template_Injection' WHERE code = 'WSTG-CLNT-15' AND slug = '15-Client-Side_Template_Injection';
+UPDATE wstg_cases SET slug = '03-Review_Old_Backup_and_Unreferenced_Files_for_Sensitive_Information' WHERE code = 'WSTG-CONF-04' AND slug = '04-Review_Old_Backup_and_Unreferenced_Files_for_Sensitive_Information';
+UPDATE wstg_cases SET slug = '04-Enumerate_Infrastructure_and_Application_Admin_Interfaces' WHERE code = 'WSTG-CONF-05' AND slug = '05-Enumerate_Infrastructure_and_Application_Admin_Interfaces';
+UPDATE wstg_cases SET slug = '05-HTTP_Methods' WHERE code = 'WSTG-CONF-06' AND slug = '06-HTTP_Methods';
+UPDATE wstg_cases SET slug = '06-HTTP_Strict_Transport_Security' WHERE code = 'WSTG-CONF-07' AND slug = '07-HTTP_Strict_Transport_Security';
+UPDATE wstg_cases SET slug = '07-File_Permissions' WHERE code = 'WSTG-CONF-09' AND slug = '09-File_Permissions';
+UPDATE wstg_cases SET slug = '08-Subdomain_Takeover' WHERE code = 'WSTG-CONF-10' AND slug = '10-Subdomain_Takeover';
+UPDATE wstg_cases SET slug = '09-Cloud_Storage' WHERE code = 'WSTG-CONF-11' AND slug = '11-Cloud_Storage';
+UPDATE wstg_cases SET slug = '10-Content_Security_Policy' WHERE code = 'WSTG-CONF-12' AND slug = '12-Content_Security_Policy';
+UPDATE wstg_cases SET slug = '11-Path_Confusion' WHERE code = 'WSTG-CONF-13' AND slug = '13-Path_Confusion';
+UPDATE wstg_cases SET slug = '13-Feature_Flag_Security_Bypass' WHERE code = 'WSTG-CONF-15' AND slug = '15-Feature_Flag_Security_Bypass';
+UPDATE wstg_cases SET slug = '01-Improper_Error_Handling' WHERE code = 'WSTG-ERRH-02' AND slug = '02-Stack_Traces';
+UPDATE wstg_cases SET slug = '09-Map_Application_Architecture' WHERE code = 'WSTG-INFO-10' AND slug = '10-Map_Application_Architecture';
+UPDATE wstg_cases SET slug = '05-HTTP_Methods' WHERE code = 'WSTG-INPV-03' AND slug = '03-HTTP_Verb_Tampering';
+UPDATE wstg_cases SET slug = '03-HTTP_Parameter_Pollution' WHERE code = 'WSTG-INPV-04' AND slug = '04-HTTP_Parameter_Pollution';
+UPDATE wstg_cases SET slug = '04-SQL_Injection' WHERE code = 'WSTG-INPV-05' AND slug = '05-SQL_Injection';
+UPDATE wstg_cases SET slug = '05-LDAP_Injection' WHERE code = 'WSTG-INPV-06' AND slug = '06-LDAP_Injection';
+UPDATE wstg_cases SET slug = '06-XML_Injection' WHERE code = 'WSTG-INPV-07' AND slug = '07-XML_Injection';
+UPDATE wstg_cases SET slug = '07-SSI_Injection' WHERE code = 'WSTG-INPV-08' AND slug = '08-SSI_Injection';
+UPDATE wstg_cases SET slug = '08-XPath_Injection' WHERE code = 'WSTG-INPV-09' AND slug = '09-XPath_Injection';
+UPDATE wstg_cases SET slug = '09-IMAP_SMTP_Injection' WHERE code = 'WSTG-INPV-10' AND slug = '10-IMAP_SMTP_Injection';
+UPDATE wstg_cases SET slug = '10-Code_Injection' WHERE code = 'WSTG-INPV-11' AND slug = '11-Code_Injection';
+UPDATE wstg_cases SET slug = '11-Command_Injection' WHERE code = 'WSTG-INPV-12' AND slug = '12-Command_Injection';
+UPDATE wstg_cases SET slug = '12-Format_String_Injection' WHERE code = 'WSTG-INPV-13' AND slug = '13-Format_String_Injection';
+UPDATE wstg_cases SET slug = '13-Incubated_Vulnerability' WHERE code = 'WSTG-INPV-14' AND slug = '14-Incubated_Vulnerability';
+UPDATE wstg_cases SET slug = '14-HTTP_Response_Splitting' WHERE code = 'WSTG-INPV-15' AND slug = '15-HTTP_Response_Splitting';
+UPDATE wstg_cases SET slug = '15-HTTP_Request_Smuggling' WHERE code = 'WSTG-INPV-16' AND slug = '16-HTTP_Request_Smuggling';
+UPDATE wstg_cases SET slug = '16-Host_Header_Injection' WHERE code = 'WSTG-INPV-17' AND slug = '17-Host_Header_Injection';
+UPDATE wstg_cases SET slug = '17-Server-side_Template_Injection' WHERE code = 'WSTG-INPV-18' AND slug = '18-Server-side_Template_Injection';
+UPDATE wstg_cases SET slug = '18-Server-Side_Request_Forgery' WHERE code = 'WSTG-INPV-19' AND slug = '19-Server-Side_Request_Forgery';
+UPDATE wstg_cases SET slug = '19-Mass_Assignment' WHERE code = 'WSTG-INPV-20' AND slug = '20-Mass_Assignment';
+UPDATE wstg_cases SET slug = '20-CSV_Injection' WHERE code = 'WSTG-INPV-21' AND slug = '21-CSV_Injection';
+UPDATE wstg_cases SET slug = '21-Prototype_Pollution' WHERE code = 'WSTG-INPV-22' AND slug = '22-Prototype_Pollution';
+UPDATE wstg_cases SET slug = '22-Insecure_Deserialization' WHERE code = 'WSTG-INPV-23' AND slug = '23-Insecure_Deserialization';
+
+-- Eight cases the 2026 edition no longer publishes: six were dropped outright
+-- (Fingerprint Web Application merged into its framework case, File Extensions,
+-- RIA Cross Domain Policy, Other HTTP Security Header Misconfigurations, Weak
+-- Username Policy, Cross Site Flashing) and two moved into another category
+-- (Credentials Transported over an Encrypted Channel is now weak-cryptography
+-- CRYP-03, HTTP Verb Tampering is now Configuration's HTTP Methods). Their rows
+-- and titles stay — the checklist a client signed still lists them — but a blank
+-- slug is what makes them render without a link instead of with a dead one.
+UPDATE wstg_cases SET slug = '' WHERE code = 'WSTG-INFO-09' AND slug <> '';
+UPDATE wstg_cases SET slug = '' WHERE code = 'WSTG-CONF-03' AND slug <> '';
+UPDATE wstg_cases SET slug = '' WHERE code = 'WSTG-CONF-08' AND slug <> '';
+UPDATE wstg_cases SET slug = '' WHERE code = 'WSTG-CONF-14' AND slug <> '';
+UPDATE wstg_cases SET slug = '' WHERE code = 'WSTG-IDNT-05' AND slug <> '';
+UPDATE wstg_cases SET slug = '' WHERE code = 'WSTG-ATHN-01' AND slug <> '';
+UPDATE wstg_cases SET slug = '' WHERE code = 'WSTG-INPV-03' AND slug <> '';
+UPDATE wstg_cases SET slug = '' WHERE code = 'WSTG-CLNT-08' AND slug <> '';

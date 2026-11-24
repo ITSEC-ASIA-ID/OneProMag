@@ -95,7 +95,9 @@ test('the shipped seed is twelve categories and the cases they publish', async (
   for (const one of cases) {
     assert.match(one.code, /^WSTG-[A-Z]{4}-\d{2}$/, one.code);
     assert.ok(one.title.trim().length > 3, `${one.code} has no title`);
-    assert.ok(one.slug && !one.slug.startsWith('/'), `${one.code} has no page slug`);
+    // Blank is a deliberate answer — the current edition does not publish this
+    // case any more — so only a slug that is present has to be a slug.
+    assert.ok(!one.slug || !one.slug.startsWith('/'), `${one.code} has a bad page slug`);
     assert.ok(
       categories.some((c) => c.code === one.category_code),
       `${one.code} sits in ${one.category_code}, which is not a category`
@@ -117,18 +119,37 @@ test('every case is seeded with its category and a page on wstg.owasp.org', asyn
   assert.equal(new Set(cases.map((c) => c.code)).size, 116, 'two test cases share a code');
 
   const dir = new Map(categories.map((c) => [c.code, c.dir]));
+  const noPage = [];
   for (const one of cases) {
     assert.match(one.code, /^WSTG-[A-Z]{4}-\d{2}$/, one.code);
     assert.ok(dir.has(one.category), `${one.code} belongs to no category`);
+    // A case the current edition dropped keeps its row and its title but has no
+    // page: no link is the honest rendering, a 404 is not.
+    if (!one.url) {
+      noPage.push(one.code);
+      continue;
+    }
     assert.ok(
       one.url.startsWith(`${WSTG_BASE}/${dir.get(one.category)}/`),
       `${one.code} points outside its category`
     );
   }
+  assert.deepEqual(noPage.sort(), [
+    'WSTG-ATHN-01',
+    'WSTG-CLNT-08',
+    'WSTG-CONF-03',
+    'WSTG-CONF-08',
+    'WSTG-CONF-14',
+    'WSTG-IDNT-05',
+    'WSTG-INFO-09',
+    'WSTG-INPV-03',
+  ]);
   // A category and a case are different questions with different pages, and the
   // slugs the site spells against their titles are stored, not derived.
   const idor = cases.find((c) => c.code === 'WSTG-ATHZ-04');
-  assert.equal(idor.url, `${WSTG_BASE}/05-Authorization/04-Insecure_Direct_Object_References/`);
+  // The 2026 edition moved Authorization from 05- to 09-Authorization and
+  // Information Gathering from 01- to 05-: the published path, not the old one.
+  assert.equal(idor.url, `${WSTG_BASE}/09-Authorization/04-Insecure_Direct_Object_References/`);
   assert.equal(idor.categoryTitle, 'Authorization');
 });
 
@@ -148,7 +169,7 @@ test('a guide cites a category, and a case id is refused with the category named
     body: { wstg: 'WSTG-INFO' },
   });
   assert.equal(saved.guide.wstg, 'WSTG-INFO');
-  assert.ok(saved.guide.wstgUrl.endsWith('/01-Information_Gathering/'));
+  assert.ok(saved.guide.wstgUrl.endsWith('/05-Information_Gathering/'));
   await call('PATCH /api/tests/:id', admin, {
     params: { id: guide.id },
     body: { wstg: 'WSTG-ATHZ' },

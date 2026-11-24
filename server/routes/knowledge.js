@@ -16,8 +16,7 @@ import { requireCatalogManager, requireDeleter } from '../shared.js';
    for it; every write below calls `forgetWstg()` so the next read is the truth.
    ------------------------------------------------------------ */
 
-export const WSTG_BASE =
-  'https://wstg.owasp.org/latest/4-Web_Application_Security_Testing';
+export const WSTG_BASE = 'https://wstg.owasp.org/latest';
 
 let wstgCached = null;
 
@@ -46,7 +45,10 @@ export async function wstgIndex(force = false) {
       position: row.position,
       category: category.code,
       categoryTitle: category.title,
-      url: `${WSTG_BASE}/${category.dir}/${row.slug}/`,
+      // A case the current edition dropped keeps its row and its title but has no
+      // page: an empty slug is "no link" instead of a link that 404s, the same
+      // way a category an admin deleted renders without one.
+      url: row.slug ? `${WSTG_BASE}/${category.dir}/${row.slug}/` : '',
     });
   }
 
