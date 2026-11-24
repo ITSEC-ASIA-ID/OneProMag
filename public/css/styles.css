@@ -6688,8 +6688,29 @@ svg { display: block; }
 .cke-sec-name:hover { border-color: var(--border); }
 .cke-sec-name:focus { background: var(--surface); border-color: var(--accent); }
 .cke-sec-count { font-size: 11.6px; color: var(--faint); font-variant-numeric: tabular-nums; }
-.cke-guide-btn { color: var(--muted); }
-.cke-guide-btn:hover { color: var(--ink); }
+/* The guide a sub item opens when the tester starts: code first, then its title,
+   both inside one button that edits that guide. */
+.cke-guide-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 260px;
+  padding: 4px 8px;
+  font: inherit;
+  font-size: 11.8px;
+  line-height: 1.3;
+  color: var(--muted);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  cursor: pointer;
+}
+.cke-guide-chip:hover { color: var(--ink); border-color: var(--accent); }
+.cke-guide-chip svg { flex: none; }
+.cke-guide-code { flex: none; font-weight: 640; color: var(--ink); font-variant-numeric: tabular-nums; }
+.cke-guide-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cke-guide-chip.is-empty { color: var(--faint); border-style: dashed; background: transparent; }
+.cke-guide-chip.is-empty:hover { color: var(--ink); border-style: solid; }
 
 .cke-item:hover .cke-acts, .cke-item:focus-within .cke-acts { opacity: 1; }
 .cke-empty {
@@ -6722,7 +6743,7 @@ svg { display: block; }
   .cke-item { flex-direction: column; align-items: stretch; gap: 6px; }
   .cke-item-main { flex-direction: column; align-items: stretch; }
   .cke-item-side { justify-content: space-between; }
-  .cke-sec-pick { width: auto; flex: 1; }
+  .cke-guide-chip { max-width: 100%; flex: 1; }
   .cke-acts { opacity: 1; }
   .cke-meta { align-items: stretch; }
   .cke-field select { min-width: 0; width: 100%; }

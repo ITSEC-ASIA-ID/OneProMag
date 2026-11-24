@@ -82,16 +82,27 @@ function shapeItem(row, index) {
     section: row.section || '',
     title: row.title,
     help: row.help || '',
-    // The guide that teaches this item, '' when none does. Read-only here: it is
-    // derived from the section when the row is written, so the admin edits the
-    // standard and the link follows it instead of drifting on its own.
+    // The guide that teaches this sub item, '' when none does. Derived from the
+    // section when the row is written — so the admin edits the standard and the
+    // link follows it — unless the row names one itself, which `guideOwned` says.
     guide: row.guide_key || '',
+    guideOwned: Boolean(row.guide_key),
     // A WSTG row also names the page that publishes the test, so a pentester can
     // read the method itself rather than only our summary of it. Derived from the
     // section like the guide, never stored: the section IS the citation.
     ...wstgOf(index, row.section, row.title),
     position: Number(row.position || 0),
   };
+}
+
+/** A guide id the tables actually hold, '' meaning "no guide", or a 400. */
+async function explicitGuide(value) {
+  const id = String(value || '').trim();
+  if (!id) return '';
+  if (!(await db.get('SELECT id FROM test_guides WHERE id = ?', [id]))) {
+    throw new HttpError(400, `No guide with the id ${id}`);
+  }
+  return id;
 }
 
 function shapeChecklist(row) {
@@ -344,7 +355,8 @@ export const routes = {
         help = parts.length > 2 ? parts.slice(2).join(' | ') : parts[1] || '';
       }
       if (!title) continue;
-      parsed.push({ section, title, help });
+      const guide = source.guide === undefined ? null : await explicitGuide(source.guide);
+      parsed.push({ section, title, help, guide });
     }
     if (!parsed.length) throw new HttpError(400, 'An item needs at least a title');
 
@@ -367,14 +379,20 @@ export const routes = {
             item.section,
             item.title,
             item.help,
-            guideKeyFor(row.seed_key, item.section, claims),
+            item.guide !== null && item.guide !== undefined
+              ? item.guide
+              : guideKeyFor(row.seed_key, item.section, claims),
             position,
           ]
         );
         created.push({
           id: Number(info.lastInsertId),
           ...item,
-          guide: guideKeyFor(row.seed_key, item.section, claims),
+          guideOwned: Boolean(item.guide),
+          guide:
+            item.guide !== null && item.guide !== undefined
+              ? item.guide
+              : guideKeyFor(row.seed_key, item.section, claims),
           ...wstgOf(index, item.section, item.title),
           position,
         });
@@ -396,6 +414,19 @@ export const routes = {
         body.position === undefined || Number.isNaN(Number(body.position))
           ? Number(row.position || 0)
           : Number(body.position),
+      // A sub item may name its own guide (`guide` in the body, '' for none). Left
+      // out, a row that owns a guide keeps it — editing its title must not unlink it
+      // — while a row the standard links follows its section, as it always did.
+      guide:
+        body.guide !== undefined
+          ? await explicitGuide(body.guide)
+          : row.guide_key
+            ? row.guide_key
+            : guideKeyFor(
+                (await checklistRow(row.checklist_id)).seed_key,
+                body.section === undefined ? row.section : text(body.section, 120),
+                await wstgClaims()
+              ),
     };
     await db.run(
       `UPDATE checklist_items SET section = ?, title = ?, help = ?, guide_key = ?, position = ?
@@ -404,13 +435,7 @@ export const routes = {
         next.section,
         next.title,
         next.help,
-        // Moving an item to another section re-derives its guide, which is the
-        // whole point of the link being a column the standard owns.
-        guideKeyFor(
-          (await checklistRow(row.checklist_id)).seed_key,
-          next.section,
-          await wstgClaims()
-        ),
+        next.guide,
         next.position,
         row.id,
       ]

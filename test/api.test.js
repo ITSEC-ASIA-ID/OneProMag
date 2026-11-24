@@ -1461,6 +1461,49 @@ test('an item is the group and its rows are the sub items', async () => {
   );
 });
 
+test('a sub item owns its guide: derived by default, overridable, refusable', async () => {
+  const leadUser = await lead();
+  const { checklist } = await call('POST /api/checklists', leadUser, { body: { name: 'Guide per sub item' } });
+  const { items } = await call('POST /api/checklists/:id/items', leadUser, {
+    params: { id: checklist.id },
+    body: {
+      items: [
+        { section: 'WSTG-INFO — Information Gathering', title: 'WSTG-INFO-01 Conduct Search Engine Reconnaissance' },
+        { section: 'WSTG-INFO — Information Gathering', title: 'A row with a guide of its own', guide: 'A01' },
+      ],
+    },
+  });
+  assert.equal(items[0].guide, '', 'a hand-made list derives no guide from its sections');
+  assert.equal(items[1].guide, 'A01', 'a row may name its own guide');
+  assert.equal(items[1].guideOwned, true, 'and the row says the link is its own');
+  assert.equal(items[0].guideOwned, false, 'a derived link is not owned by the row');
+
+  // PATCH without `guide` keeps the derived link; with it, the row wins.
+  const own = await call('PATCH /api/checklist-items/:id', leadUser, {
+    params: { id: items[0].id },
+    body: { guide: 'A02' },
+  });
+  assert.equal(own.item.guide, 'A02');
+  // Editing the row must not unlink the guide it owns.
+  const renamed = await call('PATCH /api/checklist-items/:id', leadUser, {
+    params: { id: items[1].id },
+    body: { title: 'Renamed, still A01' },
+  });
+  assert.equal(renamed.item.guide, 'A01', 'editing a sub item does not unlink its guide');
+  const cleared = await call('PATCH /api/checklist-items/:id', leadUser, {
+    params: { id: items[0].id },
+    body: { guide: '' },
+  });
+  assert.equal(cleared.item.guide, '', 'empty means "no guide of its own"');
+
+  await assert.rejects(
+    call('PATCH /api/checklist-items/:id', leadUser, { params: { id: items[0].id }, body: { guide: 'NOPE' } }),
+    /No guide with the id NOPE/
+  );
+
+  await call('DELETE /api/checklists/:id', leadUser, { params: { id: checklist.id } });
+});
+
 test('attach, answer, progress and detach — with the in-use delete refused', async () => {
   const leadUser = await lead();
   const user = await member();
@@ -1755,6 +1798,9 @@ test('a checklist item names the guide that teaches it, and the guide names wher
       // section means the row was moved and kept a stale guide. A WSTG row names a
       // category rather than a Top-10 code, so it is matched against the citation
       // the guide carries instead.
+      // A row that named its own guide may sit in a section whose category differs:
+      // that is the admin's call, and the row keeps its own citation either way.
+      if (item.guideOwned) continue;
       const sectionCode = item.section.split(/\s+[—–]\s+/)[0].trim();
       if (sectionCode.startsWith('WSTG-')) {
         const guide = guides.find((g) => g.id === item.guide);

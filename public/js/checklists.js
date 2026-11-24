@@ -801,11 +801,10 @@ function openGuideEditor(guide, checklists, wstg = [], after = null) {
       watch: list('watch'),
     };
     try {
-      if (editing) await api.updateGuide(guide.id, payload);
-      else await api.createGuide(payload);
+      const saved = editing ? await api.updateGuide(guide.id, payload) : await api.createGuide(payload);
       modal.close();
       toast(editing ? 'Guide saved' : 'Guide created');
-      if (after) await after();
+      if (after) await after(saved?.guide || null);
       else await refreshGuides();
     } catch (err) {
       event.currentTarget.disabled = false;
@@ -1158,9 +1157,12 @@ function editorItemHTML(row, index) {
     <div class="cke-item-side">
       ${
         guide
-          ? `<button type="button" class="btn btn-icon btn-icon-sm cke-guide-btn" data-guide-edit="${h(guide.id)}"
-              title="Edit the test guide: ${h(guide.title)}" aria-label="Edit the test guide">${icon.book(12)}</button>`
-          : ''
+          ? `<button type="button" class="cke-guide-chip" data-guide-edit="${h(guide.id)}"
+              title="Edit the test guide — ${h(guide.code)} ${h(guide.title)}">${icon.book(11)}<span class="cke-guide-code">${h(
+              guide.code
+            )}</span><span class="cke-guide-title">${h(guide.title)}</span></button>`
+          : `<button type="button" class="cke-guide-chip is-empty" data-guide-pick
+              title="Point this sub item at a test guide">${icon.plus(11)}<span>test guide</span></button>`
       }
       <span class="cke-acts">
         <button type="button" class="btn btn-icon btn-icon-sm" data-act="up" title="Move up" aria-label="Move up">${icon.arrowUp(
@@ -1371,6 +1373,54 @@ function bindEditor(host) {
     toast(`${rows.length} item${rows.length === 1 ? '' : 's'} added — remember to save`);
   };
 
+  /** Points a sub item at a guide, or at none — the row keeps its own text. */
+  const linkGuide = (index, guideId) => {
+    const row = editor.rows[index];
+    if (!row) return;
+    row.guide = guideId || '';
+    row.guideDirty = true;
+    repaintList();
+  };
+
+  const openGuidePicker = (index) => {
+    const row = editor.rows[index];
+    if (!row) return;
+    const options = [...editorGuides.values()]
+      .sort((a, b) => String(a.code).localeCompare(String(b.code)))
+      .map(
+        (g) =>
+          `<option value="${h(g.id)}"${g.id === row.guide ? ' selected' : ''}>${h(g.code)} — ${h(g.title)}</option>`
+      )
+      .join('');
+    openModal({
+      title: 'Test guide for this sub item',
+      subtitle: h(row.title || 'Untitled sub item'),
+      body: `<div class="field"><label for="cke-guide-pick">Guide</label>
+        <select id="cke-guide-pick" class="input"><option value="">No guide</option>${options}</select>
+        <span class="form-hint">The sub item keeps its own text; the guide is what a tester opens from the project.</span></div>`,
+      footer: `<button class="btn" data-close>Cancel</button>
+        <button class="btn btn-ghost" data-new-guide>Write a new guide</button>
+        <button class="btn btn-primary" data-save-guide>Use this guide</button>`,
+      onMount(modal, close) {
+        modal.querySelector('[data-save-guide]').addEventListener('click', () => {
+          const id = modal.querySelector('#cke-guide-pick').value;
+          close();
+          linkGuide(index, id);
+        });
+        modal.querySelector('[data-new-guide]').addEventListener('click', () => {
+          close();
+          openGuideEditor(null, editorChecklists, editorWstg, async (saved) => {
+            const { guides, wstg } = await api.tests();
+            editorGuides = new Map(guides.map((g) => [g.id, g]));
+            editorWstg = wstg;
+            if (saved?.id) linkGuide(index, saved.id);
+            else repaintList();
+          });
+        });
+      },
+    });
+  };
+
   const lastIndexOfSection = (section) => {
     let last = -1;
     editor.rows.forEach((row, i) => {
@@ -1382,11 +1432,13 @@ function bindEditor(host) {
   function bindRows() {
     list.querySelectorAll('.cke-item').forEach((el) => {
       const index = Number(el.dataset.idx);
-      // A sub item that has a guide can open it; the row keeps its own text either way.
+      // Every sub item has a test guide detail and a button to edit it: the chip
+      // opens the guide it points at, and a row without one gets a picker.
       el.querySelector('[data-guide-edit]')?.addEventListener('click', (event) => {
         const guide = editorGuides.get(event.currentTarget.dataset.guideEdit);
         if (guide) openGuideEditor(guide, editorChecklists, editorWstg, repaintList);
       });
+      el.querySelector('[data-guide-pick]')?.addEventListener('click', () => openGuidePicker(index));
       el.querySelectorAll('[data-f]').forEach((input) => {
         const field = input.dataset.f;
         input.addEventListener('input', () => {
@@ -1588,12 +1640,17 @@ function bindEditor(host) {
         const title = (row.title || '').trim();
         if (!title) continue;
         const next = { section: (row.section || '').trim(), title, help: (row.help || '').trim(), position: i };
+        if (row.guideDirty) next.guide = row.guide || '';
         if (!row.id) {
           fresh.push(next);
           continue;
         }
         const before = row.orig || { section: '', title: '', help: '' };
-        const moved = before.section !== next.section || before.title !== next.title || before.help !== next.help;
+        const moved =
+          before.section !== next.section ||
+          before.title !== next.title ||
+          before.help !== next.help ||
+          Boolean(row.guideDirty);
         if (moved || row.position !== i) await api.updateChecklistItem(row.id, next);
       }
       if (fresh.length) {
