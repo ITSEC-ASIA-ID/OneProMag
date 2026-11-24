@@ -6639,16 +6639,16 @@ svg { display: block; }
 .cke-item {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 7px 10px 7px 14px;
+  gap: 12px;
+  padding: 10px 12px 10px 14px;
   border-top: 1px solid var(--border);
 }
 .cke-item:first-of-type { border-top: none; }
 .cke-item:hover { background: var(--surface-2); }
-.cke-item-main { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0; }
+.cke-item-main { display: flex; align-items: center; gap: 12px; flex: 1; min-width: 0; }
 .cke-title { flex: 1.15; min-width: 0; font-weight: 520; }
 .cke-help { flex: 1.6; min-width: 0; color: var(--muted); font-size: 12.8px; }
-.cke-item-side { display: flex; align-items: center; gap: 6px; flex: none; }
+.cke-item-side { display: flex; align-items: center; gap: 8px; flex: none; }
 .cke-sec-pick {
   width: 168px;
   font-size: 12.4px;
@@ -6662,9 +6662,9 @@ svg { display: block; }
   flex: 1 0 100%;
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  margin: 0 0 4px 4px;
-  padding: 4px 0 4px 10px;
+  gap: 3px;
+  margin: 2px 0 2px 2px;
+  padding: 6px 0 4px 12px;
   border-left: 2px solid var(--border);
 }
 .cke-step-row { display: flex; align-items: center; gap: 6px; }
