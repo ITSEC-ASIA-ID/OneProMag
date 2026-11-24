@@ -1393,6 +1393,28 @@ function bindEditor(host) {
     el?.focus({ preventScroll: true });
   };
 
+  /**
+   * Pasting a whole list into a row splits it: the row you pasted into is replaced
+   * (or followed) by one row per line, so the list goes in without opening the
+   * paste panel. A one-line paste is left to the field itself.
+   */
+  const pasteList = (event, index) => {
+    const data = event.clipboardData?.getData('text') || '';
+    if (!/\n/.test(data.trim())) return;
+    const parsed = parsePasted(data);
+    if (!parsed.length) return;
+    event.preventDefault();
+    const here = editor.rows[index] || { section: '' };
+    const section = (here.section || '').trim();
+    const rows = parsed.map((entry) => ({ id: null, ...entry, section: entry.section || section, steps: [] }));
+    const empty = !(here.title || '').trim() && !(here.help || '').trim();
+    const at = empty ? index : index + 1;
+    editor.rows.splice(at, empty ? 1 : 0, ...rows);
+    repaintList();
+    list.querySelector(`.cke-item[data-idx="${at}"] .cke-title`)?.scrollIntoView({ block: 'center' });
+    toast(`${rows.length} item${rows.length === 1 ? '' : 's'} added — remember to save`);
+  };
+
   const lastIndexOfSection = (section) => {
     let last = -1;
     editor.rows.forEach((row, i) => {
@@ -1443,6 +1465,9 @@ function bindEditor(host) {
         };
         if (field === 'section') input.addEventListener('change', handler);
         else input.addEventListener('input', handler);
+        if (field === 'title' || field === 'help') {
+          input.addEventListener('paste', (event) => pasteList(event, index));
+        }
       });
       el.querySelector('[data-act="del"]')?.addEventListener('click', () => {
         const row = editor.rows[index];
@@ -1592,17 +1617,32 @@ function bindEditor(host) {
 }
 
 
-/** `Section | What to check | How to check it`, one item per line. */
+/**
+ * `Section | What to check | How to check it`, one item per line.
+ *
+ * Two columns are ambiguous — `Title | Help` is what one pasted row looks like —
+ * so a list where most lines carry three columns is read as `Section | Title`
+ * for the short ones: the shape of the whole list decides, not a guess per line.
+ */
 export function parsePasted(text) {
-  return String(text || '')
+  const lines = String(text || '')
     .split('\n')
     .map((line) => line.trim())
-    .filter(Boolean)
-    .map((line) => {
-      const parts = line.split('|').map((p) => p.trim());
-      if (parts.length >= 3) return { section: parts[0], title: parts[1], help: parts.slice(2).join(' | ') };
-      if (parts.length === 2) return { section: '', title: parts[0], help: parts[1] };
-      return { section: '', title: parts[0], help: '' };
-    })
-    .filter((item) => item.title);
+    .filter(Boolean);
+  const sectioned = lines.filter((line) => line.split('|').length >= 3).length * 2 > lines.length;
+  return (
+    lines
+      .map((line) => {
+        const parts = line.split('|').map((p) => p.trim());
+        if (parts.length >= 3) return { section: parts[0], title: parts[1], help: parts.slice(2).join(' | ') };
+        if (parts.length === 2) {
+          return sectioned
+            ? { section: parts[0], title: parts[1], help: '' }
+            : { section: '', title: parts[0], help: parts[1] };
+        }
+        return { section: '', title: parts[0], help: '' };
+      })
+      // A section with no title is a header line, not an item.
+      .filter((item) => item.title)
+  );
 }
