@@ -1380,14 +1380,25 @@ function bindEditor(host) {
     }
   };
 
-  const addRow = (section = '', at = null) => {
+  // A new row goes where the button is — after the last row of its section — and
+  // the page scrolls to it. A list of 116 rows is longer than the screen, and a
+  // row appended at the bottom looked like the button had done nothing at all.
+  const addRow = (section = '', afterIndex = null) => {
     const row = { id: null, section, title: '', help: '', steps: [] };
-    if (at === null) editor.rows.push(row);
-    else editor.rows.splice(at, 0, row);
+    const at = afterIndex === null ? editor.rows.length : afterIndex + 1;
+    editor.rows.splice(at, 0, row);
     repaintList();
-    const index = at === null ? editor.rows.length - 1 : at;
-    const el = list.querySelector(`.cke-item[data-idx="${index}"] .cke-title`);
-    el?.focus();
+    const el = list.querySelector(`.cke-item[data-idx="${at}"] .cke-title`);
+    el?.scrollIntoView({ block: 'center' });
+    el?.focus({ preventScroll: true });
+  };
+
+  const lastIndexOfSection = (section) => {
+    let last = -1;
+    editor.rows.forEach((row, i) => {
+      if ((row.section || '').trim() === section) last = i;
+    });
+    return last;
   };
 
   function bindRows() {
@@ -1443,7 +1454,10 @@ function bindEditor(host) {
       el.querySelector('[data-act="down"]')?.addEventListener('click', () => moveWithin(index, +1));
     });
     list.querySelectorAll('[data-add-sec]').forEach((btn) =>
-      btn.addEventListener('click', () => addRow(btn.dataset.addSec || ''))
+      btn.addEventListener('click', () => {
+        const section = btn.dataset.addSec || '';
+        addRow(section, lastIndexOfSection(section));
+      })
     );
   }
 
@@ -1465,7 +1479,11 @@ function bindEditor(host) {
 
   bindRows();
 
-  host.querySelector('[data-cke-add]')?.addEventListener('click', () => addRow(''));
+  // The button above the list continues the last section rather than opening a
+  // stray "No section" group at the top of the page.
+  host.querySelector('[data-cke-add]')?.addEventListener('click', () =>
+    addRow((editor.rows[editor.rows.length - 1]?.section || '').trim())
+  );
   host.querySelector('[data-cke-paste-open]')?.addEventListener('click', () => {
     const box = host.querySelector('.ck-paste');
     box.hidden = !box.hidden;

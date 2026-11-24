@@ -1,0 +1,204 @@
+[assistant • bash]
+{"command":"cd ~/Desktop/Project/Brilink/Brilink_EDC/EDC_newpos_9220 && head -40 findings/F-012_renderer_cve-2020-16040_native_exec.md; echo ===F004===; head -25 findings/F-004_webview_cve-2023-4863.md","timeout":30}
+
+[tool • bash]
+# F-012 — Web-delivered Chromium renderer arbitrary code execution on NEW9220 (CVE-2020-16040 n-day in SprdBrowser 80.0.3987.132, proven end-to-end); URL→root ruled out by measured closure of every escalation junction
+
+| | |
+|---|---|
+| **ID** | F-012 |
+| **Severity** | **High** — CVSS 3.1 8.0 `AV:N/AC:L/PR:N/UI:R/S:U/C:H/I:H/A:L` (native code execution in the sandboxed renderer of the shipped browser; impact bounded at renderer — no escape measured, see §4) |
+| **Status** | Proven device-side end-to-end (memory corruption → arb R/W → arbitrary native exec); escalation boundaries fully measured |
+| **Target** | Sprüche SprdBrowser **80.0.3987.132** (Unisoc vendor fork of Chromium M80), `/product/app/SprdBrowser`, engine `libchrome.so` md5 `569eedf00fba9a5e028f5b7aa74f5791`; unit `83768010426653` |
+| **CVE** | CVE-2020-16040 — V8 Simplified Lowering integer truncation (`arrLen = length & 0xffffffff` confusion), fixed upstream in M87 |
+| **Evidence** | `evidence/E-050_shellchain_final_verdict.md` (chain verdict), `evidence/E-025_*` (poc ladder incl. `E-025_poc_runner_14Nov_*.log`), `evidence/E-052_sandbox_escape_lead_16017.md`, `evidence/E-053_futex_renderer_p1_p2_p3_core_postmortem.md`, `evidence/E-054_t31_spray_sweep_reclaim_closed.md`, `evidence/E-041_ghostlock_remove_waiter_route_and_spray_refuted.md` |
+
+Threat model note: delivery is **a URL navigated in the shipped browser** — no ADB, root,
+or settings access is involved. The test harness served pages over localhost (`adb
+reverse`) purely for lab convenience; the chain itself needs only an HTTP(S) page, and its
+beacons ride the browser process's own network stacks (gid 3003), proven in every run.
+
+---
+
+## 1. Summary
+
+The NEW9220's shipped browser carries a Chromium **M80** vendor fork whose V8 is
+vulnerable to the public 2020 n-day **CVE-2020-16040**. A single web page driven through the
+browser's renderer obtains, with no user interaction beyond navigation:
+
+1. **V8 memory corruption** — `Array(arrLen=-1)` Simplified-Lowering truncation, reproduced
+   on every run (`E-025`, 14 Nov sweep);
+2. **Arbitrary read/write of renderer memory** — `addrof` + typed-array backing-store
+   redirect primitives;
+3. **Arbitrary native ARM32 code execution** — wasm jump-table literal redirect: planted
+   shellcode words execute inside the renderer process and return live values through
+   HTTP beacons (`r=1337beef` control; `getpid=getuid` identity probes; **futex syscall
+   probes**, §3). Payload runs end-to-end in ~1 s (`poc51_dx_*`, 14 Nov 10:00–10:01).
+
+This is the first full code-execution primitive proven on this engagement not requiring
+the plant (`su`) or any privileged context: the attacker's only input is a URL.
+
+## 2. What executes, with what reach
+
+Renderer process context (identical across runs): `uid 9xxxx`, `u:r:isolated_app:s0:c512,c768`,
+seccomp filter (mode 2), `NoNewPrivs: 1`, `CapBnd 0`.
+===F004===
+# F-004 — System WebView (`com.android.webview` 116.0.5845.92) ships libwebp 1.3.1, exposed to CVE-2023-4863; OOB-write PoC proven on the vulnerable code, escalation to code execution ruled out on evidence
+
+| | |
+|---|---|
+| **ID** | F-004 |
+| **Severity** | **High** (memory corruption / reliable DoS of WebView-based render surfaces; KEV-listed CVE; RCE *not* demonstrated — see §7) |
+| **Status** | Code-level Confirmed; device exploitability bounded by evidence E-019 and **E-020 (round 2)** |
+| **Target** | `com.android.webview` versionName **116.0.5845.92**, codePath `/product/app/webview` (unit 9222373182, E-016) |
+| **CVE** | CVE-2023-4863 — libwebp lossless Huffman `ReplicateValue` OOB write (CWE-787), CVSS 8.8, CISA KEV (BLASTPASS/ITW) |
+| **Evidence** | `evidence/E-016_browser_webview_surface.txt`, `evidence/E-017_webview_cve_exposure.txt`, `evidence/E-018_cve-2023-4863_poc.txt`, `evidence/E-019_cve-2023-4863_escalation_attempt.txt`, `evidence/E-020_cve-2023-4863_escalation_round2.txt`, `evidence/E-042_cve-2023-4863_static_binary_identity_both_engines.md` |
+
+---
+
+## 1. Summary
+
+The NEW9220 system WebView is Chromium 116.0.5845.92, whose bundled libwebp is the
+**1.3.1** code — byte-equivalent to the last vulnerable release (fixed in
+116.0.5845.187 / libwebp 1.3.2, E-017.f pinning chain). Any webp file handed to that
+decoder (app assets, remote content rendered by the BRI app's WebViews, downloaded
+files) can drive the CVE-2023-4863 out-of-bounds write.
+
+> **E-042 (2026-11-14) adds binary-level proof and a second surface.** The earlier
+> E-017.c string-based "local evidence" was misattributed (Courgette/libjpeg strings,
+> not libwebp) and is retracted there; E-042 replaces it with structural proof —
+> rodata anchors (kTableSize / kCodeLengthCodeOrder / kCodeToPlane) resolved through
+
+
+[assistant • bash]
+{"command":"cd ~/Desktop/Project/Brilink/Brilink_EDC/EDC_newpos_9220 && sed -n '40,120p' findings/F-012_renderer_cve-2020-16040_native_exec.md","timeout":30}
+
+[tool • bash]
+seccomp filter (mode 2), `NoNewPrivs: 1`, `CapBnd 0`.
+
+Measured inside the sandbox (from the same payload path):
+
+- full renderer memory R/W (arb-read/writes verified against known literals);
+- syscall execution with arguments chosen by the payload — e.g. `futex(2)`: FUTEX_WAKE
+  returned 0; FUTEX_LOCK_PI entered (callers observed parked in-kernel at dump time,
+  `E-053`);
+- HTTP beacon exfiltration through the browser's own sockets (used by every probe).
+
+## 3. Post-mortem methodology (reusable): pulling the faulting PC out of a renderer crash
+
+Two probes crashed (planted wasm-region words later walked by Blink as object pointers —
+`strb r1,[r0,#0]` at `si_addr=0xd` via `r5=<planted lit>`; *not* the futex syscall, which
+was alive and parked at dump time). The engagement now has a working, reproducible
+crash-forensics channel:
+
+- `core_pattern` in **file mode** under `/data/corefile` (label `coredump_file`, every
+  domain may create/append; **pipe mode `|` is dead on this kernel** — kernel logs
+  `Core dump to |… pipe failed` for every consumer, including a freestanding one);
+  renderer cores are ~640 MB — check `df /data` (a 0-byte core means disk exhaustion);
+- pull (≈18 s), parse NT_PRSTATUS (`pr_pid` @+24, `pc` @+132) + NT_SIGINFO
+  (`si_addr` @ desc+12), select the faulting thread by mapped-PC, resolve against
+  `libchrome.so`;
+- full procedure: `E-053`.
+
+**Secondary observation (policy-confirmed, cross-app access untested):** the SELinux policy
+grants *every* domain `{ open read … unlink write }` on `coredump_file`, and `/data/corefile`
+holds full process cores of crashed renderers/apps. If an untrusted app can read another
+app's core there, that is a cross-process memory-disclosure surface on any crash. Worth a
+5-minute device test on the next lab window (drop a canary string in a crashing app's
+memory, read its core from a second app uid).
+
+## 4. Why this is bounded at the renderer — every junction measured, none assumed
+
+| egress | verdict | evidence |
+|---|---|---|
+| `execve` of any program | **closed** — SELinux `entrypoint` denied (`isolated_app` has execute/map but no `entrypoint` on any usable exec domain; measured avc) | E-050 §2 |
+| system services via binder | **closed** — `getService` 193/193 → -1; zero `allow_isolated` in `plat_service_contexts` | E-050 §1, E-034/E-035 |
+| root via GhostLock (CVE-2026-43499) | **closed** — kernel bug present (F-010/F-011) but the reclaim stage has no viable writer: 9/9 unpriv syscall sprays stop ≥100 B short of the frame window (`E-041` + `E-054`, incl. `sendmmsg`/`recvmmsg` API-level EINVAL, `io_submit`, `process_vm_readv`); write-lane closed (`E-047`) | E-054 |
+| root via Mali (CVE-2021-28663) | **closed** — refcount bypass proven, reuse never reproduced, `/dev/mali0` EACCES from `isolated_app` | E-031/E-036, F-008 |
+| app-context install of a foreign APK | **closed** — PackageInstaller parse-block, intent schemes dropped, appstore queue DB-only | E-050 §1/§3 |
+| own TCP/UDP C2 socket from shellcode | **closed** — zero `isolated_app` inet socket rules (beacons ride the browser stack) | E-050 §4 |
+| browser-process escape (route B) | **unfunded/out of scope** — priced and recommended against in F-007 §8 (stripped 50 MB `libchrome.so`, no public M80 escape) | F-007 |
+
+## 5. Final capability statement (matches E-050 §5)
+
+A malicious URL yields attacker-controlled **native execution inside SprdBrowser's
+renderer**: full memory R/W of the renderer, arbitrary syscalls within the sandbox
+profile, and reliable HTTP beaconing. That is the terminal capability of the web chain on
+this build; an OS shell or the payment stack is **not** reachable from it with measured
+techniques. The step to full compromise is exactly one browser-process (or
+one policy) bug — see F-007's pricing — which is the client's remediation priority.
+
+## 6. Remediation
+
+1. **Patch the engine**: the vendor fork pins Chromium M80 (2020). Updating SprdBrowser to
+   a current Chromium (or replacing it) removes CVE-2020-16040 and the entire 2020-era n-day
+   class (note the same engine also carries the libwebp 1.3.1 pre-1.3.2 code — F-004/E-042
+   — i.e. two public renderer-memory bug families are simultaneously live in one process).
+2. Interim: restrict what users can navigate to in the shipped browser (URL allowlist at
+   the POS app/controller level) — the delivery channel is user navigation.
+3. Fix the two structural amplifier bugs so that any *future* renderer bug stays
+   renderer-local: add `allow_isolated` governance (remove what isn't needed; today zero —
+   keep it that way) and keep denying `entrypoint` (correct today, verify on upgrades).
+4. Verify `/data/corefile` cross-app readability (§3) and, if readable, move cores to a
+   `0700`-owned directory or clear the `coredump_file` read grant for untrusted domains.
+
+## 7. Evidence index
+
+- Chain verdict: `evidence/E-050_shellchain_final_verdict.md`
+- Poc ladder + beacons: `evidence/E-025_poc_runner_14Nov_*.log`, `E-025_poc_s_futex_*.log`
+- Renderer crash forensics: `evidence/E-053_futex_renderer_p1_p2_p3_core_postmortem.md`
+  (core `tmp/m3/rt16725.core`, 647 MB)
+- Escalation closures: `evidence/E-054_t31_spray_sweep_reclaim_closed.md`,
+  `evidence/E-041_ghostlock_remove_waiter_route_and_spray_refuted.md`,
+  `evidence/E-047_root_revshell_and_ghostlock_write_lane_verdict.md`
+- Engine identity: `tmp/cve/sprd/lib/libchrome.so` md5 `569eedf00fba9a5e028f5b7aa74f5791`
+- Route B pricing: `findings/F-007_webview_sandbox_escape_route_b.md`
+
+
+[assistant • bash]
+{"command":"cd ~/Desktop/Project/Brilink/Brilink_EDC/EDC_newpos_9220 && grep -n \"adbd\\|adbd_exec\\|TCP\\|transport\" findings/F-005_unauthenticated_adbd_root_and_second_suid_su.md | head -15; echo ===; adb shell \"getprop ro.build.fingerprint; id; getenforce; getprop service.adb.tcp.port; getprop persist.adb.tcp.port; ps -A 2>/dev/null | grep -E 'adbd|debuggerd' | head -4\" 2>&1","timeout":60}
+
+[tool • bash]
+1:# F-005 — Production `userdebug` build: unauthenticated `adbd` that auto-roots, plus a second world-executable setuid-root `su`
+9:| **Evidence** | `evidence/E-024_unauthenticated_adbd_and_second_suid_su.txt` |
+21:> shipped defect. The load-bearing, reportable part of this finding is §1's `adbd`
+47:| 1 | `service.adb.root` | `1` | `adbd` **automatically** drops to root; no `adb root` command needed |
+118:ADB). That is why the `adbd` configuration in §1 — not `basu` — is the load-bearing
+167:`adbd` is **already root and already unauthenticated**, so the settings password
+174:shell**: the terminal initiated a TCP connection to the operator host
+===
+SPRD/sl8541e_1h10_32b_Natv/sl8541e_1h10_32b:10/QP1A.190711.020/eng.BRI.06051628:userdebug/test-keys
+uid=0(root) gid=0(root) groups=0(root),1004(input),1007(log),1011(adb),1015(sdcard_rw),1028(sdcard_r),3001(net_bt_admin),3002(net_bt),3003(inet),3006(net_bw_stats),3009(readproc),3011(uhid) context=u:r:su:s0
+Enforcing
+
+
+root          1706     1   30340   3632 poll_schedule_timeout 0 S adbd
+
+
+[assistant • bash]
+{"command":"cd ~/Desktop/Project/Brilink/Brilink_EDC/EDC_newpos_9220 && sed -n '160,200p' findings/F-005_unauthenticated_adbd_root_and_second_suid_su.md","timeout":30}
+
+[tool • bash]
+5. Audit the `/system` overlay upper layer on all field units — `basu`'s presence
+   there means `/system` has been written to post-manufacture.
+
+## 7. Relation to F-003
+
+F-003 reported `adb root` as available and blamed a `userdebug` build. This finding
+supersedes the mechanism: it is not that `adb root` *works on request*, it is that
+`adbd` is **already root and already unauthenticated**, so the settings password
+`170845` is not even needed to reach root. F-003's password recovery remains valid
+and independent (it is reachable at the UI layer without ADB).
+
+## 7. Exploitation demo addendum (E-047, 2026-11-14)
+
+The root access described above was exercised end-to-end as a **network reverse
+shell**: the terminal initiated a TCP connection to the operator host
+(192.168.1.37:4444) and served `uid=0 ... context=u:r:su:s0` over it
+(FIFO-wired toybox `nc` ⇄ `/system/bin/sh`; toybox `nc` has no `-e`). Commands
+driven both from the host listener and from files piped into the device FIFO
+executed as root. Full transcript: `tmp/m3/revshell_evidence.log`; write-up and
+threat-model notes: `evidence/E-047_root_revshell_and_ghostlock_write_lane_verdict.md`
+(Part 1). This demonstrates that the F-005 root surface is not merely a local
+shell grant — the root shell can be relayed off-device over the terminal's own
+network connection.
