@@ -111,9 +111,6 @@ export async function wstgClaims() {
        the items so adding a row makes a guide findable the same day.
    ============================================================ */
 
-const MAX_LIST = 40;
-const MAX_LINE = 600;
-
 function text(value, max = 300) {
   return String(value ?? '')
     .replace(/[\u0000-\u001f\u007f]/g, ' ')
@@ -143,23 +140,36 @@ function link(value) {
   return url;
 }
 
-/** A list field arrives as an array or as "one line each" text from the form. */
-function lines(value, max = MAX_LINE) {
-  const source = Array.isArray(value) ? value : String(value ?? '').split('\n');
-  return source
-    .map((line) => text(line, max))
-    .filter(Boolean)
-    .slice(0, MAX_LIST);
+/**
+ * Editorial prose: Markdown, so newlines are content and must survive. `text()`
+ * flattens them, which is right for a title and wrong for a list of steps.
+ */
+function prose(value, max = 12000) {
+  return String(value ?? '')
+    .replace(/\r\n?/g, '\n')
+    .replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/g, '')
+    .replace(/\n{4,}/g, '\n\n\n')
+    .trim()
+    .slice(0, max);
 }
 
-function parseList(raw) {
-  try {
-    const parsed = JSON.parse(raw || '[]');
-    return Array.isArray(parsed) ? parsed.map((v) => String(v)) : [];
-  } catch {
-    // A hand-edited database row must not take the page down with it.
-    return [];
+/** The reference links, one per line, each one a web address or refused. */
+function links(value) {
+  const source = Array.isArray(value) ? value : String(value ?? '').split('\n');
+  const out = [];
+  for (const line of source) {
+    const url = link(line);
+    if (url) out.push(url);
   }
+  return out.join('\n');
+}
+
+/** `reference` as a list a page can render, from the same stored text. */
+function parseLinks(raw) {
+  return String(raw || '')
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean);
 }
 
 /** A WSTG directory as the site spells it, without the slashes a URL adds. */
@@ -191,13 +201,18 @@ function shapeGuide(row, index) {
     // The category page, still derived: it is what the WSTG folder *is*. The
     // guide's own `reference` is the page its author chose to quote.
     wstgUrl: cite.url,
+    // The links an author typed, one per line, each already checked to be a web
+    // address. `reference` keeps the raw text so a caller can edit what it reads.
     reference: row.reference || '',
+    references: parseLinks(row.reference),
     title: row.title,
     what: row.what || '',
-    steps: parseList(row.steps),
-    passes: parseList(row.passes),
-    tools: parseList(row.tools),
-    watch: parseList(row.watch),
+    // Prose, not rows: each of these is Markdown the author wrote, so a step may
+    // be a table, a fenced command, or nothing at all.
+    steps: row.steps || '',
+    passes: row.passes || '',
+    tools: row.tools || '',
+    watch: row.watch || '',
     position: Number(row.position || 0),
     checklistId: row.checklist_id ? Number(row.checklist_id) : null,
     updatedAt: row.updated_at || '',
@@ -293,15 +308,15 @@ async function nextGuide(body, row, index) {
     }
   }
   return {
-    reference: body.reference === undefined ? row.reference || '' : link(body.reference),
+    reference: body.reference === undefined ? row.reference || '' : links(body.reference),
     code: body.code === undefined ? row.code || '' : text(body.code, 40),
     title: body.title === undefined ? row.title : wanted(body.title),
     wstg,
     what: body.what === undefined ? row.what || '' : text(body.what, 8000),
-    steps: body.steps === undefined ? parseList(row.steps) : lines(body.steps),
-    passes: body.passes === undefined ? parseList(row.passes) : lines(body.passes),
-    tools: body.tools === undefined ? parseList(row.tools) : lines(body.tools),
-    watch: body.watch === undefined ? parseList(row.watch) : lines(body.watch),
+    steps: body.steps === undefined ? row.steps || '' : prose(body.steps),
+    passes: body.passes === undefined ? row.passes || '' : prose(body.passes),
+    tools: body.tools === undefined ? row.tools || '' : prose(body.tools),
+    watch: body.watch === undefined ? row.watch || '' : prose(body.watch),
     checklistId: list ? Number(list.id) : null,
     area: list ? list.category || '' : row.area || '',
   };
@@ -347,10 +362,10 @@ export const routes = {
         next.title,
         next.checklistId,
         next.what,
-        JSON.stringify(next.steps),
-        JSON.stringify(next.passes),
-        JSON.stringify(next.tools),
-        JSON.stringify(next.watch),
+        next.steps,
+        next.passes,
+        next.tools,
+        next.watch,
         Number(max && max.p) + 1,
         stamp,
         stamp,
@@ -378,10 +393,10 @@ export const routes = {
         next.title,
         next.checklistId,
         next.what,
-        JSON.stringify(next.steps),
-        JSON.stringify(next.passes),
-        JSON.stringify(next.tools),
-        JSON.stringify(next.watch),
+        next.steps,
+        next.passes,
+        next.tools,
+        next.watch,
         nowISO(),
         row.id,
       ]

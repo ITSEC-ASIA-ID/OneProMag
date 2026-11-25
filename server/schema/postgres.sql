@@ -325,12 +325,13 @@ CREATE TABLE IF NOT EXISTS test_guides (
   -- that used to teach it.
   checklist_id INTEGER REFERENCES checklists(id) ON DELETE SET NULL,
   what         TEXT NOT NULL DEFAULT '',
-  -- Lists as JSON text: steps, passes, tools, watch. One column each rather than
-  -- a child table, because nothing ever queries inside them.
-  steps        TEXT NOT NULL DEFAULT '[]',
-  passes       TEXT NOT NULL DEFAULT '[]',
-  tools        TEXT NOT NULL DEFAULT '[]',
-  watch        TEXT NOT NULL DEFAULT '[]',
+  -- Markdown, one column per section: a step is a paragraph as often as a line,
+  -- and a command block is a step. One column each rather than a child table,
+  -- because nothing ever queries inside them.
+  steps        TEXT NOT NULL DEFAULT '',
+  passes       TEXT NOT NULL DEFAULT '',
+  tools        TEXT NOT NULL DEFAULT '',
+  watch        TEXT NOT NULL DEFAULT '',
   position     INTEGER NOT NULL DEFAULT 0,
   created_at   TEXT NOT NULL,
   updated_at   TEXT NOT NULL DEFAULT ''

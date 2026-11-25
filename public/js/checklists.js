@@ -722,33 +722,35 @@ function categoryOfTitle(title, wstg) {
   return wstg.some((c) => c.code === code) ? code : '';
 }
 
-/** Markdown for one line, without the paragraph a single line is wrapped in. */
-function inlineMd(source) {
-  return renderMarkdown(source)
-    .replace(/^<p[^>]*>/, '')
-    .replace(/<\/p>\s*$/, '');
+/**
+ * The links a guide cites, in the order they were typed.
+ *
+ * `references` is the list; `reference` is the same text, because that is what
+ * the field holds and what an older row may still carry alone.
+ */
+function guideLinks(guide) {
+  if (Array.isArray(guide?.references) && guide.references.length) return guide.references;
+  return String(guide?.reference || '')
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean);
 }
 
-/** A guide as it reads: the five sections, the prose as Markdown. */
+/** A guide as it reads: the five sections, each one Markdown the author wrote. */
 function guideReadHTML(guide) {
-  const bullets = (items) =>
-    items && items.length
-      ? `<ul>${items.map((line) => `<li>${inlineMd(line)}</li>`).join('')}</ul>`
-      : '';
-  const steps =
-    guide.steps && guide.steps.length
-      ? `<ol>${guide.steps.map((line) => `<li>${inlineMd(line)}</li>`).join('')}</ol>`
-      : '';
-  const block = (label, body) => (body ? `<h3>${label}</h3>${body}` : '');
+  const block = (label, source) => {
+    const body = renderMarkdown(source || '');
+    return body ? `<h3>${label}</h3>${body}` : '';
+  };
   return `<div class="doc-md gd-read">
     ${block(
       'What this category means',
-      renderMarkdown(guide.what) || '<p class="note-line">Nothing written here yet.</p>'
-    )}
-    ${block('Steps', steps)}
-    ${block('This passes when', bullets(guide.passes))}
-    ${block('Tools', bullets(guide.tools))}
-    ${block('Do not over-call it', bullets(guide.watch))}
+      guide.what || ''
+    ) || '<p class="note-line">Nothing written here yet.</p>'}
+    ${block('Steps', guide.steps)}
+    ${block('This passes when', guide.passes)}
+    ${block('Tools', guide.tools)}
+    ${block('Do not over-call it', guide.watch)}
   </div>`;
 }
 
@@ -762,8 +764,9 @@ function guideReadHTML(guide) {
  * Markdown.
  *
  * `ctx` carries what the caller knows: `{ checklists, wstg, checklistId, item,
- * reference }`. Called with no `after`, saving re-reads the same dialog as text;
- * with an `after`, it hands the saved guide back and closes.
+ * reference }`. Saving always returns to reading the guide in the same dialog;
+ * an `after` only lets the row that opened it pick up the link, without the page
+ * moving.
  */
 function openGuideEditor(guide, ctx = {}, after = null) {
   const { checklists = [], wstg = [], checklistId = null, item = '', reference = '' } = ctx;
@@ -800,11 +803,13 @@ function openGuideEditor(guide, ctx = {}, after = null) {
   function paintRead() {
     mode = 'read';
     paintHead(current.title || 'Test guide');
-    const link = current.reference
-      ? `<a class="link-btn" href="${h(current.reference)}" target="_blank" rel="noopener">${icon.external(
+    const link = guideLinks(current)
+      .map(
+        (url) => `<a class="link-btn" href="${h(url)}" target="_blank" rel="noopener">${icon.external(
           11
-        )} ${h(current.reference.replace(/^https?:\/\//, '').slice(0, 60))}</a>`
-      : '';
+        )} ${h(url.replace(/^https?:\/\//, '').slice(0, 60))}</a>`
+      )
+      .join('');
     body.innerHTML = `<div class="gd-meta">
         ${current.code ? `<span class="gd-code">${h(current.code)}</span>` : ''}
         ${wstgOf() ? `<span class="gd-cite">${h(wstgOf())}</span>` : ''}
@@ -826,10 +831,10 @@ function openGuideEditor(guide, ctx = {}, after = null) {
       code: '',
       title: '',
       what: '',
-      steps: [],
-      passes: [],
-      tools: [],
-      watch: [],
+      steps: '',
+      passes: '',
+      tools: '',
+      watch: '',
       reference: '',
     };
     const field = (id, label, value, rows, hint = '') => `<div class="field">
@@ -837,8 +842,8 @@ function openGuideEditor(guide, ctx = {}, after = null) {
         <textarea id="gd-${id}" class="textarea" rows="${rows}">${h(value || '')}</textarea>
         ${hint ? `<span class="hint">${hint}</span>` : ''}
       </div>`;
-    // Every list is one line each, and every field takes Markdown: a step that
-    // opens a fenced block still reads as a step.
+    // Markdown, all five: a step is as often a paragraph or a fenced command as
+    // it is one line, so nobody has to count lines to write one.
     const mdHint = 'Markdown — **bold**, `code`, [link](https://…), - bullet, # heading';
     body.innerHTML = `<div class="gd-fixed">
         <span><b>Checklist</b> ${h(checklistName() || 'Not tied to one')}</span>
@@ -856,16 +861,18 @@ function openGuideEditor(guide, ctx = {}, after = null) {
         </div>
       </div>
       <div class="field">
-        <label for="gd-reference">Reference link</label>
-        <input id="gd-reference" class="input" value="${h(held.reference || (current ? '' : reference))}"
-          placeholder="https://owasp.org/…">
-        <span class="hint">The page this guide quotes or was written from.</span>
+        <label for="gd-reference">Reference links</label>
+        <textarea id="gd-reference" class="textarea" rows="3"
+          placeholder="https://owasp.org/…">${h(
+            held.reference || (current ? '' : reference)
+          )}</textarea>
+        <span class="hint">One per line — the pages this guide quotes or was written from.</span>
       </div>
       ${field('what', 'What this category means', held.what, 8, mdHint)}
-      ${field('steps', 'Steps — one per line', (held.steps || []).join('\n'), 14, mdHint)}
-      ${field('passes', 'This passes when — one per line', (held.passes || []).join('\n'), 6, mdHint)}
-      ${field('tools', 'Tools — one per line', (held.tools || []).join('\n'), 6, mdHint)}
-      ${field('watch', 'Do not over-call it — one per line', (held.watch || []).join('\n'), 6, mdHint)}`;
+      ${field('steps', 'Steps', held.steps, 16, mdHint)}
+      ${field('passes', 'This passes when', held.passes, 6, mdHint)}
+      ${field('tools', 'Tools', held.tools, 5, mdHint)}
+      ${field('watch', 'Do not over-call it', held.watch, 6, mdHint)}`;
     foot.innerHTML = `<button class="btn btn-ghost" data-back>${icon.arrowLeft(13)} Read</button>
       <button class="btn" data-cancel>Cancel</button>
       <button class="btn btn-primary" data-save>${current ? 'Save guide' : 'Create guide'}</button>`;
@@ -879,11 +886,6 @@ function openGuideEditor(guide, ctx = {}, after = null) {
   }
 
   const value = (id) => body.querySelector(`#gd-${id}`)?.value || '';
-  const list = (id) =>
-    value(id)
-      .split('\n')
-      .map((line) => line.trim())
-      .filter(Boolean);
 
   async function save(event) {
     const button = event.currentTarget;
@@ -896,22 +898,25 @@ function openGuideEditor(guide, ctx = {}, after = null) {
       // sub item's own case id names. Sending them keeps the guide where it was.
       checklistId: checklistOf(current) ?? '',
       wstg: wstgOf(),
-      what: value('what').trim(),
-      steps: list('steps'),
-      passes: list('passes'),
-      tools: list('tools'),
-      watch: list('watch'),
+      what: value('what'),
+      // The server keeps the newlines and splits the links; sending the text as
+      // written is the whole point of dropping the one-line-per-item rule.
+      steps: value('steps'),
+      passes: value('passes'),
+      tools: value('tools'),
+      watch: value('watch'),
     };
     try {
       const saved = current ? await api.updateGuide(current.id, payload) : await api.createGuide(payload);
       toast(current ? 'Guide saved' : 'Guide created');
       current = saved?.guide || current;
-      if (after) {
-        modal.close();
-        await after(current || null);
-      } else {
-        paintRead();
-      }
+      // Back to reading the guide, in place. `after` is how the row that opened
+      // the dialog picks up the link, and it repaints a list the dialog covers —
+      // so the page goes back to where the reader left it.
+      const scroll = window.scrollY;
+      if (after) await after(current || null);
+      paintRead();
+      window.scrollTo({ top: scroll });
     } catch (err) {
       button.disabled = false;
       toast(err.message, 'err');

@@ -3,7 +3,7 @@ import { icon } from './icons.js';
 import { propLabel, propOptions } from './props.js';
 import { handleNav } from './shell.js';
 import { state } from './state.js';
-import { escapeHtml as h, openModal, toast } from './ui.js';
+import { escapeHtml as h, openModal, renderMarkdown, toast } from './ui.js';
 
 
 /* ============================================================
@@ -110,7 +110,7 @@ function categoryChipsHTML(rows = [], field = 'area', attr, active = '', withAll
 
 /** Every string in a guide, so search does not stop at the title. */
 function guideText(g) {
-  return [g.code, g.area, g.category, g.title, g.checklistName, g.what, g.tools?.join(' '), ...(g.steps || []), ...(g.passes || []), ...(g.watch || [])]
+  return [g.code, g.area, g.category, g.title, g.checklistName, g.what, g.steps, g.passes, g.tools, g.watch]
     .join(' ')
     .toLowerCase();
 }
@@ -199,8 +199,24 @@ function guideDetailHTML(g) {
  * page can show the same guide inside its detail panel: one body of text, two
  * places to read it, and no chance of the two disagreeing.
  */
+/**
+ * One section of a guide.
+ *
+ * The prose is Markdown the admin writes, so it renders like the notes do: the
+ * steps used to be one string per array entry, which made a fenced command or a
+ * second sentence impossible.
+ */
+function guideBlock(label, source, cls = '') {
+  const body = renderMarkdown(source || '');
+  if (!body) return '';
+  return `<section class="guide-section">
+        <h3 class="lib-h">${label}</h3>
+        <div class="doc-md ${cls}">${body}</div>
+      </section>`;
+}
+
 function guideContentHTML(g) {
-  return `<p class="guide-what">${h(g.what)}</p>
+  return `<div class="doc-md guide-what">${renderMarkdown(g.what)}</div>
 
       ${
         g.wstg
@@ -212,25 +228,23 @@ function guideContentHTML(g) {
           : ''
       }
 
-      <section class="guide-section">
-        <h3 class="lib-h">How to test it</h3>
-        <ol class="guide-steps">${(g.steps || []).map((s) => `<li>${h(s)}</li>`).join('')}</ol>
-      </section>
+      ${
+        Array.isArray(g.references) && g.references.length
+          ? `<p class="guide-wstg">${icon.globe()} ${g.references
+              .map(
+                (url) =>
+                  `<a href="${h(url)}" target="_blank" rel="noopener">${h(
+                    url.replace(/^https?:\/\//, '').slice(0, 52)
+                  )}${icon.external(11)}</a>`
+              )
+              .join(' · ')}</p>`
+          : ''
+      }
 
-      <section class="guide-section">
-        <h3 class="lib-h">What a pass looks like</h3>
-        ${bulletList(g.passes)}
-      </section>
-
-      <section class="guide-section">
-        <h3 class="lib-h">Tools</h3>
-        <div class="guide-tools">${(g.tools || []).map((t) => `<span class="guide-tool">${h(t)}</span>`).join('')}</div>
-      </section>
-
-      <section class="guide-section">
-        <h3 class="lib-h">Where people get it wrong</h3>
-        ${bulletList(g.watch, 'is-watch')}
-      </section>`;
+      ${guideBlock('How to test it', g.steps, 'guide-steps')}
+      ${guideBlock('What a pass looks like', g.passes)}
+      ${guideBlock('Tools', g.tools)}
+      ${guideBlock('Where people get it wrong', g.watch, 'is-watch')}`;
 }
 
 

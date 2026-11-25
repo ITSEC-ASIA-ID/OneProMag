@@ -1423,6 +1423,11 @@ svg { display: block; }
 .modal-body {
   padding: 18px 20px 26px;
   overflow-y: auto;
+  /* A flex item will not shrink below its content unless told to, so without
+     this the body grew past the dialog and carried the action bar off the
+     bottom of the screen — the one control that must never need a scroll. */
+  flex: 1 1 auto;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   gap: 14px;
@@ -7081,6 +7086,9 @@ svg { display: block; }
   line-height: 1.65;
   color: var(--ink-2);
 }
+.guide-what.doc-md { color: var(--ink-2); }
+/* A guide's five sections are Markdown, so they render as the notes do. */
+.guide-section .doc-md { font-size: 13px; line-height: 1.62; }
 /* The method this guide's work belongs to, as a citation rather than a claim:
    it links out, so the reader can read OWASP's own words. */
 .guide-wstg {
@@ -7117,15 +7125,6 @@ svg { display: block; }
 .lib-bullets.is-watch li::marker { color: var(--amber); }
 .lib-bullets.is-tight { gap: 5px; }
 .lib-bullets.is-tight li { font-size: 12.5px; line-height: 1.55; }
-.guide-tools { display: flex; flex-wrap: wrap; gap: 6px; }
-.guide-tool {
-  padding: 3px 9px;
-  border-radius: var(--r-full);
-  background: var(--surface-3);
-  border: 1px solid var(--border);
-  font-size: 11.5px;
-  color: var(--ink-2);
-}
 .guide-asked { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 5px; }
 .guide-asked li { display: flex; align-items: baseline; gap: 8px; font-size: 12.5px; color: var(--ink-2); }
 .guide-asked-name { color: var(--ink); }

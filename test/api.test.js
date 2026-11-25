@@ -1744,13 +1744,14 @@ test('the reference libraries are readable by anyone signed in, and complete', a
     // and inventing them for 110 pages would be text nobody reviewed. Those
     // answer only for what their source does say.
     const imported = g.id.startsWith('wstg-');
+    // Markdown prose since v1.31, so length is the only honest measure of "enough".
     assert.ok(
-      Array.isArray(g.steps) && g.steps.length >= (imported ? 2 : 5),
+      typeof g.steps === 'string' && g.steps.trim().length >= (imported ? 40 : 200),
       `${g.id} has too few steps to be a guide`
     );
     if (!imported) {
-      assert.ok(g.passes?.length, `${g.id} does not say what a pass looks like`);
-      assert.ok(g.watch?.length, `${g.id} does not warn about the false positives`);
+      assert.ok(g.passes?.trim(), `${g.id} does not say what a pass looks like`);
+      assert.ok(g.watch?.trim(), `${g.id} does not warn about the false positives`);
     }
   }
 
@@ -1871,10 +1872,10 @@ test('the test library is edited in the admin panel, and a cited guide cannot be
       title: 'Server-side prototype pollution',
       checklistId: own.id,
       what: 'A parser merges user input into an object it then trusts.',
-      steps: ['Send {"__proto__":{"admin":true}} to every JSON body.'],
-      passes: ['The merge refuses inherited keys.'],
-      tools: ['Burp Repeater'],
-      watch: ['JSON.parse on its own does not merge anything.'],
+      steps: '- Send {"__proto__":{"admin":true}} to every JSON body.',
+      passes: '- The merge refuses inherited keys.',
+      tools: '- Burp Repeater',
+      watch: '- JSON.parse on its own does not merge anything.',
     },
   });
   const guide = created.guide;
@@ -1882,14 +1883,14 @@ test('the test library is edited in the admin panel, and a cited guide cannot be
   assert.equal(guide.title, 'Server-side prototype pollution');
   assert.equal(guide.checklistName, own.name, 'the guide names the checklist it teaches');
   assert.equal(guide.category, own.category || '', 'the category comes from that checklist');
-  assert.deepEqual(guide.steps, ['Send {"__proto__":{"admin":true}} to every JSON body.']);
+  assert.equal(guide.steps, '- Send {"__proto__":{"admin":true}} to every JSON body.');
 
   const edited = await call('PATCH /api/tests/:id', who, {
     params: { id: guide.id },
-    body: { title: 'Prototype pollution', steps: ['first', 'second'], code: 'A98:2026' },
+    body: { title: 'Prototype pollution', steps: '- first\n- second', code: 'A98:2026' },
   });
   assert.equal(edited.guide.title, 'Prototype pollution');
-  assert.deepEqual(edited.guide.steps, ['first', 'second']);
+  assert.equal(edited.guide.steps, '- first\n- second');
   assert.equal(edited.guide.id, 'a99-2026', 'renaming the code must not move the citation');
 
   const { guides } = await call('GET /api/tests', who);

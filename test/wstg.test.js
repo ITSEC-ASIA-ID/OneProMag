@@ -270,10 +270,12 @@ test('the WSTG method pages ship as guides, one per case', async () => {
   for (const guide of imported) {
     assert.match(guide.code, /^WSTG-[A-Z]{4}-\d{2}$/, `${guide.id} cites no case`);
     assert.ok(guide.what.length > 200, `${guide.id} has no summary`);
-    assert.ok(guide.steps.length >= 2, `${guide.id} has no steps`);
+    // Markdown since v1.31: several steps of prose, not a list of two entries.
+    assert.ok(guide.steps.trim().length > 80, `${guide.id} has no steps`);
     assert.ok(guide.checklistId, `${guide.id} is filed under no checklist`);
     // The page it quotes, so a reader can check the quote against the source.
     assert.match(guide.reference, /^https:\/\//, `${guide.id} cites no page`);
+    assert.equal(guide.references.length, 1, `${guide.id} cites ${guide.references.length} pages`);
   }
 });
 
@@ -327,6 +329,51 @@ test('a guide carries the reference link its author typed', async () => {
     body: { title: 'Reference link, renamed' },
   });
   assert.equal(retitled.guide.reference, 'https://example.org/kept');
+
+  // Several pages: one link per line, in the order the author wrote them, and
+  // the same text handed back as a list for the page to render.
+  const several = await call('PATCH /api/tests/:id', admin, {
+    params: { id: created.guide.id },
+    body: {
+      reference: 'https://example.org/one\nexample.org/two\n\nhttps://example.org/three',
+    },
+  });
+  assert.deepEqual(several.guide.references, [
+    'https://example.org/one',
+    'https://example.org/two',
+    'https://example.org/three',
+  ]);
+  assert.equal(
+    several.guide.reference,
+    'https://example.org/one\nhttps://example.org/two\nhttps://example.org/three'
+  );
+  // A bad line in the middle refuses the whole save rather than silently dropping.
+  await assert.rejects(
+    () =>
+      call('PATCH /api/tests/:id', admin, {
+        params: { id: created.guide.id },
+        body: { reference: 'https://example.org/one\njavascript:alert(1)' },
+      }),
+    /web address/
+  );
+
+  // The steps are Markdown the author wrote: newlines, bullets and a fenced
+  // command all survive the round trip untouched.
+  const marked = [
+    'Read the page, then:',
+    '',
+    '1. Send a quote in **any** field.',
+    '2. Compare the response body.',
+    '',
+    '```',
+    "curl -s 'https://target/?q=%27'",
+    '```',
+  ].join('\n');
+  const written = await call('PATCH /api/tests/:id', admin, {
+    params: { id: created.guide.id },
+    body: { steps: marked },
+  });
+  assert.equal(written.guide.steps, marked);
 
   await call('DELETE /api/tests/:id', admin, { params: { id: created.guide.id } });
 });

@@ -1193,6 +1193,63 @@ const RETIRED_CHECKLISTS = ['OWASP Top 10 2021'];
  * undo that. A guide added in a later release is still inserted, because it is
  * missing rather than edited — `INSERT` per unknown id, in `TEST_GUIDES` order.
  */
+/**
+ * A shipped list as the Markdown an admin then edits: one bullet per entry.
+ *
+ * The seed modules keep arrays because that is how they are written and read in
+ * source; the column holds prose, because a guide's steps are text somebody
+ * rewrites — a fenced command, a table, a note under a step.
+ */
+function markdownOf(list) {
+  const items = Array.isArray(list) ? list : [];
+  return items.length ? items.map((line) => `- ${line}`).join('\n') : '';
+}
+
+/** The reverse, for the migration: a JSON array column becomes Markdown once. */
+function markdownFromJson(raw) {
+  const value = String(raw || '').trim();
+  if (!value.startsWith('[')) return String(raw || '');
+  try {
+    const parsed = JSON.parse(value);
+    return Array.isArray(parsed) ? markdownOf(parsed.map((v) => String(v))) : '';
+  } catch {
+    return '';
+  }
+}
+
+/**
+ * v1.31: `steps`, `passes`, `tools` and `watch` stopped being JSON arrays of
+ * one-line entries and became the Markdown an author types. Converting here,
+ * rather than in the reader, keeps every other caller honest: nothing has to
+ * know that a column used to hold a list.
+ */
+async function migrateGuidesToMarkdown() {
+  const rows = await db.all('SELECT id, steps, passes, tools, watch FROM test_guides');
+  let changed = 0;
+  for (const row of rows) {
+    const next = {
+      steps: markdownFromJson(row.steps),
+      passes: markdownFromJson(row.passes),
+      tools: markdownFromJson(row.tools),
+      watch: markdownFromJson(row.watch),
+    };
+    if (
+      next.steps === (row.steps || '') &&
+      next.passes === (row.passes || '') &&
+      next.tools === (row.tools || '') &&
+      next.watch === (row.watch || '')
+    ) {
+      continue;
+    }
+    await db.run(
+      'UPDATE test_guides SET steps = ?, passes = ?, tools = ?, watch = ? WHERE id = ?',
+      [next.steps, next.passes, next.tools, next.watch, row.id]
+    );
+    changed += 1;
+  }
+  return changed;
+}
+
 async function seedTestGuides() {
   const stamp = now();
   const lists = await db.all('SELECT id, seed_key, name, category FROM checklists');
@@ -1222,10 +1279,10 @@ async function seedTestGuides() {
         guide.title,
         list ? Number(list.id) : null,
         guide.what,
-        JSON.stringify(guide.steps || []),
-        JSON.stringify(guide.passes || []),
-        JSON.stringify(guide.tools || []),
-        JSON.stringify(guide.watch || []),
+        markdownOf(guide.steps),
+        markdownOf(guide.passes),
+        markdownOf(guide.tools),
+        markdownOf(guide.watch),
         index,
         stamp,
         stamp,
@@ -1430,8 +1487,12 @@ async function backfillGuideKeys() {
  * 30 — a guide carries `reference`: the page it quotes, typed by its author.
  *      The citation URL a guide used to have was derived from its WSTG category,
  *      so an admin could not point a guide at anything else.
+ * 31 — a guide's `steps`, `passes`, `tools` and `watch` are Markdown prose, not
+ *      JSON arrays of one-line entries: a step may hold a command, a table, or
+ *      three lines. `reference` holds one link per line, so a guide can cite
+ *      several pages.
  */
-export const SCHEMA_VERSION = 30;
+export const SCHEMA_VERSION = 31;
 
 let appliedSchemaVersion = 0;
 
@@ -1984,6 +2045,8 @@ async function migrateSqlite() {
   await addColumnIfMissing('test_guides', 'reference', "TEXT NOT NULL DEFAULT ''");
   // v1.29: the third level is gone — an item is a group, its rows are the sub items.
   await db.exec('DROP TABLE IF EXISTS checklist_item_steps');
+  // v1.31: four JSON arrays became the Markdown an author writes.
+  await migrateGuidesToMarkdown();
 }
 
 async function migratePostgres() {
@@ -2053,6 +2116,8 @@ async function migratePostgres() {
   await addColumnIfMissing('test_guides', 'reference', "TEXT NOT NULL DEFAULT ''");
   // v1.29: the third level is gone — see migrateSqlite.
   await db.exec('DROP TABLE IF EXISTS checklist_item_steps');
+  // v1.31: four JSON arrays became the Markdown an author writes.
+  await migrateGuidesToMarkdown();
 }
 
 export { seed };
