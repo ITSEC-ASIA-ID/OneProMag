@@ -1,6 +1,6 @@
 import { api } from './api.js';
 import { icon } from './icons.js';
-import { canManageCatalog, state } from './state.js';
+import { CHECKLIST_EDIT_PATH, canManageCatalog, state } from './state.js';
 import { propLabel, propOptions } from './props.js';
 import { closeDrawer } from './drawer.js';
 import { handleNav, openChecklistEditor } from './shell.js';
@@ -1748,6 +1748,7 @@ function bindEditor(host) {
       return;
     }
     const save = host.querySelector('[data-cke-save]');
+    const wasNew = !editor.id;
     save.disabled = true;
     try {
       let targetId = editor.id;
@@ -1760,6 +1761,9 @@ function bindEditor(host) {
       // Positions are rewritten from the array order, so a reorder is a real
       // reorder even when nothing else changed.
       const fresh = [];
+      // The rows the fresh ones came from, so the ids the server hands back can be
+      // adopted: saving twice must update, not create a second copy.
+      const freshRows = [];
       for (let i = 0; i < editor.rows.length; i += 1) {
         const row = editor.rows[i];
         const title = (row.title || '').trim();
@@ -1768,6 +1772,7 @@ function bindEditor(host) {
         if (row.guideDirty) next.guide = row.guide || '';
         if (!row.id) {
           fresh.push(next);
+          freshRows.push({ row, next });
           continue;
         }
         const before = row.orig || { section: '', title: '', help: '' };
@@ -1778,18 +1783,43 @@ function bindEditor(host) {
           Boolean(row.guideDirty);
         if (moved || row.position !== i) await api.updateChecklistItem(row.id, next);
       }
+      let created = [];
       if (fresh.length) {
         // The bulk insert appends, so its positions are placeholders: put each new
         // row where the list says it belongs.
-        const created = (await api.createChecklistItems(targetId, fresh)).items || [];
+        created = (await api.createChecklistItems(targetId, fresh)).items || [];
         for (let k = 0; k < created.length; k += 1) {
           const target = fresh[k]?.position;
           if (target !== null && target !== undefined) await api.updateChecklistItem(created[k].id, { position: target });
         }
       }
 
-      toast(editor.id ? 'Checklist saved' : 'Checklist created');
-      handleNav('checklists');
+      // Saved where it was saved. Sending a 116-row checklist back to the list
+      // after every change threw away the reader's place: they had to find the
+      // checklist again and scroll back down to the row they were editing.
+      editor.id = targetId;
+      if (wasNew) history.replaceState(history.state, '', CHECKLIST_EDIT_PATH(targetId));
+      // A row that was just written has an id now, and a baseline: the next Save
+      // updates it instead of inserting a second copy of the same sub item.
+      created.forEach((row, k) => {
+        const entry = freshRows[k];
+        if (!entry) return;
+        entry.row.id = row.id;
+        entry.row.orig = { section: entry.next.section, title: entry.next.title, help: entry.next.help };
+      });
+      editor.rows.forEach((row) => {
+        row.orig = {
+          section: (row.section || '').trim(),
+          title: (row.title || '').trim(),
+          help: (row.help || '').trim(),
+        };
+        row.guideDirty = false;
+      });
+      editor.removed.clear();
+      const state_ = host.querySelector('#cke-state');
+      if (state_) state_.textContent = 'Saved just now';
+      save.disabled = false;
+      toast(wasNew ? 'Checklist created' : 'Checklist saved');
     } catch (err) {
       toast(err.message, 'err');
       save.disabled = false;

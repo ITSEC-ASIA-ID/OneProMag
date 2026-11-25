@@ -1980,6 +1980,8 @@ svg { display: block; }
    ============================================================ */
 @media (max-width: 1000px) {
   .app { grid-template-columns: 1fr; }
+  .cke-bar { left: 0; padding: 10px 16px calc(10px + env(safe-area-inset-bottom)); }
+  .content:has(.cke-bar) { padding-bottom: 92px; }
   .sidebar {
     position: fixed;
     left: 0; top: 0; bottom: 0;
@@ -6582,13 +6584,27 @@ svg { display: block; }
    this item in" is answerable without opening anything.
    ============================================================ */
 .cke { display: flex; flex-direction: column; gap: 14px; max-width: 1080px; padding-bottom: 48px; }
+/* The editor's action bar rides the bottom of the window. A real checklist is
+   116 rows — Save changes sat above all of them, so saving meant scrolling up to
+   the top and losing the row you were reading. Pinned, it is always a click away
+   and the list keeps its place. */
 .cke-bar {
+  position: fixed;
+  left: var(--sidebar-w);
+  right: 0;
+  bottom: 0;
+  z-index: 18;
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 8px 0 10px;
-  border-bottom: 1px solid var(--border);
+  margin: 0;
+  padding: 10px 28px calc(10px + env(safe-area-inset-bottom));
+  background: color-mix(in srgb, var(--bg) 88%, transparent);
+  backdrop-filter: blur(10px);
+  border-top: 1px solid var(--border);
 }
+/* Room for the bar, so the last row is not hidden behind it. */
+.content:has(.cke-bar) { padding-bottom: 96px; }
 .cke-state { font-size: 12.2px; color: var(--faint); }
 .cke-head {
   display: flex;
