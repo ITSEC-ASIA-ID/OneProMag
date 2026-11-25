@@ -23,6 +23,7 @@ export const WSTG_GUIDES = [
   {
     id: 'wstg-info-01',
     code: 'WSTG-INFO-01',
+    reference: 'https://wstg.owasp.org/latest/05-Information_Gathering/01-Conduct_Search_Engine_Reconnaissance_for_Information_Leakage/',
     area: 'Web',
     wstg: 'WSTG-INFO',
     title: 'Conduct Search Engine Reconnaissance for Information Leakage',
@@ -43,6 +44,7 @@ export const WSTG_GUIDES = [
   {
     id: 'wstg-info-02',
     code: 'WSTG-INFO-02',
+    reference: 'https://wstg.owasp.org/latest/05-Information_Gathering/02-Fingerprint_Web_Server/',
     area: 'Web',
     wstg: 'WSTG-INFO',
     title: 'Fingerprint Web Server',
@@ -59,6 +61,7 @@ export const WSTG_GUIDES = [
   {
     id: 'wstg-info-03',
     code: 'WSTG-INFO-03',
+    reference: 'https://wstg.owasp.org/latest/05-Information_Gathering/03-Review_Webserver_Metafiles_for_Information_Leakage/',
     area: 'Web',
     wstg: 'WSTG-INFO',
     title: 'Review Webserver Metafiles for Information Leakage',
@@ -83,6 +86,7 @@ export const WSTG_GUIDES = [
   {
     id: 'wstg-info-04',
     code: 'WSTG-INFO-04',
+    reference: 'https://wstg.owasp.org/latest/05-Information_Gathering/04-Attack_Surface_Identification/',
     area: 'Web',
     wstg: 'WSTG-INFO',
     title: 'Attack Surface Identification',
@@ -117,6 +121,7 @@ export const WSTG_GUIDES = [
   {
     id: 'wstg-info-05',
     code: 'WSTG-INFO-05',
+    reference: 'https://wstg.owasp.org/latest/05-Information_Gathering/05-Review_Web_Page_Content_for_Information_Leakage/',
     area: 'Web',
     wstg: 'WSTG-INFO',
     title: 'Review Web Page Content for Information Leakage',
@@ -142,6 +147,7 @@ export const WSTG_GUIDES = [
   {
     id: 'wstg-info-06',
     code: 'WSTG-INFO-06',
+    reference: 'https://wstg.owasp.org/latest/05-Information_Gathering/06-Identify_Application_Entry_Points/',
     area: 'Web',
     wstg: 'WSTG-INFO',
     title: 'Identify Application Entry Points',
@@ -169,6 +175,7 @@ export const WSTG_GUIDES = [
   {
     id: 'wstg-info-07',
     code: 'WSTG-INFO-07',
+    reference: 'https://wstg.owasp.org/latest/05-Information_Gathering/07-Map_Execution_Paths_Through_Application/',
     area: 'Web',
     wstg: 'WSTG-INFO',
     title: 'Map Execution Paths Through Application',
@@ -188,6 +195,7 @@ export const WSTG_GUIDES = [
   {
     id: 'wstg-info-08',
     code: 'WSTG-INFO-08',
+    reference: 'https://wstg.owasp.org/latest/05-Information_Gathering/08-Fingerprint_Web_Application_Framework/',
     area: 'Web',
     wstg: 'WSTG-INFO',
     title: 'Fingerprint Web Application Framework',
@@ -212,6 +220,7 @@ export const WSTG_GUIDES = [
   {
     id: 'wstg-info-10',
     code: 'WSTG-INFO-10',
+    reference: 'https://wstg.owasp.org/latest/05-Information_Gathering/09-Map_Application_Architecture/',
     area: 'Web',
     wstg: 'WSTG-INFO',
     title: 'Map Application Architecture',
@@ -236,6 +245,7 @@ export const WSTG_GUIDES = [
   {
     id: 'wstg-conf-01',
     code: 'WSTG-CONF-01',
+    reference: 'https://wstg.owasp.org/latest/06-Configuration_and_Deployment_Management/01-Network_Infrastructure_Configuration/',
     area: 'Web',
     wstg: 'WSTG-CONF',
     title: 'Network Infrastructure Configuration',
@@ -259,6 +269,7 @@ export const WSTG_GUIDES = [
   {
     id: 'wstg-conf-02',
     code: 'WSTG-CONF-02',
+    reference: 'https://wstg.owasp.org/latest/06-Configuration_and_Deployment_Management/02-Application_Platform_Configuration/',
     area: 'Web',
     wstg: 'WSTG-CONF',
     title: 'Application Platform Configuration',
@@ -280,6 +291,7 @@ export const WSTG_GUIDES = [
   {
     id: 'wstg-conf-04',
     code: 'WSTG-CONF-04',
+    reference: 'https://wstg.owasp.org/latest/06-Configuration_and_Deployment_Management/03-Review_Old_Backup_and_Unreferenced_Files_for_Sensitive_Information/',
     area: 'Web',
     wstg: 'WSTG-CONF',
     title: 'Review Old Backup and Unreferenced Files for Sensitive Information',
@@ -311,6 +323,7 @@ export const WSTG_GUIDES = [
   {
     id: 'wstg-conf-05',
     code: 'WSTG-CONF-05',
+    reference: 'https://wstg.owasp.org/latest/06-Configuration_and_Deployment_Management/04-Enumerate_Infrastructure_and_Application_Admin_Interfaces/',
     area: 'Web',
     wstg: 'WSTG-CONF',
     title: 'Enumerate Infrastructure and Application Admin Interfaces',
@@ -338,6 +351,7 @@ export const WSTG_GUIDES = [
   {
     id: 'wstg-conf-06',
     code: 'WSTG-CONF-06',
+    reference: 'https://wstg.owasp.org/latest/06-Configuration_and_Deployment_Management/05-HTTP_Methods/',
     area: 'Web',
     wstg: 'WSTG-CONF',
     title: 'HTTP Methods',
@@ -359,6 +373,7 @@ export const WSTG_GUIDES = [
   {
     id: 'wstg-conf-07',
     code: 'WSTG-CONF-07',
+    reference: 'https://wstg.owasp.org/latest/06-Configuration_and_Deployment_Management/06-HTTP_Strict_Transport_Security/',
     area: 'Web',
     wstg: 'WSTG-CONF',
     title: 'HTTP Strict Transport Security',
@@ -388,6 +403,7 @@ export const WSTG_GUIDES = [
   {
     id: 'wstg-conf-09',
     code: 'WSTG-CONF-09',
+    reference: 'https://wstg.owasp.org/latest/06-Configuration_and_Deployment_Management/07-File_Permissions/',
     area: 'Web',
     wstg: 'WSTG-CONF',
     title: 'File Permissions',
@@ -421,6 +437,7 @@ export const WSTG_GUIDES = [
   {
     id: 'wstg-conf-10',
     code: 'WSTG-CONF-10',
+    reference: 'https://wstg.owasp.org/latest/06-Configuration_and_Deployment_Management/08-Subdomain_Takeover/',
     area: 'Web',
     wstg: 'WSTG-CONF',
     title: 'Subdomain Takeover',
@@ -452,6 +469,7 @@ export const WSTG_GUIDES = [
   {
     id: 'wstg-conf-11',
     code: 'WSTG-CONF-11',
+    reference: 'https://wstg.owasp.org/latest/06-Configuration_and_Deployment_Management/09-Cloud_Storage/',
     area: 'Web',
     wstg: 'WSTG-CONF',
     title: 'Cloud Storage',
@@ -479,6 +497,7 @@ export const WSTG_GUIDES = [
   {
     id: 'wstg-conf-12',
     code: 'WSTG-CONF-12',
+    reference: 'https://wstg.owasp.org/latest/06-Configuration_and_Deployment_Management/10-Content_Security_Policy/',
     area: 'Web',
     wstg: 'WSTG-CONF',
     title: 'Content Security Policy',
@@ -506,6 +525,7 @@ export const WSTG_GUIDES = [
   {
     id: 'wstg-conf-13',
     code: 'WSTG-CONF-13',
+    reference: 'https://wstg.owasp.org/latest/06-Configuration_and_Deployment_Management/11-Path_Confusion/',
     area: 'Web',
     wstg: 'WSTG-CONF',
     title: 'Path Confusion',
@@ -534,6 +554,7 @@ export const WSTG_GUIDES = [
   {
     id: 'wstg-conf-15',
     code: 'WSTG-CONF-15',
+    reference: 'https://wstg.owasp.org/latest/06-Configuration_and_Deployment_Management/13-Feature_Flag_Security_Bypass/',
     area: 'Web',
     wstg: 'WSTG-CONF',
     title: 'Feature Flag Security Bypass',
@@ -555,6 +576,7 @@ export const WSTG_GUIDES = [
   {
     id: 'wstg-idnt-01',
     code: 'WSTG-IDNT-01',
+    reference: 'https://wstg.owasp.org/latest/07-Identity_Management/01-Role_Definitions/',
     area: 'Web',
     wstg: 'WSTG-IDNT',
     title: 'Role Definitions',
@@ -574,6 +596,7 @@ export const WSTG_GUIDES = [
   {
     id: 'wstg-idnt-02',
     code: 'WSTG-IDNT-02',
+    reference: 'https://wstg.owasp.org/latest/07-Identity_Management/02-User_Registration_Process/',
     area: 'Web',
     wstg: 'WSTG-IDNT',
     title: 'User Registration Process',
@@ -601,6 +624,7 @@ export const WSTG_GUIDES = [
   {
     id: 'wstg-idnt-03',
     code: 'WSTG-IDNT-03',
+    reference: 'https://wstg.owasp.org/latest/07-Identity_Management/03-Account_Provisioning_Process/',
     area: 'Web',
     wstg: 'WSTG-IDNT',
     title: 'Account Provisioning Process',
@@ -625,6 +649,7 @@ export const WSTG_GUIDES = [
   {
     id: 'wstg-idnt-04',
     code: 'WSTG-IDNT-04',
+    reference: 'https://wstg.owasp.org/latest/07-Identity_Management/04-Account_Enumeration_and_Guessable_User_Account/',
     area: 'Web',
     wstg: 'WSTG-IDNT',
     title: 'Account Enumeration and Guessable User Account',
@@ -654,6 +679,7 @@ export const WSTG_GUIDES = [
   {
     id: 'wstg-athn-01',
     code: 'WSTG-ATHN-01',
+    reference: 'https://wstg.owasp.org/latest/13-Weak_Cryptography/03-Sensitive_Information_Sent_via_Unencrypted_Channels/',
     area: 'Web',
     wstg: 'WSTG-ATHN',
     title: 'Sensitive Information Sent via Unencrypted Channels',
@@ -678,6 +704,7 @@ export const WSTG_GUIDES = [
   {
     id: 'wstg-athn-02',
     code: 'WSTG-ATHN-02',
+    reference: 'https://wstg.owasp.org/latest/08-Authentication/01-Default_Credentials/',
     area: 'Web',
     wstg: 'WSTG-ATHN',
     title: 'Default Credentials',
@@ -699,6 +726,7 @@ export const WSTG_GUIDES = [
   {
     id: 'wstg-athn-03',
     code: 'WSTG-ATHN-03',
+    reference: 'https://wstg.owasp.org/latest/08-Authentication/02-Weak_Lock_Out_Mechanism/',
     area: 'Web',
     wstg: 'WSTG-ATHN',
     title: 'Weak Lock Out Mechanism',
@@ -730,6 +758,7 @@ export const WSTG_GUIDES = [
   {
     id: 'wstg-athn-04',
     code: 'WSTG-ATHN-04',
+    reference: 'https://wstg.owasp.org/latest/08-Authentication/03-Bypassing_Authentication_Schema/',
     area: 'Web',
     wstg: 'WSTG-ATHN',
     title: 'Bypassing Authentication Schema',
@@ -753,6 +782,7 @@ export const WSTG_GUIDES = [
   {
     id: 'wstg-athn-05',
     code: 'WSTG-ATHN-05',
+    reference: 'https://wstg.owasp.org/latest/08-Authentication/04-Vulnerable_Remember_Password/',
     area: 'Web',
     wstg: 'WSTG-ATHN',
     title: 'Vulnerable Remember Password',
@@ -769,6 +799,7 @@ export const WSTG_GUIDES = [
   {
     id: 'wstg-athn-06',
     code: 'WSTG-ATHN-06',
+    reference: 'https://wstg.owasp.org/latest/08-Authentication/05-Browser_Cache_Weaknesses/',
     area: 'Web',
     wstg: 'WSTG-ATHN',
     title: 'Browser Cache Weaknesses',
@@ -787,6 +818,7 @@ export const WSTG_GUIDES = [
   {
     id: 'wstg-athn-07',
     code: 'WSTG-ATHN-07',
+    reference: 'https://wstg.owasp.org/latest/08-Authentication/06-Weak_Authentication_Methods/',
     area: 'Web',
     wstg: 'WSTG-ATHN',
     title: 'Weak Authentication Methods',
@@ -808,6 +840,7 @@ export const WSTG_GUIDES = [
   {
     id: 'wstg-athn-08',
     code: 'WSTG-ATHN-08',
+    reference: 'https://wstg.owasp.org/latest/08-Authentication/07-Weak_Security_Question_Answer/',
     area: 'Web',
     wstg: 'WSTG-ATHN',
     title: 'Weak Security Question Answer',
@@ -823,6 +856,7 @@ export const WSTG_GUIDES = [
   {
     id: 'wstg-athn-09',
     code: 'WSTG-ATHN-09',
+    reference: 'https://wstg.owasp.org/latest/08-Authentication/08-Weak_Password_Change_or_Reset_Functionalities/',
     area: 'Web',
     wstg: 'WSTG-ATHN',
     title: 'Weak Password Change or Reset Functionalities',
@@ -843,6 +877,7 @@ export const WSTG_GUIDES = [
   {
     id: 'wstg-athn-10',
     code: 'WSTG-ATHN-10',
+    reference: 'https://wstg.owasp.org/latest/08-Authentication/09-Weaker_Authentication_in_Alternative_Channel/',
     area: 'Web',
     wstg: 'WSTG-ATHN',
     title: 'Weaker Authentication in Alternative Channel',
@@ -859,6 +894,7 @@ export const WSTG_GUIDES = [
   {
     id: 'wstg-athn-11',
     code: 'WSTG-ATHN-11',
+    reference: 'https://wstg.owasp.org/latest/08-Authentication/10-Multi-Factor_Authentication/',
     area: 'Web',
     wstg: 'WSTG-ATHN',
     title: 'Multi-Factor Authentication (MFA)',
@@ -877,6 +913,7 @@ export const WSTG_GUIDES = [
   {
     id: 'wstg-athz-01',
     code: 'WSTG-ATHZ-01',
+    reference: 'https://wstg.owasp.org/latest/09-Authorization/01-Directory_Traversal_File_Include/',
     area: 'Web',
     wstg: 'WSTG-ATHZ',
     title: 'Directory Traversal and File Include',
@@ -900,6 +937,7 @@ export const WSTG_GUIDES = [
   {
     id: 'wstg-athz-02',
     code: 'WSTG-ATHZ-02',
+    reference: 'https://wstg.owasp.org/latest/09-Authorization/02-Bypassing_Authorization_Schema/',
     area: 'Web',
     wstg: 'WSTG-ATHZ',
     title: 'Bypassing Authorization Schema',
@@ -924,6 +962,7 @@ export const WSTG_GUIDES = [
   {
     id: 'wstg-athz-03',
     code: 'WSTG-ATHZ-03',
+    reference: 'https://wstg.owasp.org/latest/09-Authorization/03-Privilege_Escalation/',
     area: 'Web',
     wstg: 'WSTG-ATHZ',
     title: 'Privilege Escalation',
@@ -947,6 +986,7 @@ export const WSTG_GUIDES = [
   {
     id: 'wstg-athz-04',
     code: 'WSTG-ATHZ-04',
+    reference: 'https://wstg.owasp.org/latest/09-Authorization/04-Insecure_Direct_Object_References/',
     area: 'Web',
     wstg: 'WSTG-ATHZ',
     title: 'Insecure Direct Object References',
@@ -964,6 +1004,7 @@ export const WSTG_GUIDES = [
   {
     id: 'wstg-athz-05',
     code: 'WSTG-ATHZ-05',
+    reference: 'https://wstg.owasp.org/latest/09-Authorization/05-OAuth_Weaknesses/',
     area: 'Web',
     wstg: 'WSTG-ATHZ',
     title: 'OAuth Weaknesses',
@@ -984,6 +1025,7 @@ export const WSTG_GUIDES = [
   {
     id: 'wstg-sess-01',
     code: 'WSTG-SESS-01',
+    reference: 'https://wstg.owasp.org/latest/10-Session_Management/01-Session_Management_Schema/',
     area: 'Web',
     wstg: 'WSTG-SESS',
     title: 'Session Management Schema',
@@ -1008,6 +1050,7 @@ export const WSTG_GUIDES = [
   {
     id: 'wstg-sess-02',
     code: 'WSTG-SESS-02',
+    reference: 'https://wstg.owasp.org/latest/10-Session_Management/02-Cookies_Attributes/',
     area: 'Web',
     wstg: 'WSTG-SESS',
     title: 'Cookies Attributes',
@@ -1039,6 +1082,7 @@ export const WSTG_GUIDES = [
   {
     id: 'wstg-sess-03',
     code: 'WSTG-SESS-03',
+    reference: 'https://wstg.owasp.org/latest/10-Session_Management/03-Session_Fixation/',
     area: 'Web',
     wstg: 'WSTG-SESS',
     title: 'Session Fixation',
@@ -1066,6 +1110,7 @@ export const WSTG_GUIDES = [
   {
     id: 'wstg-sess-04',
     code: 'WSTG-SESS-04',
+    reference: 'https://wstg.owasp.org/latest/10-Session_Management/04-Exposed_Session_Variables/',
     area: 'Web',
     wstg: 'WSTG-SESS',
     title: 'Exposed Session Variables',
@@ -1082,6 +1127,7 @@ export const WSTG_GUIDES = [
   {
     id: 'wstg-sess-05',
     code: 'WSTG-SESS-05',
+    reference: 'https://wstg.owasp.org/latest/10-Session_Management/05-Cross_Site_Request_Forgery/',
     area: 'Web',
     wstg: 'WSTG-SESS',
     title: 'Cross Site Request Forgery',
@@ -1110,6 +1156,7 @@ export const WSTG_GUIDES = [
   {
     id: 'wstg-sess-06',
     code: 'WSTG-SESS-06',
+    reference: 'https://wstg.owasp.org/latest/10-Session_Management/06-Logout_Functionality/',
     area: 'Web',
     wstg: 'WSTG-SESS',
     title: 'Logout Functionality',
@@ -1129,6 +1176,7 @@ export const WSTG_GUIDES = [
   {
     id: 'wstg-sess-07',
     code: 'WSTG-SESS-07',
+    reference: 'https://wstg.owasp.org/latest/10-Session_Management/07-Session_Timeout/',
     area: 'Web',
     wstg: 'WSTG-SESS',
     title: 'Session Timeout',
@@ -1149,6 +1197,7 @@ export const WSTG_GUIDES = [
   {
     id: 'wstg-sess-08',
     code: 'WSTG-SESS-08',
+    reference: 'https://wstg.owasp.org/latest/10-Session_Management/08-Session_Puzzling/',
     area: 'Web',
     wstg: 'WSTG-SESS',
     title: 'Session Puzzling',
@@ -1165,6 +1214,7 @@ export const WSTG_GUIDES = [
   {
     id: 'wstg-sess-09',
     code: 'WSTG-SESS-09',
+    reference: 'https://wstg.owasp.org/latest/10-Session_Management/09-Session_Hijacking/',
     area: 'Web',
     wstg: 'WSTG-SESS',
     title: 'Session Hijacking',
@@ -1193,6 +1243,7 @@ export const WSTG_GUIDES = [
   {
     id: 'wstg-sess-10',
     code: 'WSTG-SESS-10',
+    reference: 'https://wstg.owasp.org/latest/10-Session_Management/10-JSON_Web_Tokens/',
     area: 'Web',
     wstg: 'WSTG-SESS',
     title: 'JSON Web Tokens',
@@ -1224,6 +1275,7 @@ export const WSTG_GUIDES = [
   {
     id: 'wstg-sess-11',
     code: 'WSTG-SESS-11',
+    reference: 'https://wstg.owasp.org/latest/10-Session_Management/11-Concurrent_Sessions/',
     area: 'Web',
     wstg: 'WSTG-SESS',
     title: 'Concurrent Sessions',
@@ -1252,6 +1304,7 @@ export const WSTG_GUIDES = [
   {
     id: 'wstg-inpv-01',
     code: 'WSTG-INPV-01',
+    reference: 'https://wstg.owasp.org/latest/11-Injection/01-Reflected_Cross_Site_Scripting/',
     area: 'Web',
     wstg: 'WSTG-INPV',
     title: 'Reflected Cross Site Scripting',
@@ -1283,6 +1336,7 @@ export const WSTG_GUIDES = [
   {
     id: 'wstg-inpv-02',
     code: 'WSTG-INPV-02',
+    reference: 'https://wstg.owasp.org/latest/11-Injection/02-Stored_Cross_Site_Scripting/',
     area: 'Web',
     wstg: 'WSTG-INPV',
     title: 'Stored Cross Site Scripting',
@@ -1309,6 +1363,7 @@ export const WSTG_GUIDES = [
   {
     id: 'wstg-inpv-03',
     code: 'WSTG-INPV-03',
+    reference: 'https://wstg.owasp.org/latest/06-Configuration_and_Deployment_Management/05-HTTP_Methods/',
     area: 'Web',
     wstg: 'WSTG-INPV',
     title: 'HTTP Methods',
@@ -1330,6 +1385,7 @@ export const WSTG_GUIDES = [
   {
     id: 'wstg-inpv-04',
     code: 'WSTG-INPV-04',
+    reference: 'https://wstg.owasp.org/latest/11-Injection/03-HTTP_Parameter_Pollution/',
     area: 'Web',
     wstg: 'WSTG-INPV',
     title: 'HTTP Parameter Pollution',
@@ -1357,6 +1413,7 @@ export const WSTG_GUIDES = [
   {
     id: 'wstg-inpv-05',
     code: 'WSTG-INPV-05',
+    reference: 'https://wstg.owasp.org/latest/11-Injection/04-SQL_Injection/',
     area: 'Web',
     wstg: 'WSTG-INPV',
     title: 'SQL Injection',
@@ -1387,6 +1444,7 @@ export const WSTG_GUIDES = [
   {
     id: 'wstg-inpv-06',
     code: 'WSTG-INPV-06',
+    reference: 'https://wstg.owasp.org/latest/11-Injection/05-LDAP_Injection/',
     area: 'Web',
     wstg: 'WSTG-INPV',
     title: 'LDAP Injection',
@@ -1414,6 +1472,7 @@ export const WSTG_GUIDES = [
   {
     id: 'wstg-inpv-07',
     code: 'WSTG-INPV-07',
+    reference: 'https://wstg.owasp.org/latest/11-Injection/06-XML_Injection/',
     area: 'Web',
     wstg: 'WSTG-INPV',
     title: 'XML Injection',
@@ -1438,6 +1497,7 @@ export const WSTG_GUIDES = [
   {
     id: 'wstg-inpv-08',
     code: 'WSTG-INPV-08',
+    reference: 'https://wstg.owasp.org/latest/11-Injection/07-SSI_Injection/',
     area: 'Web',
     wstg: 'WSTG-INPV',
     title: 'SSI Injection',
@@ -1466,6 +1526,7 @@ export const WSTG_GUIDES = [
   {
     id: 'wstg-inpv-09',
     code: 'WSTG-INPV-09',
+    reference: 'https://wstg.owasp.org/latest/11-Injection/08-XPath_Injection/',
     area: 'Web',
     wstg: 'WSTG-INPV',
     title: 'XPath Injection',
@@ -1486,6 +1547,7 @@ export const WSTG_GUIDES = [
   {
     id: 'wstg-inpv-10',
     code: 'WSTG-INPV-10',
+    reference: 'https://wstg.owasp.org/latest/11-Injection/09-IMAP_SMTP_Injection/',
     area: 'Web',
     wstg: 'WSTG-INPV',
     title: 'IMAP SMTP Injection',
@@ -1501,6 +1563,7 @@ export const WSTG_GUIDES = [
   {
     id: 'wstg-inpv-11',
     code: 'WSTG-INPV-11',
+    reference: 'https://wstg.owasp.org/latest/11-Injection/10-Code_Injection/',
     area: 'Web',
     wstg: 'WSTG-INPV',
     title: 'Code Injection',
@@ -1519,6 +1582,7 @@ export const WSTG_GUIDES = [
   {
     id: 'wstg-inpv-12',
     code: 'WSTG-INPV-12',
+    reference: 'https://wstg.owasp.org/latest/11-Injection/11-Command_Injection/',
     area: 'Web',
     wstg: 'WSTG-INPV',
     title: 'Command Injection',
@@ -1546,6 +1610,7 @@ export const WSTG_GUIDES = [
   {
     id: 'wstg-inpv-13',
     code: 'WSTG-INPV-13',
+    reference: 'https://wstg.owasp.org/latest/11-Injection/12-Format_String_Injection/',
     area: 'Web',
     wstg: 'WSTG-INPV',
     title: 'Format String Injection',
@@ -1561,6 +1626,7 @@ export const WSTG_GUIDES = [
   {
     id: 'wstg-inpv-14',
     code: 'WSTG-INPV-14',
+    reference: 'https://wstg.owasp.org/latest/11-Injection/13-Incubated_Vulnerability/',
     area: 'Web',
     wstg: 'WSTG-INPV',
     title: 'Incubated Vulnerability',
@@ -1583,6 +1649,7 @@ export const WSTG_GUIDES = [
   {
     id: 'wstg-inpv-15',
     code: 'WSTG-INPV-15',
+    reference: 'https://wstg.owasp.org/latest/11-Injection/14-HTTP_Response_Splitting/',
     area: 'Web',
     wstg: 'WSTG-INPV',
     title: 'HTTP Response Splitting',
@@ -1613,6 +1680,7 @@ export const WSTG_GUIDES = [
   {
     id: 'wstg-inpv-16',
     code: 'WSTG-INPV-16',
+    reference: 'https://wstg.owasp.org/latest/11-Injection/15-HTTP_Request_Smuggling/',
     area: 'Web',
     wstg: 'WSTG-INPV',
     title: 'HTTP Request Smuggling',
@@ -1638,6 +1706,7 @@ export const WSTG_GUIDES = [
   {
     id: 'wstg-inpv-17',
     code: 'WSTG-INPV-17',
+    reference: 'https://wstg.owasp.org/latest/11-Injection/16-Host_Header_Injection/',
     area: 'Web',
     wstg: 'WSTG-INPV',
     title: 'Host Header Injection',
@@ -1655,6 +1724,7 @@ export const WSTG_GUIDES = [
   {
     id: 'wstg-inpv-18',
     code: 'WSTG-INPV-18',
+    reference: 'https://wstg.owasp.org/latest/11-Injection/17-Server-side_Template_Injection/',
     area: 'Web',
     wstg: 'WSTG-INPV',
     title: 'Server-side Template Injection',
@@ -1677,6 +1747,7 @@ export const WSTG_GUIDES = [
   {
     id: 'wstg-inpv-19',
     code: 'WSTG-INPV-19',
+    reference: 'https://wstg.owasp.org/latest/11-Injection/18-Server-Side_Request_Forgery/',
     area: 'Web',
     wstg: 'WSTG-INPV',
     title: 'Server-Side Request Forgery',
@@ -1700,6 +1771,7 @@ export const WSTG_GUIDES = [
   {
     id: 'wstg-inpv-20',
     code: 'WSTG-INPV-20',
+    reference: 'https://wstg.owasp.org/latest/11-Injection/19-Mass_Assignment/',
     area: 'Web',
     wstg: 'WSTG-INPV',
     title: 'Mass Assignment',
@@ -1719,6 +1791,7 @@ export const WSTG_GUIDES = [
   {
     id: 'wstg-inpv-21',
     code: 'WSTG-INPV-21',
+    reference: 'https://wstg.owasp.org/latest/11-Injection/20-CSV_Injection/',
     area: 'Web',
     wstg: 'WSTG-INPV',
     title: 'CSV Injection',
@@ -1745,6 +1818,7 @@ export const WSTG_GUIDES = [
   {
     id: 'wstg-inpv-22',
     code: 'WSTG-INPV-22',
+    reference: 'https://wstg.owasp.org/latest/11-Injection/21-Prototype_Pollution/',
     area: 'Web',
     wstg: 'WSTG-INPV',
     title: 'Prototype Pollution',
@@ -1768,6 +1842,7 @@ export const WSTG_GUIDES = [
   {
     id: 'wstg-inpv-23',
     code: 'WSTG-INPV-23',
+    reference: 'https://wstg.owasp.org/latest/11-Injection/22-Insecure_Deserialization/',
     area: 'Web',
     wstg: 'WSTG-INPV',
     title: 'Insecure Deserialization',
@@ -1793,6 +1868,7 @@ export const WSTG_GUIDES = [
   {
     id: 'wstg-errh-01',
     code: 'WSTG-ERRH-01',
+    reference: 'https://wstg.owasp.org/latest/12-Error_Handling/01-Improper_Error_Handling/',
     area: 'Web',
     wstg: 'WSTG-ERRH',
     title: 'Improper Error Handling',
@@ -1818,6 +1894,7 @@ export const WSTG_GUIDES = [
   {
     id: 'wstg-errh-02',
     code: 'WSTG-ERRH-02',
+    reference: 'https://wstg.owasp.org/latest/12-Error_Handling/01-Improper_Error_Handling/',
     area: 'Web',
     wstg: 'WSTG-ERRH',
     title: 'Improper Error Handling',
@@ -1843,6 +1920,7 @@ export const WSTG_GUIDES = [
   {
     id: 'wstg-cryp-01',
     code: 'WSTG-CRYP-01',
+    reference: 'https://wstg.owasp.org/latest/13-Weak_Cryptography/01-Weak_Transport_Layer_Security/',
     area: 'Web',
     wstg: 'WSTG-CRYP',
     title: 'Weak Transport Layer Security',
@@ -1861,6 +1939,7 @@ export const WSTG_GUIDES = [
   {
     id: 'wstg-cryp-02',
     code: 'WSTG-CRYP-02',
+    reference: 'https://wstg.owasp.org/latest/13-Weak_Cryptography/02-Padding_Oracle/',
     area: 'Web',
     wstg: 'WSTG-CRYP',
     title: 'Padding Oracle',
@@ -1890,6 +1969,7 @@ export const WSTG_GUIDES = [
   {
     id: 'wstg-cryp-03',
     code: 'WSTG-CRYP-03',
+    reference: 'https://wstg.owasp.org/latest/13-Weak_Cryptography/03-Sensitive_Information_Sent_via_Unencrypted_Channels/',
     area: 'Web',
     wstg: 'WSTG-CRYP',
     title: 'Sensitive Information Sent via Unencrypted Channels',
@@ -1914,6 +1994,7 @@ export const WSTG_GUIDES = [
   {
     id: 'wstg-cryp-04',
     code: 'WSTG-CRYP-04',
+    reference: 'https://wstg.owasp.org/latest/13-Weak_Cryptography/04-Weak_Cryptographic_Primitives/',
     area: 'Web',
     wstg: 'WSTG-CRYP',
     title: 'Weak Cryptographic Primitives',
@@ -1935,6 +2016,7 @@ export const WSTG_GUIDES = [
   {
     id: 'wstg-busl-01',
     code: 'WSTG-BUSL-01',
+    reference: 'https://wstg.owasp.org/latest/14-Business_Logic/01-Business_Logic_Data_Validation/',
     area: 'Web',
     wstg: 'WSTG-BUSL',
     title: 'Business Logic Data Validation',
@@ -1963,6 +2045,7 @@ export const WSTG_GUIDES = [
   {
     id: 'wstg-busl-02',
     code: 'WSTG-BUSL-02',
+    reference: 'https://wstg.owasp.org/latest/14-Business_Logic/02-Ability_to_Forge_Requests/',
     area: 'Web',
     wstg: 'WSTG-BUSL',
     title: 'Ability to Forge Requests',
@@ -1984,6 +2067,7 @@ export const WSTG_GUIDES = [
   {
     id: 'wstg-busl-03',
     code: 'WSTG-BUSL-03',
+    reference: 'https://wstg.owasp.org/latest/14-Business_Logic/03-Integrity_Checks/',
     area: 'Web',
     wstg: 'WSTG-BUSL',
     title: 'Integrity Checks',
@@ -2004,6 +2088,7 @@ export const WSTG_GUIDES = [
   {
     id: 'wstg-busl-04',
     code: 'WSTG-BUSL-04',
+    reference: 'https://wstg.owasp.org/latest/14-Business_Logic/04-Process_Timing/',
     area: 'Web',
     wstg: 'WSTG-BUSL',
     title: 'Process Timing',
@@ -2019,6 +2104,7 @@ export const WSTG_GUIDES = [
   {
     id: 'wstg-busl-05',
     code: 'WSTG-BUSL-05',
+    reference: 'https://wstg.owasp.org/latest/14-Business_Logic/05-Number_of_Times_a_Function_Can_Be_Used_Limits/',
     area: 'Web',
     wstg: 'WSTG-BUSL',
     title: 'Number of Times a Function Can Be Used Limits',
@@ -2033,6 +2119,7 @@ export const WSTG_GUIDES = [
   {
     id: 'wstg-busl-06',
     code: 'WSTG-BUSL-06',
+    reference: 'https://wstg.owasp.org/latest/14-Business_Logic/06-Circumvention_of_Work_Flows/',
     area: 'Web',
     wstg: 'WSTG-BUSL',
     title: 'Circumvention of Work Flows',
@@ -2048,6 +2135,7 @@ export const WSTG_GUIDES = [
   {
     id: 'wstg-busl-07',
     code: 'WSTG-BUSL-07',
+    reference: 'https://wstg.owasp.org/latest/14-Business_Logic/07-Defenses_Against_Application_Misuse/',
     area: 'Web',
     wstg: 'WSTG-BUSL',
     title: 'Defenses Against Application Misuse',
@@ -2072,6 +2160,7 @@ export const WSTG_GUIDES = [
   {
     id: 'wstg-busl-08',
     code: 'WSTG-BUSL-08',
+    reference: 'https://wstg.owasp.org/latest/14-Business_Logic/08-Upload_of_Unexpected_File_Types/',
     area: 'Web',
     wstg: 'WSTG-BUSL',
     title: 'Upload of Unexpected File Types',
@@ -2087,6 +2176,7 @@ export const WSTG_GUIDES = [
   {
     id: 'wstg-busl-09',
     code: 'WSTG-BUSL-09',
+    reference: 'https://wstg.owasp.org/latest/14-Business_Logic/09-Upload_of_Malicious_Files/',
     area: 'Web',
     wstg: 'WSTG-BUSL',
     title: 'Upload of Malicious Files',
@@ -2114,6 +2204,7 @@ export const WSTG_GUIDES = [
   {
     id: 'wstg-busl-10',
     code: 'WSTG-BUSL-10',
+    reference: 'https://wstg.owasp.org/latest/14-Business_Logic/10-Payment_Functionality/',
     area: 'Web',
     wstg: 'WSTG-BUSL',
     title: 'Payment Functionality',
@@ -2143,6 +2234,7 @@ export const WSTG_GUIDES = [
   {
     id: 'wstg-clnt-01',
     code: 'WSTG-CLNT-01',
+    reference: 'https://wstg.owasp.org/latest/15-Client-side/01-DOM-based_Cross_Site_Scripting/',
     area: 'Web',
     wstg: 'WSTG-CLNT',
     title: 'DOM-Based Cross Site Scripting',
@@ -2166,6 +2258,7 @@ export const WSTG_GUIDES = [
   {
     id: 'wstg-clnt-02',
     code: 'WSTG-CLNT-02',
+    reference: 'https://wstg.owasp.org/latest/15-Client-side/02-JavaScript_Execution/',
     area: 'Web',
     wstg: 'WSTG-CLNT',
     title: 'JavaScript Execution',
@@ -2180,6 +2273,7 @@ export const WSTG_GUIDES = [
   {
     id: 'wstg-clnt-03',
     code: 'WSTG-CLNT-03',
+    reference: 'https://wstg.owasp.org/latest/15-Client-side/03-HTML_Injection/',
     area: 'Web',
     wstg: 'WSTG-CLNT',
     title: 'HTML Injection',
@@ -2203,6 +2297,7 @@ export const WSTG_GUIDES = [
   {
     id: 'wstg-clnt-04',
     code: 'WSTG-CLNT-04',
+    reference: 'https://wstg.owasp.org/latest/15-Client-side/04-Client-side_URL_Redirect/',
     area: 'Web',
     wstg: 'WSTG-CLNT',
     title: 'Client-side URL Redirect',
@@ -2221,6 +2316,7 @@ export const WSTG_GUIDES = [
   {
     id: 'wstg-clnt-05',
     code: 'WSTG-CLNT-05',
+    reference: 'https://wstg.owasp.org/latest/15-Client-side/05-CSS_Injection/',
     area: 'Web',
     wstg: 'WSTG-CLNT',
     title: 'CSS Injection',
@@ -2237,6 +2333,7 @@ export const WSTG_GUIDES = [
   {
     id: 'wstg-clnt-06',
     code: 'WSTG-CLNT-06',
+    reference: 'https://wstg.owasp.org/latest/15-Client-side/06-Client-side_Resource_Manipulation/',
     area: 'Web',
     wstg: 'WSTG-CLNT',
     title: 'Client-side Resource Manipulation',
@@ -2252,6 +2349,7 @@ export const WSTG_GUIDES = [
   {
     id: 'wstg-clnt-07',
     code: 'WSTG-CLNT-07',
+    reference: 'https://wstg.owasp.org/latest/15-Client-side/07-Cross_Origin_Resource_Sharing/',
     area: 'Web',
     wstg: 'WSTG-CLNT',
     title: 'Cross Origin Resource Sharing',
@@ -2269,6 +2367,7 @@ export const WSTG_GUIDES = [
   {
     id: 'wstg-clnt-09',
     code: 'WSTG-CLNT-09',
+    reference: 'https://wstg.owasp.org/latest/15-Client-side/08-Clickjacking/',
     area: 'Web',
     wstg: 'WSTG-CLNT',
     title: 'Clickjacking',
@@ -2293,6 +2392,7 @@ export const WSTG_GUIDES = [
   {
     id: 'wstg-clnt-10',
     code: 'WSTG-CLNT-10',
+    reference: 'https://wstg.owasp.org/latest/15-Client-side/09-WebSockets/',
     area: 'Web',
     wstg: 'WSTG-CLNT',
     title: 'WebSockets',
@@ -2312,6 +2412,7 @@ export const WSTG_GUIDES = [
   {
     id: 'wstg-clnt-11',
     code: 'WSTG-CLNT-11',
+    reference: 'https://wstg.owasp.org/latest/15-Client-side/10-Web_Messaging/',
     area: 'Web',
     wstg: 'WSTG-CLNT',
     title: 'Web Messaging',
@@ -2327,6 +2428,7 @@ export const WSTG_GUIDES = [
   {
     id: 'wstg-clnt-12',
     code: 'WSTG-CLNT-12',
+    reference: 'https://wstg.owasp.org/latest/15-Client-side/11-Browser_Storage/',
     area: 'Web',
     wstg: 'WSTG-CLNT',
     title: 'Browser Storage',
@@ -2345,6 +2447,7 @@ export const WSTG_GUIDES = [
   {
     id: 'wstg-clnt-13',
     code: 'WSTG-CLNT-13',
+    reference: 'https://wstg.owasp.org/latest/15-Client-side/12-Cross_Site_Script_Inclusion/',
     area: 'Web',
     wstg: 'WSTG-CLNT',
     title: 'Cross Site Script Inclusion',
@@ -2364,6 +2467,7 @@ export const WSTG_GUIDES = [
   {
     id: 'wstg-clnt-14',
     code: 'WSTG-CLNT-14',
+    reference: 'https://wstg.owasp.org/latest/15-Client-side/13-Reverse_Tabnabbing/',
     area: 'Web',
     wstg: 'WSTG-CLNT',
     title: 'Reverse Tabnabbing',
@@ -2378,6 +2482,7 @@ export const WSTG_GUIDES = [
   {
     id: 'wstg-clnt-15',
     code: 'WSTG-CLNT-15',
+    reference: 'https://wstg.owasp.org/latest/15-Client-side/14-Client-Side_Template_Injection/',
     area: 'Web',
     wstg: 'WSTG-CLNT',
     title: 'Client-side Template Injection',
@@ -2397,6 +2502,7 @@ export const WSTG_GUIDES = [
   {
     id: 'wstg-apit-01',
     code: 'WSTG-APIT-01',
+    reference: 'https://wstg.owasp.org/latest/16-API_Testing/01-API_Reconnaissance/',
     area: 'Web',
     wstg: 'WSTG-APIT',
     title: 'API Reconnaissance',
@@ -2416,6 +2522,7 @@ export const WSTG_GUIDES = [
   {
     id: 'wstg-apit-02',
     code: 'WSTG-APIT-02',
+    reference: 'https://wstg.owasp.org/latest/16-API_Testing/02-API_Broken_Object_Level_Authorization/',
     area: 'Web',
     wstg: 'WSTG-APIT',
     title: 'API Broken Object Level Authorization',
@@ -2439,6 +2546,7 @@ export const WSTG_GUIDES = [
   {
     id: 'wstg-apit-03',
     code: 'WSTG-APIT-03',
+    reference: 'https://wstg.owasp.org/latest/16-API_Testing/03-Excessive_Data_Exposure/',
     area: 'Web',
     wstg: 'WSTG-APIT',
     title: 'Excessive Data Exposure',
@@ -2466,6 +2574,7 @@ export const WSTG_GUIDES = [
   {
     id: 'wstg-apit-04',
     code: 'WSTG-APIT-04',
+    reference: 'https://wstg.owasp.org/latest/16-API_Testing/04-API_Broken_Function_Level_Authorization/',
     area: 'Web',
     wstg: 'WSTG-APIT',
     title: 'API Broken Function Level Authorization',
@@ -2488,6 +2597,7 @@ export const WSTG_GUIDES = [
   {
     id: 'wstg-apit-99',
     code: 'WSTG-APIT-99',
+    reference: 'https://wstg.owasp.org/latest/16-API_Testing/99-GraphQL/',
     area: 'Web',
     wstg: 'WSTG-APIT',
     title: 'GraphQL',
@@ -2518,6 +2628,7 @@ export const WSTG_GUIDES = [
   {
     id: 'wstg-conf-08',
     code: 'WSTG-CONF-08',
+    reference: 'https://github.com/OWASP/wstg/blob/v4.2/document/4-Web_Application_Security_Testing/02-Configuration_and_Deployment_Management_Testing/08-Test_RIA_Cross_Domain_Policy.md',
     area: 'Web',
     wstg: 'WSTG-CONF',
     title: 'Test RIA Cross Domain Policy',
@@ -2541,6 +2652,7 @@ export const WSTG_GUIDES = [
   {
     id: 'wstg-clnt-08',
     code: 'WSTG-CLNT-08',
+    reference: 'https://github.com/OWASP/wstg/blob/v4.2/document/4-Web_Application_Security_Testing/11-Client-side_Testing/08-Testing_for_Cross_Site_Flashing.md',
     area: 'Web',
     wstg: 'WSTG-CLNT',
     title: 'Testing for Cross Site Flashing',
@@ -2561,6 +2673,7 @@ export const WSTG_GUIDES = [
   {
     id: 'wstg-conf-03',
     code: 'WSTG-CONF-03',
+    reference: 'https://github.com/OWASP/wstg/blob/v4.2/document/4-Web_Application_Security_Testing/02-Configuration_and_Deployment_Management_Testing/03-Test_File_Extensions_Handling_for_Sensitive_Information.md',
     area: 'Web',
     wstg: 'WSTG-CONF',
     title: 'Test File Extensions Handling for Sensitive Information',
@@ -2581,6 +2694,7 @@ export const WSTG_GUIDES = [
   {
     id: 'wstg-idnt-05',
     code: 'WSTG-IDNT-05',
+    reference: 'https://github.com/OWASP/wstg/blob/v4.2/document/4-Web_Application_Security_Testing/03-Identity_Management_Testing/05-Testing_for_Weak_or_Unenforced_Username_Policy.md',
     area: 'Web',
     wstg: 'WSTG-IDNT',
     title: 'Testing for Weak or Unenforced Username Policy',
@@ -2597,6 +2711,7 @@ export const WSTG_GUIDES = [
   {
     id: 'wstg-conf-14',
     code: 'WSTG-CONF-14',
+    reference: 'https://wstg.owasp.org/latest/06-Configuration_and_Deployment_Management/12-Additional_Browser_Security_Controls/',
     area: 'Web',
     wstg: 'WSTG-CONF',
     title: 'Additional Browser Security Controls',

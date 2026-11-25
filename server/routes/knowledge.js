@@ -127,6 +127,22 @@ function wanted(value) {
   return raw;
 }
 
+/**
+ * The page a guide quotes. Typed by its author, so it is checked only for being
+ * a web address: a bare `owasp.org/x` becomes `https://owasp.org/x` because that
+ * is what the author meant, and any other scheme is refused — a `javascript:`
+ * link on a published page is not a reference, it is a payload.
+ */
+function link(value) {
+  const raw = text(value, 500);
+  if (!raw) return '';
+  const url = /^[a-z][a-z0-9+.-]*:/i.test(raw) ? raw : `https://${raw}`;
+  if (!/^https?:\/\/[^\s/?#]+/i.test(url)) {
+    throw new HttpError(400, 'A reference is a web address, like https://owasp.org/…');
+  }
+  return url;
+}
+
 /** A list field arrives as an array or as "one line each" text from the form. */
 function lines(value, max = MAX_LINE) {
   const source = Array.isArray(value) ? value : String(value ?? '').split('\n');
@@ -172,7 +188,10 @@ function shapeGuide(row, index) {
     area: row.area || '',
     wstg: row.wstg || '',
     wstgTitle: cite.title,
+    // The category page, still derived: it is what the WSTG folder *is*. The
+    // guide's own `reference` is the page its author chose to quote.
     wstgUrl: cite.url,
+    reference: row.reference || '',
     title: row.title,
     what: row.what || '',
     steps: parseList(row.steps),
@@ -274,6 +293,7 @@ async function nextGuide(body, row, index) {
     }
   }
   return {
+    reference: body.reference === undefined ? row.reference || '' : link(body.reference),
     code: body.code === undefined ? row.code || '' : text(body.code, 40),
     title: body.title === undefined ? row.title : wanted(body.title),
     wstg,
@@ -316,13 +336,14 @@ export const routes = {
     const max = await db.get('SELECT COALESCE(MAX(position), -1) AS p FROM test_guides');
     await db.run(
       `INSERT INTO test_guides
-         (id, code, area, wstg, title, checklist_id, what, steps, passes, tools, watch, position, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         (id, code, area, wstg, reference, title, checklist_id, what, steps, passes, tools, watch, position, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         id,
         next.code,
         next.area,
         next.wstg,
+        next.reference,
         next.title,
         next.checklistId,
         next.what,
@@ -346,13 +367,14 @@ export const routes = {
     const next = await nextGuide(ctx.body || {}, row, index);
     await db.run(
       `UPDATE test_guides
-          SET code = ?, area = ?, wstg = ?, title = ?, checklist_id = ?, what = ?,
+          SET code = ?, area = ?, wstg = ?, reference = ?, title = ?, checklist_id = ?, what = ?,
               steps = ?, passes = ?, tools = ?, watch = ?, updated_at = ?
         WHERE id = ?`,
       [
         next.code,
         next.area,
         next.wstg,
+        next.reference,
         next.title,
         next.checklistId,
         next.what,

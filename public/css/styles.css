@@ -6712,6 +6712,59 @@ svg { display: block; }
 .cke-guide-chip.is-empty { color: var(--faint); border-style: dashed; background: transparent; }
 .cke-guide-chip.is-empty:hover { color: var(--ink); border-style: solid; }
 
+/* The guide dialog: a page of Markdown to read, and a wide form to edit. It is
+   the only dialog whose body is prose, so it gets its own width instead of
+   stretching `.xwide` (that one exists for the import preview's table). */
+.modal.guide { width: min(1040px, 100%); }
+.modal.guide .modal-body { padding-bottom: 22px; }
+.gd-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding-bottom: 10px;
+  margin-bottom: 4px;
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+  color: var(--muted);
+}
+.gd-code {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  font-weight: 640;
+  color: var(--ink);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 2px 6px;
+}
+.gd-cite { font-family: var(--mono); font-size: 11.5px; }
+.gd-item { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gd-read h3 {
+  margin: 20px 0 7px;
+  font-size: 12.4px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.gd-read h3:first-child { margin-top: 8px; }
+.gd-read ol, .gd-read ul { padding-left: 22px; }
+.gd-read li { margin: 5px 0; }
+.gd-read li > p { margin: 0; }
+.gd-fixed {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 18px;
+  padding: 9px 12px;
+  font-size: 12.2px;
+  color: var(--muted);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.gd-fixed b { font-weight: 650; color: var(--ink-2); margin-right: 4px; }
+
 .cke-item:hover .cke-acts, .cke-item:focus-within .cke-acts { opacity: 1; }
 .cke-empty {
   display: flex;

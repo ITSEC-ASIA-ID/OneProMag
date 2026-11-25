@@ -1211,13 +1211,14 @@ async function seedTestGuides() {
     const list = byKey.get(GUIDE_CHECKLISTS[guide.checklist]) || byName.get(guide.checklist);
     await db.run(
       `INSERT INTO test_guides
-         (id, code, area, wstg, title, checklist_id, what, steps, passes, tools, watch, position, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         (id, code, area, wstg, reference, title, checklist_id, what, steps, passes, tools, watch, position, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         guide.id,
         guide.code,
         guide.area,
         guide.wstg || '',
+        guide.reference || '',
         guide.title,
         list ? Number(list.id) : null,
         guide.what,
@@ -1237,14 +1238,23 @@ async function seedTestGuides() {
   // the module, and only while it is still empty: an admin's own citation stands,
   // the same rule the seeding above follows.
   let cited = 0;
+  let linked = 0;
   for (const guide of all) {
     const info = await db.run("UPDATE test_guides SET wstg = ? WHERE id = ? AND wstg = ''", [
       guide.wstg || '',
       guide.id,
     ]);
     cited += Number(info?.rowCount) || 0;
+    // The same rule for the page a guide quotes: a guide that shipped before the
+    // column existed gets the address the module lists, and an admin who typed
+    // their own link keeps it.
+    const ref = await db.run("UPDATE test_guides SET reference = ? WHERE id = ? AND reference = ''", [
+      guide.reference || '',
+      guide.id,
+    ]);
+    linked += Number(ref?.rowCount) || 0;
   }
-  return { seeded, cited };
+  return { seeded, cited, linked };
 }
 
 /**
@@ -1417,8 +1427,11 @@ async function backfillGuideKeys() {
  *      group (“WSTG-INFO — Information Gathering”) and the row under it is the
  *      sub item (“WSTG-INFO-01 …”). The approved shape is two levels.
  * 29 — `checklist_item_steps` is dropped: nothing else ever referred to it.
+ * 30 — a guide carries `reference`: the page it quotes, typed by its author.
+ *      The citation URL a guide used to have was derived from its WSTG category,
+ *      so an admin could not point a guide at anything else.
  */
-export const SCHEMA_VERSION = 29;
+export const SCHEMA_VERSION = 30;
 
 let appliedSchemaVersion = 0;
 
@@ -1967,6 +1980,8 @@ async function migrateSqlite() {
   await addColumnIfMissing('project_findings', 'impact_score', 'INTEGER NOT NULL DEFAULT 0');
   // v1.26: a guide names the WSTG category its work lands in.
   await addColumnIfMissing('test_guides', 'wstg', "TEXT NOT NULL DEFAULT ''");
+  // v1.30: a guide carries the page it quotes, typed by its author.
+  await addColumnIfMissing('test_guides', 'reference', "TEXT NOT NULL DEFAULT ''");
   // v1.29: the third level is gone — an item is a group, its rows are the sub items.
   await db.exec('DROP TABLE IF EXISTS checklist_item_steps');
 }
@@ -2034,6 +2049,8 @@ async function migratePostgres() {
   await addColumnIfMissing('project_findings', 'impact_score', 'INTEGER NOT NULL DEFAULT 0');
   // v1.26: a guide names the WSTG category its work lands in.
   await addColumnIfMissing('test_guides', 'wstg', "TEXT NOT NULL DEFAULT ''");
+  // v1.30: a guide carries the page it quotes, typed by its author.
+  await addColumnIfMissing('test_guides', 'reference', "TEXT NOT NULL DEFAULT ''");
   // v1.29: the third level is gone — see migrateSqlite.
   await db.exec('DROP TABLE IF EXISTS checklist_item_steps');
 }

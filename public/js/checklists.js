@@ -5,7 +5,14 @@ import { propLabel, propOptions } from './props.js';
 import { closeDrawer } from './drawer.js';
 import { handleNav, openChecklistEditor } from './shell.js';
 import { openGuideModal } from './library.js';
-import { confirmDialog, escapeHtml as h, fmtRelative, openModal, toast } from './ui.js';
+import {
+  confirmDialog,
+  escapeHtml as h,
+  fmtRelative,
+  openModal,
+  renderMarkdown,
+  toast,
+} from './ui.js';
 
 
 /* ============================================================
@@ -657,7 +664,7 @@ function bindGuides(guides, checklists, wstg) {
   host.querySelectorAll('[data-gd-edit]').forEach((b) =>
     b.addEventListener('click', () => {
       const guide = guides.find((g) => g.id === b.dataset.gdEdit);
-      if (guide) openGuideEditor(guide, checklists, wstg);
+      if (guide) openGuideEditor(guide, { checklists, wstg });
     })
   );
   host.querySelectorAll('[data-gd-del]').forEach((b) =>
@@ -697,103 +704,198 @@ export async function refreshGuides() {
   bindGuides(guides, checklists, wstg);
   document
     .querySelector('[data-catalog-new="guides"]')
-    ?.addEventListener('click', () => openGuideEditor(null, checklists, wstg), { once: true });
+    ?.addEventListener('click', () => openGuideEditor(null, { checklists, wstg }), { once: true });
   document
     .querySelector('[data-catalog-new="wstg"]')
     ?.addEventListener('click', () => handleNav('wstg'), { once: true });
 }
 
-/** One guide, in a dialog: six short fields and four lists, one line each. */
-function openGuideEditor(guide, checklists, wstg = [], after = null) {
-  const editing = Boolean(guide);
-  const listOptions = [`<option value="">No checklist</option>`]
-    .concat(
-      checklists.map(
-        (c) =>
-          `<option value="${c.id}"${guide && Number(guide.checklistId) === c.id ? ' selected' : ''}>${h(
-            c.name
-          )}${c.category ? ` — ${h(c.category)}` : ''}</option>`
-      )
-    )
-    .join('');
-  const field = (id, label, value, multiline) =>
-    `<div class="field">
-       <label for="gd-${id}">${label}</label>
-       ${
-         multiline
-           ? `<textarea id="gd-${id}" class="input" rows="4">${h(value || '')}</textarea>`
-           : `<input id="gd-${id}" class="input" value="${h(value || '')}">`
-       }
-     </div>`;
+/**
+ * The WSTG category a sub item's title names — `WSTG-INPV-05 …` → `WSTG-INPV`.
+ * The editor used to ask for this with a select; a row already says which case
+ * it is, so it can be read from the row instead of re-asked.
+ */
+function categoryOfTitle(title, wstg) {
+  const hit = /^(WSTG-[A-Z]{4})-\d{2}\b/i.exec(String(title || '').trim());
+  if (!hit) return '';
+  const code = hit[1].toUpperCase();
+  return wstg.some((c) => c.code === code) ? code : '';
+}
 
-  const body = `<div class="form-row">
-      ${field('code', 'Code', guide?.code, false)}
-      ${field('title', 'Title', guide?.title, false)}
-      <div class="field">
-        <label for="gd-checklist">Checklist</label>
-        <select id="gd-checklist" class="input">${listOptions}</select>
-      </div>
-    </div>
-    <div class="form-row">
-      <div class="field">
-        <label for="gd-wstg">WSTG category</label>
-        <select id="gd-wstg" class="input">
-          <option value=""${guide?.wstg ? '' : ' selected'}>No citation</option>
-          ${wstg
-            .map(
-              (c) =>
-                `<option value="${h(c.code)}"${guide?.wstg === c.code ? ' selected' : ''}>${h(
-                  c.code
-                )} — ${h(c.title)}</option>`
-            )
-            .join('')}
-        </select>
-      </div>
-      <div class="field">
-        <span class="field-label">Where the citation points</span>
-        ${
-          guide?.wstgUrl
-            ? `<a class="link-btn" href="${h(guide.wstgUrl)}" target="_blank" rel="noopener">${h(
-                guide.wstg
-              )}${icon.external(11)}</a>`
-            : `<span class="note-line">The OWASP test cases this guide's work belongs to.</span>`
-        }
-      </div>
-    </div>
-    ${field('what', 'What this category means', guide?.what, true)}
-    ${field('steps', 'Steps — one per line', (guide?.steps || []).join('\n'), true)}
-    ${field('passes', 'This passes when — one per line', (guide?.passes || []).join('\n'), true)}
-    ${field('tools', 'Tools — one per line', (guide?.tools || []).join('\n'), true)}
-    ${field('watch', 'Do not over-call it — one per line', (guide?.watch || []).join('\n'), true)}
-    <p class="note-line">The code is what a checklist section is matched against (<code>A01:2025</code>), so keep it in the same shape.</p>`;
+/** Markdown for one line, without the paragraph a single line is wrapped in. */
+function inlineMd(source) {
+  return renderMarkdown(source)
+    .replace(/^<p[^>]*>/, '')
+    .replace(/<\/p>\s*$/, '');
+}
+
+/** A guide as it reads: the five sections, the prose as Markdown. */
+function guideReadHTML(guide) {
+  const bullets = (items) =>
+    items && items.length
+      ? `<ul>${items.map((line) => `<li>${inlineMd(line)}</li>`).join('')}</ul>`
+      : '';
+  const steps =
+    guide.steps && guide.steps.length
+      ? `<ol>${guide.steps.map((line) => `<li>${inlineMd(line)}</li>`).join('')}</ol>`
+      : '';
+  const block = (label, body) => (body ? `<h3>${label}</h3>${body}` : '');
+  return `<div class="doc-md gd-read">
+    ${block(
+      'What this category means',
+      renderMarkdown(guide.what) || '<p class="note-line">Nothing written here yet.</p>'
+    )}
+    ${block('Steps', steps)}
+    ${block('This passes when', bullets(guide.passes))}
+    ${block('Tools', bullets(guide.tools))}
+    ${block('Do not over-call it', bullets(guide.watch))}
+  </div>`;
+}
+
+/**
+ * One guide: read it, or edit it.
+ *
+ * The three things the form used to ask — which checklist, which WSTG category,
+ * and where the citation points — are all things the checklist row already
+ * knows, so the dialog reads them instead of offering a select. What is left is
+ * the writing: a reference link the author types, and five fields that are
+ * Markdown.
+ *
+ * `ctx` carries what the caller knows: `{ checklists, wstg, checklistId, item,
+ * reference }`. Called with no `after`, saving re-reads the same dialog as text;
+ * with an `after`, it hands the saved guide back and closes.
+ */
+function openGuideEditor(guide, ctx = {}, after = null) {
+  const { checklists = [], wstg = [], checklistId = null, item = '', reference = '' } = ctx;
+  let current = guide;
+  let mode = guide ? 'read' : 'edit';
+
+  const checklistOf = (held) =>
+    (held && Number(held.checklistId)) || (checklistId ? Number(checklistId) : null);
+  const checklistName = () => {
+    const id = checklistOf(current);
+    const list = checklists.find((c) => Number(c.id) === id);
+    return list ? list.name : '';
+  };
+  const wstgOf = () => current?.wstg || categoryOfTitle(item, wstg) || '';
 
   const modal = openModal({
-    title: editing ? 'Edit test guide' : 'New test guide',
-    subtitle: editing
-      ? `${guide.code || 'No code'} · ${guide.checklistName || 'No checklist'}`
-      : 'A guide nothing points at yet is still readable on the Tests page.',
-    body,
-    wide: true,
-    footer: `<button class="btn" data-cancel>Cancel</button>
-             <button class="btn btn-primary" data-save>${editing ? 'Save guide' : 'Create guide'}</button>`,
-    initialFocus: '#gd-title',
+    title: guide ? 'Test guide' : 'New test guide',
+    body: '<div id="gd-body"></div>',
+    footer: '<div id="gd-foot"></div>',
   });
 
-  const value = (id) => modal.modal.querySelector(`#gd-${id}`).value;
+  modal.modal.classList.add('guide');
+  const body = modal.modal.querySelector('#gd-body');
+  const foot = modal.modal.querySelector('#gd-foot');
+  const subtitle = modal.modal.querySelector('.modal-head p');
+
+  function paintHead(title) {
+    modal.modal.querySelector('.modal-head h2').textContent = title;
+    if (!subtitle) return;
+    const bits = [current?.code || '', checklistName()].filter(Boolean);
+    subtitle.textContent = bits.join(' · ');
+  }
+
+  function paintRead() {
+    mode = 'read';
+    paintHead(current.title || 'Test guide');
+    const link = current.reference
+      ? `<a class="link-btn" href="${h(current.reference)}" target="_blank" rel="noopener">${icon.external(
+          11
+        )} ${h(current.reference.replace(/^https?:\/\//, '').slice(0, 60))}</a>`
+      : '';
+    body.innerHTML = `<div class="gd-meta">
+        ${current.code ? `<span class="gd-code">${h(current.code)}</span>` : ''}
+        ${wstgOf() ? `<span class="gd-cite">${h(wstgOf())}</span>` : ''}
+        ${item && !item.startsWith(current.code || '\u0000') ? `<span class="gd-item">${h(item)}</span>` : ''}
+        ${link}
+      </div>
+      ${guideReadHTML(current)}`;
+    foot.innerHTML = `<button class="btn" data-close>Close</button>
+      <button class="btn btn-primary" data-edit>${icon.edit(13)} Edit guide</button>`;
+    foot.querySelector('[data-close]').addEventListener('click', () => modal.close());
+    foot.querySelector('[data-edit]').addEventListener('click', paintEdit);
+    foot.querySelector('[data-edit]').focus();
+  }
+
+  function paintEdit() {
+    mode = 'edit';
+    paintHead(current ? 'Edit test guide' : 'New test guide');
+    const held = current || {
+      code: '',
+      title: '',
+      what: '',
+      steps: [],
+      passes: [],
+      tools: [],
+      watch: [],
+      reference: '',
+    };
+    const field = (id, label, value, rows, hint = '') => `<div class="field">
+        <label for="gd-${id}">${label}</label>
+        <textarea id="gd-${id}" class="textarea" rows="${rows}">${h(value || '')}</textarea>
+        ${hint ? `<span class="hint">${hint}</span>` : ''}
+      </div>`;
+    // Every list is one line each, and every field takes Markdown: a step that
+    // opens a fenced block still reads as a step.
+    const mdHint = 'Markdown — **bold**, `code`, [link](https://…), - bullet, # heading';
+    body.innerHTML = `<div class="gd-fixed">
+        <span><b>Checklist</b> ${h(checklistName() || 'Not tied to one')}</span>
+        <span><b>Item</b> ${h(item || 'Not tied to an item')}</span>
+        ${wstgOf() ? `<span><b>WSTG</b> ${h(wstgOf())}</span>` : ''}
+      </div>
+      <div class="form-row">
+        <div class="field">
+          <label for="gd-code">Code</label>
+          <input id="gd-code" class="input" value="${h(held.code || '')}" placeholder="A01:2025">
+        </div>
+        <div class="field">
+          <label for="gd-title">Title</label>
+          <input id="gd-title" class="input" value="${h(held.title || '')}">
+        </div>
+      </div>
+      <div class="field">
+        <label for="gd-reference">Reference link</label>
+        <input id="gd-reference" class="input" value="${h(held.reference || (current ? '' : reference))}"
+          placeholder="https://owasp.org/…">
+        <span class="hint">The page this guide quotes or was written from.</span>
+      </div>
+      ${field('what', 'What this category means', held.what, 8, mdHint)}
+      ${field('steps', 'Steps — one per line', (held.steps || []).join('\n'), 14, mdHint)}
+      ${field('passes', 'This passes when — one per line', (held.passes || []).join('\n'), 6, mdHint)}
+      ${field('tools', 'Tools — one per line', (held.tools || []).join('\n'), 6, mdHint)}
+      ${field('watch', 'Do not over-call it — one per line', (held.watch || []).join('\n'), 6, mdHint)}`;
+    foot.innerHTML = `<button class="btn btn-ghost" data-back>${icon.arrowLeft(13)} Read</button>
+      <button class="btn" data-cancel>Cancel</button>
+      <button class="btn btn-primary" data-save>${current ? 'Save guide' : 'Create guide'}</button>`;
+    if (current) foot.querySelector('[data-back]').addEventListener('click', paintRead);
+    else foot.querySelector('[data-back]').remove();
+    foot.querySelector('[data-cancel]').addEventListener('click', () =>
+      current ? paintRead() : modal.close()
+    );
+    foot.querySelector('[data-save]').addEventListener('click', save);
+    body.querySelector('#gd-title')?.focus();
+  }
+
+  const value = (id) => body.querySelector(`#gd-${id}`)?.value || '';
   const list = (id) =>
     value(id)
       .split('\n')
       .map((line) => line.trim())
       .filter(Boolean);
 
-  modal.modal.querySelector('[data-cancel]').addEventListener('click', () => modal.close());
-  modal.modal.querySelector('[data-save]').addEventListener('click', async (event) => {
-    event.currentTarget.disabled = true;
+  async function save(event) {
+    const button = event.currentTarget;
+    button.disabled = true;
     const payload = {
       code: value('code').trim(),
       title: value('title').trim(),
-      checklistId: value('checklist') || '',
-      wstg: value('wstg') || '',
+      reference: value('reference').trim(),
+      // Not asked for any more: the checklist being edited, and the category the
+      // sub item's own case id names. Sending them keeps the guide where it was.
+      checklistId: checklistOf(current) ?? '',
+      wstg: wstgOf(),
       what: value('what').trim(),
       steps: list('steps'),
       passes: list('passes'),
@@ -801,19 +903,24 @@ function openGuideEditor(guide, checklists, wstg = [], after = null) {
       watch: list('watch'),
     };
     try {
-      const saved = editing ? await api.updateGuide(guide.id, payload) : await api.createGuide(payload);
-      modal.close();
-      toast(editing ? 'Guide saved' : 'Guide created');
-      if (after) await after(saved?.guide || null);
-      else await refreshGuides();
+      const saved = current ? await api.updateGuide(current.id, payload) : await api.createGuide(payload);
+      toast(current ? 'Guide saved' : 'Guide created');
+      current = saved?.guide || current;
+      if (after) {
+        modal.close();
+        await after(current || null);
+      } else {
+        paintRead();
+      }
     } catch (err) {
-      event.currentTarget.disabled = false;
+      button.disabled = false;
       toast(err.message, 'err');
     }
-  });
+  }
+
+  if (mode === 'read') paintRead();
+  else paintEdit();
 }
-
-
 
 /* ------------------------------------------------------------
    The WSTG, edited where it is read
@@ -1291,6 +1398,7 @@ export async function mountChecklistEditor() {
           title: item.title || '',
           help: item.help || '',
           guide: item.guide || '',
+          wstgUrl: item.wstgUrl || '',
           orig: { section: item.section || '', title: item.title || '', help: item.help || '' },
         })),
         removed: new Set(),
@@ -1409,7 +1517,7 @@ function bindEditor(host) {
         });
         modal.querySelector('[data-new-guide]').addEventListener('click', () => {
           close();
-          openGuideEditor(null, editorChecklists, editorWstg, async (saved) => {
+          openGuideEditor(null, itemContext(index), async (saved) => {
             const { guides, wstg } = await api.tests();
             editorGuides = new Map(guides.map((g) => [g.id, g]));
             editorWstg = wstg;
@@ -1419,6 +1527,18 @@ function bindEditor(host) {
         });
       },
     });
+  };
+
+  /** What the guide editor needs to know about the row it was opened from. */
+  const itemContext = (index) => {
+    const row = editor.rows[index] || {};
+    return {
+      checklists: editorChecklists,
+      wstg: editorWstg,
+      checklistId: editor.id,
+      item: row.title || '',
+      reference: row.wstgUrl || '',
+    };
   };
 
   const lastIndexOfSection = (section) => {
@@ -1436,7 +1556,7 @@ function bindEditor(host) {
       // opens the guide it points at, and a row without one gets a picker.
       el.querySelector('[data-guide-edit]')?.addEventListener('click', (event) => {
         const guide = editorGuides.get(event.currentTarget.dataset.guideEdit);
-        if (guide) openGuideEditor(guide, editorChecklists, editorWstg, repaintList);
+        if (guide) openGuideEditor(guide, itemContext(index), repaintList);
       });
       el.querySelector('[data-guide-pick]')?.addEventListener('click', () => openGuidePicker(index));
       el.querySelectorAll('[data-f]').forEach((input) => {

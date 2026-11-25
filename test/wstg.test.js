@@ -272,5 +272,62 @@ test('the WSTG method pages ship as guides, one per case', async () => {
     assert.ok(guide.what.length > 200, `${guide.id} has no summary`);
     assert.ok(guide.steps.length >= 2, `${guide.id} has no steps`);
     assert.ok(guide.checklistId, `${guide.id} is filed under no checklist`);
+    // The page it quotes, so a reader can check the quote against the source.
+    assert.match(guide.reference, /^https:\/\//, `${guide.id} cites no page`);
   }
 });
+
+test('a guide carries the reference link its author typed', async () => {
+  const created = await call('POST /api/tests', admin, {
+    body: {
+      code: 'ZZ-REF-1',
+      title: 'Reference link, typed',
+      what: 'What this section means.',
+      reference: 'https://example.org/method',
+    },
+  });
+  assert.equal(created.guide.reference, 'https://example.org/method');
+
+  // A bare host is a web address its author did not finish typing.
+  const bare = await call('PATCH /api/tests/:id', admin, {
+    params: { id: created.guide.id },
+    body: { reference: 'owasp.org/www-project-web-security-testing-guide/' },
+  });
+  assert.equal(
+    bare.guide.reference,
+    'https://owasp.org/www-project-web-security-testing-guide/'
+  );
+
+  // Anything that is not http(s) is refused rather than stored: it would be a
+  // payload on a page a client reads.
+  await assert.rejects(
+    () =>
+      call('PATCH /api/tests/:id', admin, {
+        params: { id: created.guide.id },
+        body: { reference: 'javascript:alert(1)' },
+      }),
+    /web address/
+  );
+
+  // And leaving it empty is a real answer.
+  const cleared = await call('PATCH /api/tests/:id', admin, {
+    params: { id: created.guide.id },
+    body: { reference: '' },
+  });
+  assert.equal(cleared.guide.reference, '');
+
+  // An edit that does not mention the reference keeps the one it had.
+  const kept = await call('PATCH /api/tests/:id', admin, {
+    params: { id: created.guide.id },
+    body: { reference: 'https://example.org/kept', title: 'Reference link, kept' },
+  });
+  assert.equal(kept.guide.reference, 'https://example.org/kept');
+  const retitled = await call('PATCH /api/tests/:id', admin, {
+    params: { id: created.guide.id },
+    body: { title: 'Reference link, renamed' },
+  });
+  assert.equal(retitled.guide.reference, 'https://example.org/kept');
+
+  await call('DELETE /api/tests/:id', admin, { params: { id: created.guide.id } });
+});
+

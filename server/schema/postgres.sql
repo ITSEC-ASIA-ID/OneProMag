@@ -315,6 +315,10 @@ CREATE TABLE IF NOT EXISTS test_guides (
   -- The WSTG category this work lands in (`WSTG-ATHZ`), '' when the guide is
   -- about something the guide does not test (a supply chain, a process).
   wstg         TEXT NOT NULL DEFAULT '',
+  -- The page this guide quotes or was written from: a link the author types,
+  -- '' when there is nothing to point at. Text rather than a derived URL — a
+  -- guide may cite a vendor document, a blog post, or a page we do not hold.
+  reference    TEXT NOT NULL DEFAULT '',
   title        TEXT NOT NULL,
   -- The checklist this guide teaches, and where its category comes from.
   -- SET NULL rather than CASCADE: deleting a template must not delete the method
