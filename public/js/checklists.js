@@ -650,8 +650,7 @@ export function guidesPageHTML() {
         false positives to avoid. Deleting one is refused while a test still points at it.
       </p>
       <span class="admin-head-actions">
-        <button class="btn btn-sm" data-catalog-new="guides">${icon.plus(13)} Test guide</button>
-        <button class="btn btn-sm" data-catalog-new="wstg">WSTG data</button>
+        <button class="btn btn-sm" data-catalog-new="wstg">Category</button>
       </span>
     </div>
     <div id="gd-admin-body"><div class="empty"><h3>Loading…</h3></div></div>
@@ -702,9 +701,6 @@ export async function refreshGuides() {
   }
   host.innerHTML = guideSectionsHTML(guides);
   bindGuides(guides, checklists, wstg);
-  document
-    .querySelector('[data-catalog-new="guides"]')
-    ?.addEventListener('click', () => openGuideEditor(null, { checklists, wstg }), { once: true });
   document
     .querySelector('[data-catalog-new="wstg"]')
     ?.addEventListener('click', () => handleNav('wstg'), { once: true });
@@ -803,7 +799,8 @@ function openGuideEditor(guide, ctx = {}, after = null) {
   function paintRead() {
     mode = 'read';
     paintHead(current.title || 'Test guide');
-    const link = guideLinks(current)
+    // The links read last: what to do comes first, where it came from after.
+    const links = guideLinks(current)
       .map(
         (url) => `<a class="link-btn" href="${h(url)}" target="_blank" rel="noopener">${icon.external(
           11
@@ -814,9 +811,9 @@ function openGuideEditor(guide, ctx = {}, after = null) {
         ${current.code ? `<span class="gd-code">${h(current.code)}</span>` : ''}
         ${wstgOf() ? `<span class="gd-cite">${h(wstgOf())}</span>` : ''}
         ${item && !item.startsWith(current.code || '\u0000') ? `<span class="gd-item">${h(item)}</span>` : ''}
-        ${link}
       </div>
-      ${guideReadHTML(current)}`;
+      ${guideReadHTML(current)}
+      ${links ? `<div class="gd-refs"><h3>Reference links</h3>${links}</div>` : ''}`;
     foot.innerHTML = `<button class="btn" data-close>Close</button>
       <button class="btn btn-primary" data-edit>${icon.edit(13)} Edit guide</button>`;
     foot.querySelector('[data-close]').addEventListener('click', () => modal.close());
@@ -848,7 +845,6 @@ function openGuideEditor(guide, ctx = {}, after = null) {
     body.innerHTML = `<div class="gd-fixed">
         <span><b>Checklist</b> ${h(checklistName() || 'Not tied to one')}</span>
         <span><b>Item</b> ${h(item || 'Not tied to an item')}</span>
-        ${wstgOf() ? `<span><b>WSTG</b> ${h(wstgOf())}</span>` : ''}
       </div>
       <div class="form-row">
         <div class="field">
@@ -860,6 +856,11 @@ function openGuideEditor(guide, ctx = {}, after = null) {
           <input id="gd-title" class="input" value="${h(held.title || '')}">
         </div>
       </div>
+      ${field('what', 'What this category means', held.what, 8, mdHint)}
+      ${field('steps', 'Steps', held.steps, 16, mdHint)}
+      ${field('passes', 'This passes when', held.passes, 6, mdHint)}
+      ${field('tools', 'Tools', held.tools, 5, mdHint)}
+      ${field('watch', 'Do not over-call it', held.watch, 6, mdHint)}
       <div class="field">
         <label for="gd-reference">Reference links</label>
         <textarea id="gd-reference" class="textarea" rows="3"
@@ -867,12 +868,7 @@ function openGuideEditor(guide, ctx = {}, after = null) {
             held.reference || (current ? '' : reference)
           )}</textarea>
         <span class="hint">One per line — the pages this guide quotes or was written from.</span>
-      </div>
-      ${field('what', 'What this category means', held.what, 8, mdHint)}
-      ${field('steps', 'Steps', held.steps, 16, mdHint)}
-      ${field('passes', 'This passes when', held.passes, 6, mdHint)}
-      ${field('tools', 'Tools', held.tools, 5, mdHint)}
-      ${field('watch', 'Do not over-call it', held.watch, 6, mdHint)}`;
+      </div>`;
     foot.innerHTML = `<button class="btn btn-ghost" data-back>${icon.arrowLeft(13)} Read</button>
       <button class="btn" data-cancel>Cancel</button>
       <button class="btn btn-primary" data-save>${current ? 'Save guide' : 'Create guide'}</button>`;
@@ -940,13 +936,11 @@ export function wstgPageHTML() {
   return `<div class="admin">
     <div class="admin-head">
       <p>
-        The OWASP Web Security Testing Guide as published: its categories, and one
-        row per test case with the page that publishes it. Every guide cites one of
-        these categories, and the OWASP WSTG checklist is written from these rows.
+        The categories of the OWASP Web Security Testing Guide. A guide cites one of
+        these, and the OWASP WSTG checklist is written from their cases.
       </p>
       <span class="admin-head-actions">
         <button class="btn btn-sm" data-catalog-new="wstg-category">${icon.plus(13)} Category</button>
-        <button class="btn btn-sm" data-catalog-new="wstg-case">${icon.plus(13)} Test case</button>
       </span>
     </div>
     <div class="catalog-switch">
@@ -956,15 +950,12 @@ export function wstgPageHTML() {
   </div>`;
 }
 
-function wstgCategoryRowHTML(category, cases) {
-  const held = cases.filter((c) => c.category === category.code);
+function wstgCategoryRowHTML(category) {
   return `<tr data-wstg-cat-row="${h(category.code)}">
     <td class="dev-name">
       <button type="button" class="ck-open" data-wstg-cat-edit="${h(category.code)}">${h(category.code)}</button>
       <span class="ck-sub">${h(category.title)}</span>
     </td>
-    <td class="dev-mono-cell">${h(category.dir)}</td>
-    <td class="dev-mono-cell">${held.length}</td>
     <td class="dev-acts"><span class="dev-acts-inner">
       <button type="button" class="btn btn-icon" data-wstg-cat-edit="${h(category.code)}"
         title="Edit" aria-label="Edit ${h(category.code)}">${icon.edit(13)}</button>
@@ -974,25 +965,7 @@ function wstgCategoryRowHTML(category, cases) {
   </tr>`;
 }
 
-function wstgCaseRowHTML(one) {
-  return `<tr data-wstg-case-row="${h(one.code)}">
-    <td class="dev-name">
-      <button type="button" class="ck-open" data-wstg-case-edit="${h(one.code)}">${h(one.title)}</button>
-      <span class="ck-sub">${h(one.code)}</span>
-    </td>
-    <td class="dev-mono-cell">${h(one.category)}</td>
-    <td class="dev-mono-cell"><a class="link-btn" href="${h(one.url)}" target="_blank" rel="noopener"
-      title="Read it on wstg.owasp.org">${h(one.slug)}${icon.external(11)}</a></td>
-    <td class="dev-acts"><span class="dev-acts-inner">
-      <button type="button" class="btn btn-icon" data-wstg-case-edit="${h(one.code)}"
-        title="Edit" aria-label="Edit ${h(one.code)}">${icon.edit(13)}</button>
-      <button type="button" class="btn btn-icon btn-icon-danger" data-wstg-case-del="${h(one.code)}"
-        title="Delete" aria-label="Delete ${h(one.code)}">${icon.trash(13)}</button>
-    </span></td>
-  </tr>`;
-}
-
-function wstgSectionsHTML({ categories, cases }) {
+function wstgSectionsHTML({ categories }) {
   return `<section class="admin-sec">
     <div class="admin-sec-head">
       <h3>Categories</h3>
@@ -1003,29 +976,9 @@ function wstgSectionsHTML({ categories, cases }) {
       <table class="dev-table">
         <thead><tr>
           <th class="dev-h-label"><span class="dev-h-inner"><span class="dev-h-label">Category</span></span></th>
-          <th class="dev-h-key"><span class="dev-h-inner"><span class="dev-h-label">Directory</span></span></th>
-          <th class="dev-h-key"><span class="dev-h-inner"><span class="dev-h-label">Cases</span></span></th>
           <th class="dev-h-acts"><span class="sr-only">Actions</span></th>
         </tr></thead>
-        <tbody>${categories.map((c) => wstgCategoryRowHTML(c, cases)).join('')}</tbody>
-      </table>
-    </div>
-  </section>
-  <section class="admin-sec">
-    <div class="admin-sec-head">
-      <h3>Test cases</h3>
-      <span class="admin-count">${cases.length}</span>
-      <p>The OWASP WSTG checklist is written from these rows, so a case a checklist row already asks about cannot be deleted.</p>
-    </div>
-    <div class="dev-tablewrap">
-      <table class="dev-table">
-        <thead><tr>
-          <th class="dev-h-label"><span class="dev-h-inner"><span class="dev-h-label">Test case</span></span></th>
-          <th class="dev-h-key"><span class="dev-h-inner"><span class="dev-h-label">Category</span></span></th>
-          <th class="dev-h-key"><span class="dev-h-inner"><span class="dev-h-label">Page</span></span></th>
-          <th class="dev-h-acts"><span class="sr-only">Actions</span></th>
-        </tr></thead>
-        <tbody>${cases.map(wstgCaseRowHTML).join('')}</tbody>
+        <tbody>${categories.map(wstgCategoryRowHTML).join('')}</tbody>
       </table>
     </div>
   </section>`;
@@ -1049,9 +1002,6 @@ export async function refreshWstg() {
   document
     .querySelector('[data-catalog-new="wstg-category"]')
     ?.addEventListener('click', () => openWstgCategoryEditor(null), { once: true });
-  document
-    .querySelector('[data-catalog-new="wstg-case"]')
-    ?.addEventListener('click', () => openWstgCaseEditor(null, wstg.categories), { once: true });
 
   host.querySelectorAll('[data-wstg-cat-edit]').forEach((b) =>
     b.addEventListener('click', () => {
@@ -1072,31 +1022,6 @@ export async function refreshWstg() {
       try {
         await api.deleteWstgCategory(row.code);
         toast('Category deleted');
-        await refreshWstg();
-      } catch (err) {
-        toast(err.message, 'err');
-      }
-    })
-  );
-  host.querySelectorAll('[data-wstg-case-edit]').forEach((b) =>
-    b.addEventListener('click', () => {
-      const row = wstg.cases.find((c) => c.code === b.dataset.wstgCaseEdit);
-      if (row) openWstgCaseEditor(row, wstg.categories);
-    })
-  );
-  host.querySelectorAll('[data-wstg-case-del]').forEach((b) =>
-    b.addEventListener('click', async () => {
-      const row = wstg.cases.find((c) => c.code === b.dataset.wstgCaseDel);
-      if (!row) return;
-      const ok = await confirmDialog({
-        title: 'Delete this test case?',
-        message: `"${row.code} ${row.title}" will be removed from the WSTG, and from the method as this app publishes it. A case a checklist row already asks about refuses the delete.`,
-        confirmLabel: 'Delete case',
-      });
-      if (!ok) return;
-      try {
-        await api.deleteWstgCase(row.code);
-        toast('Test case deleted');
         await refreshWstg();
       } catch (err) {
         toast(err.message, 'err');
@@ -1143,68 +1068,6 @@ function openWstgCategoryEditor(row) {
       }
       modal.close();
       toast(editing ? 'Category saved' : 'Category created');
-      await refreshWstg();
-    } catch (err) {
-      event.currentTarget.disabled = false;
-      toast(err.message, 'err');
-    }
-  });
-}
-
-function openWstgCaseEditor(row, categories) {
-  const editing = Boolean(row);
-  const options = categories
-    .map(
-      (c) =>
-        `<option value="${h(c.code)}"${
-          row && row.category === c.code ? ' selected' : ''
-        }>${h(c.code)} — ${h(c.title)}</option>`
-    )
-    .join('');
-  const body = `<div class="form-row">
-      <div class="field">
-        <label for="ww-code">Code</label>
-        <input id="ww-code" class="input" value="${h(row?.code || 'WSTG-')}"${editing ? ' readonly' : ''}>
-      </div>
-      <div class="field">
-        <label for="ww-category">Category</label>
-        <select id="ww-category" class="input">${options}</select>
-      </div>
-    </div>
-    <div class="field">
-      <label for="ww-title">Title</label>
-      <input id="ww-title" class="input" value="${h(row?.title || '')}">
-    </div>
-    <div class="field">
-      <label for="ww-slug">Page slug</label>
-      <input id="ww-slug" class="input" value="${h(row?.slug || '')}">
-    </div>
-    <p class="note-line">The slug is the page name OWASP publishes, like <code>04-Insecure_Direct_Object_References</code> — copy it from the URL rather than from the title. A checklist row titled with the code (<code>WSTG-ATHZ-04 …</code>) links straight to it.</p>`;
-
-  const modal = openModal({
-    title: editing ? 'Edit WSTG test case' : 'New WSTG test case',
-    subtitle: editing ? row.code : 'One published test case',
-    body,
-    wide: true,
-    footer: `<button class="btn" data-cancel>Cancel</button>
-             <button class="btn btn-primary" data-save>${editing ? 'Save case' : 'Create case'}</button>`,
-    initialFocus: '#ww-title',
-  });
-  const value = (id) => modal.modal.querySelector(`#ww-${id}`).value.trim();
-  modal.modal.querySelector('[data-cancel]').addEventListener('click', () => modal.close());
-  modal.modal.querySelector('[data-save]').addEventListener('click', async (event) => {
-    event.currentTarget.disabled = true;
-    const payload = {
-      code: value('code'),
-      categoryCode: value('category'),
-      title: value('title'),
-      slug: value('slug'),
-    };
-    try {
-      if (editing) await api.updateWstgCase(row.code, payload);
-      else await api.createWstgCase(payload);
-      modal.close();
-      toast(editing ? 'Test case saved' : 'Test case created');
       await refreshWstg();
     } catch (err) {
       event.currentTarget.disabled = false;

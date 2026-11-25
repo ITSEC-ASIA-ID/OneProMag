@@ -6773,6 +6773,23 @@ svg { display: block; }
 .gd-read ol, .gd-read ul { padding-left: 22px; }
 .gd-read li { margin: 5px 0; }
 .gd-read li > p { margin: 0; }
+.gd-refs {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 22px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+.gd-refs h3 {
+  margin: 0;
+  font-size: 12.4px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
 .gd-fixed {
   display: flex;
   flex-wrap: wrap;
