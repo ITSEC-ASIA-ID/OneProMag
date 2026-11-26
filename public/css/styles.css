@@ -4029,8 +4029,13 @@ svg { display: block; }
   white-space: pre-wrap;
   word-break: break-word;
 }
-.doc-text { max-height: 340px; overflow: auto; }
-.doc-textarea { width: 100%; min-height: 190px; }
+/* The notes sheet is the reason the page exists, so it shows itself in full: a
+   340px window over a real set of notes meant reading them through a scrollbar
+   inside a scrollbar. The page scrolls; the card does not need to as well. */
+.doc-text { max-height: none; overflow: visible; }
+/* Same argument for the editor: 190px held five lines of a note that is usually
+   thirty, so writing one was a two-scrollbar job as well. */
+.doc-textarea { width: 100%; min-height: min(58vh, 620px); }
 /* The three heading buttons above the notes editor: a row, not a formatting bar.
    They act on the line the caret is on, so they sit with the field they change. */
 .md-tools {
