@@ -4,6 +4,49 @@ export function onUnauthorized(fn) {
   unauthorizedHandler = fn;
 }
 
+/**
+ * The same call as `request`, but it can say how far along it is.
+ *
+ * `fetch` cannot report upload progress — it resolves a promise when the whole
+ * body is gone — and a 50 MB file over a slow link is exactly the case where a
+ * spinner with no number looks like a hang. `XMLHttpRequest` reports
+ * `upload.onprogress`, so the one call that carries a file uses it. Everything
+ * else stays on `fetch`.
+ */
+function requestWithProgress(method, url, body, onProgress) {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open(method, url, true);
+    xhr.setRequestHeader('Content-Type', 'application/json');
+    if (onProgress && xhr.upload) {
+      xhr.upload.addEventListener('progress', (event) => {
+        if (event.lengthComputable) onProgress(event.loaded, event.total);
+      });
+    }
+    xhr.addEventListener('load', () => {
+      let data = null;
+      if (xhr.responseText) {
+        try {
+          data = JSON.parse(xhr.responseText);
+        } catch {
+          data = { error: xhr.responseText };
+        }
+      }
+      if (xhr.status === 401 && unauthorizedHandler) unauthorizedHandler();
+      if (xhr.status < 200 || xhr.status >= 300) {
+        const err = new Error((data && data.error) || `Request failed (${xhr.status})`);
+        err.status = xhr.status;
+        reject(err);
+        return;
+      }
+      resolve(data);
+    });
+    xhr.addEventListener('error', () => reject(new Error('The upload failed — check the connection')));
+    xhr.addEventListener('abort', () => reject(new Error('The upload was cancelled')));
+    xhr.send(JSON.stringify(body));
+  });
+}
+
 async function request(method, url, body) {
   const options = { method, headers: {} };
   if (body !== undefined) {
@@ -62,7 +105,8 @@ export const api = {
       'GET',
       `/api/info-files?scope=${encodeURIComponent(scope)}&scopeId=${Number(scopeId)}`
     ),
-  uploadInfoFile: (payload) => request('POST', '/api/info-files', payload),
+  uploadInfoFile: (payload, onProgress) =>
+    requestWithProgress('POST', '/api/info-files', payload, onProgress),
   deleteInfoFile: (id) => request('DELETE', `/api/info-files/${Number(id)}`),
   updateInfo: (id, payload) => request('PATCH', `/api/info/${id}`, payload),
   deleteInfo: (id) => request('DELETE', `/api/info/${id}`),
@@ -157,7 +201,8 @@ export const api = {
   // Attachments. The download is a plain link, not a fetch: the browser has to
   // own the save dialog, and the server answers with Content-Disposition.
   projectFiles: (projectId) => request('GET', `/api/projects/${projectId}/files`),
-  uploadFile: (projectId, payload) => request('POST', `/api/projects/${projectId}/files`, payload),
+  uploadFile: (projectId, payload, onProgress) =>
+    requestWithProgress('POST', `/api/projects/${projectId}/files`, payload, onProgress),
   deleteFile: (id) => request('DELETE', `/api/project-files/${id}`),
 
   // Checklists: the catalogue the Admin panel owns.

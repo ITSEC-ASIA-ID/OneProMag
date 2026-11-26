@@ -4038,6 +4038,44 @@ svg { display: block; }
 .doc-textarea { width: 100%; min-height: min(58vh, 620px); }
 /* The three heading buttons above the notes editor: a row, not a formatting bar.
    They act on the line the caret is on, so they sit with the field they change. */
+/* One upload in flight: the name, the percentage, and a bar. The number is the
+   point — a spinner on a 50 MB file is indistinguishable from a dead tab. */
+.upload-progress { padding: 10px 13px 4px; }
+.upload-progress[hidden] { display: none; }
+.upload-line {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  font-size: 12px;
+  color: var(--ink-2);
+  margin-bottom: 6px;
+}
+.upload-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.upload-pct {
+  margin-left: auto;
+  flex: none;
+  font-variant-numeric: tabular-nums;
+  color: var(--faint);
+}
+.upload-bar {
+  height: 6px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  overflow: hidden;
+}
+.upload-bar > span {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--primary);
+  transition: width 120ms linear;
+}
 .md-tools {
   display: flex;
   align-items: center;

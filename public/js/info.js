@@ -407,6 +407,7 @@ export function infoFilesHTML(sel, label) {
       </div>
     </div>
     <div class="doc-body">
+      <div class="upload-progress" data-upload-progress hidden></div>
       ${
         files.length
           ? `<ul class="file-list">${files.map(infoFileRowHTML).join('')}</ul>`
@@ -1284,13 +1285,42 @@ export async function refreshInfoCounts() {
 
 
 /**
+ * Paints one upload in place, without repainting the block.
+ *
+ * A repaint would replace the very node that is showing the bar, so the progress
+ * writes into the element it already has. `total` is the encoded body, which is
+ * 4/3 of the file, so only the ratio is shown — never those bytes as a size.
+ */
+function paintUploadProgress(name, loaded, total) {
+  const box = document.querySelector('[data-upload-progress]');
+  if (!box) return;
+  box.hidden = false;
+  const pct = total ? Math.min(100, Math.round((loaded / total) * 100)) : 0;
+  box.innerHTML = `<div class="upload-line">
+      <span class="upload-name">${h(name)}</span>
+      <span class="upload-pct">${total ? `${pct}%` : 'preparing…'}</span>
+    </div>
+    <div class="upload-bar"><span style="width:${pct}%"></span></div>`;
+}
+
+function clearUploadProgress() {
+  const box = document.querySelector('[data-upload-progress]');
+  if (!box) return;
+  box.hidden = true;
+  box.innerHTML = '';
+}
+
+/**
  * Reads a file into base64, then posts it. The project attachments do exactly
  * this; the difference is only which target the row names.
  */
-async function uploadInfoFile(sel, file) {
+async function uploadInfoFile(sel, file, onProgress = () => {}) {
   if (file.size > MAX_INFO_BYTES) {
     throw new Error(`"${file.name}" is ${fmtSize(file.size)} — the limit is ${fmtSize(MAX_INFO_BYTES)}`);
   }
+  // Base64 conversion is the browser's own work and reports nothing, so the bar
+  // reads "preparing" until the request itself starts.
+  onProgress(0, 0);
   const dataUrl = await new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = () => resolve(String(reader.result || ''));
@@ -1300,15 +1330,18 @@ async function uploadInfoFile(sel, file) {
   const comma = dataUrl.indexOf(',');
   const data = comma >= 0 ? dataUrl.slice(comma + 1) : '';
   if (!data) throw new Error(`"${file.name}" looks empty`);
-  await api.uploadInfoFile({
-    scope: sel.scope,
-    scopeId: sel.scopeId,
-    name: file.name,
-    // The browser's guess is a hint for the list, never the download type: the
-    // server always answers application/octet-stream.
-    mime: file.type || 'application/octet-stream',
-    data,
-  });
+  await api.uploadInfoFile(
+    {
+      scope: sel.scope,
+      scopeId: sel.scopeId,
+      name: file.name,
+      // The browser's guess is a hint for the list, never the download type: the
+      // server always answers application/octet-stream.
+      mime: file.type || 'application/octet-stream',
+      data,
+    },
+    onProgress
+  );
 }
 
 /**
@@ -1323,14 +1356,18 @@ async function uploadInfoFiles(sel, list) {
   const failed = [];
   let done = 0;
   for (const file of files) {
+    const label = files.length > 1 ? ` (${done + 1}/${files.length})` : '';
     try {
-      toast(`Uploading ${file.name}…${files.length > 1 ? ` (${done + 1}/${files.length})` : ''}`);
-      await uploadInfoFile(sel, file);
+      paintUploadProgress(file.name + label, 0, 0);
+      await uploadInfoFile(sel, file, (loaded, total) =>
+        paintUploadProgress(file.name + label, loaded, total)
+      );
       done += 1;
     } catch (err) {
       failed.push(`${file.name}: ${err.message}`);
     }
   }
+  clearUploadProgress();
   if (done) {
     await reloadInfoFiles();
     mountContent();
