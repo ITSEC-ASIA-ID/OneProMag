@@ -7,8 +7,8 @@ import { requireCatalogManager, requireDeleter } from '../shared.js';
 /* ------------------------------------------------------------
    The WSTG, read out of its tables
    ------------------------------------------------------------
-   Twelve categories and their test cases are rows (`wstg_categories`,
-   `wstg_cases`), seeded by `server/schema/wstg.sql`, edited in the Admin panel.
+   Twelve categories and their test cases are rows (`categories`,
+   `cases`), seeded by `server/schema/wstg.sql`, edited in the Admin panel.
    Three things are derived here and never stored: a case's category title, its
    URL (category directory + case slug — the site spells two slugs against their
    titles, so the slug is a column), and whether a code is real, which is the same
@@ -29,8 +29,8 @@ export async function wstgIndex(force = false) {
   if (wstgCached && !force) return wstgCached;
 
   const [categories, rows] = await Promise.all([
-    db.all('SELECT code, title, dir, position FROM wstg_categories ORDER BY position, code'),
-    db.all('SELECT code, category_code, title, slug, position FROM wstg_cases ORDER BY position, code'),
+    db.all('SELECT code, title, dir, position FROM categories ORDER BY position, code'),
+    db.all('SELECT code, category_code, title, slug, position FROM cases ORDER BY position, code'),
   ]);
 
   const byCategory = new Map(categories.map((one) => [one.code, one]));
@@ -448,23 +448,23 @@ export const routes = {
      title/slug edit, and an id is never rewritten.
      ============================================================ */
 
-  'GET /api/wstg': async () => {
+  'GET /api/categories': async () => {
     const index = await wstgIndex();
     return { categories: index.categories, cases: index.cases };
   },
 
-  'POST /api/wstg/categories': async (ctx) => {
+  'POST /api/categories': async (ctx) => {
     requireCatalogManager(ctx);
     const body = ctx.body || {};
     const code = text(body.code, 20).toUpperCase();
     if (!/^WSTG-[A-Z]{2,8}$/.test(code)) {
       throw new HttpError(400, 'A category code looks like WSTG-ATHZ');
     }
-    if (await db.get('SELECT code FROM wstg_categories WHERE code = ?', [code])) {
+    if (await db.get('SELECT code FROM categories WHERE code = ?', [code])) {
       throw new HttpError(409, `${code} already exists`);
     }
-    const max = await db.get('SELECT COALESCE(MAX(position), -1) AS p FROM wstg_categories');
-    await db.run('INSERT INTO wstg_categories (code, title, dir, position) VALUES (?, ?, ?, ?)', [
+    const max = await db.get('SELECT COALESCE(MAX(position), -1) AS p FROM categories');
+    await db.run('INSERT INTO categories (code, title, dir, position) VALUES (?, ?, ?, ?)', [
       code,
       wanted(body.title),
       dirOf(body.dir),
@@ -474,13 +474,13 @@ export const routes = {
     return { categories: (await wstgIndex(true)).categories };
   },
 
-  'PATCH /api/wstg/categories/:code': async (ctx) => {
+  'PATCH /api/categories/:code': async (ctx) => {
     requireCatalogManager(ctx);
     const code = String(ctx.params.code || '').toUpperCase();
-    const row = await db.get('SELECT * FROM wstg_categories WHERE code = ?', [code]);
+    const row = await db.get('SELECT * FROM categories WHERE code = ?', [code]);
     if (!row) throw new HttpError(404, 'That WSTG category no longer exists');
     const body = ctx.body || {};
-    await db.run('UPDATE wstg_categories SET title = ?, dir = ? WHERE code = ?', [
+    await db.run('UPDATE categories SET title = ?, dir = ? WHERE code = ?', [
       body.title === undefined ? row.title : wanted(body.title),
       body.dir === undefined ? row.dir : dirOf(body.dir),
       code,
@@ -489,12 +489,12 @@ export const routes = {
     return { categories: (await wstgIndex(true)).categories };
   },
 
-  'DELETE /api/wstg/categories/:code': async (ctx) => {
+  'DELETE /api/categories/:code': async (ctx) => {
     requireDeleter(ctx, 'a WSTG category');
     const code = String(ctx.params.code || '').toUpperCase();
-    const row = await db.get('SELECT * FROM wstg_categories WHERE code = ?', [code]);
+    const row = await db.get('SELECT * FROM categories WHERE code = ?', [code]);
     if (!row) throw new HttpError(404, 'That WSTG category no longer exists');
-    const cases = await db.get('SELECT COUNT(*) AS n FROM wstg_cases WHERE category_code = ?', [code]);
+    const cases = await db.get('SELECT COUNT(*) AS n FROM cases WHERE category_code = ?', [code]);
     const count = Number(cases?.n) || 0;
     if (count > 0) {
       throw new HttpError(
@@ -510,12 +510,12 @@ export const routes = {
         `${guides} guide(s) cite ${code} — point them at another category first`
       );
     }
-    await db.run('DELETE FROM wstg_categories WHERE code = ?', [code]);
+    await db.run('DELETE FROM categories WHERE code = ?', [code]);
     forgetWstg();
     return { categories: (await wstgIndex(true)).categories };
   },
 
-  'POST /api/wstg/cases': async (ctx) => {
+  'POST /api/cases': async (ctx) => {
     requireCatalogManager(ctx);
     const body = ctx.body || {};
     const code = text(body.code, 20).toUpperCase();
@@ -527,12 +527,12 @@ export const routes = {
     if (!index.byCategory.has(category)) {
       throw new HttpError(400, `${category} is not a WSTG category — create it first`);
     }
-    if (await db.get('SELECT code FROM wstg_cases WHERE code = ?', [code])) {
+    if (await db.get('SELECT code FROM cases WHERE code = ?', [code])) {
       throw new HttpError(409, `${code} already exists`);
     }
-    const max = await db.get('SELECT COALESCE(MAX(position), -1) AS p FROM wstg_cases WHERE category_code = ?', [category]);
+    const max = await db.get('SELECT COALESCE(MAX(position), -1) AS p FROM cases WHERE category_code = ?', [category]);
     await db.run(
-      'INSERT INTO wstg_cases (code, category_code, title, slug, position) VALUES (?, ?, ?, ?, ?)',
+      'INSERT INTO cases (code, category_code, title, slug, position) VALUES (?, ?, ?, ?, ?)',
       [
         code,
         category,
@@ -547,10 +547,10 @@ export const routes = {
     return { categories: fresh.categories, cases: fresh.cases };
   },
 
-  'PATCH /api/wstg/cases/:code': async (ctx) => {
+  'PATCH /api/cases/:code': async (ctx) => {
     requireCatalogManager(ctx);
     const code = String(ctx.params.code || '').toUpperCase();
-    const row = await db.get('SELECT * FROM wstg_cases WHERE code = ?', [code]);
+    const row = await db.get('SELECT * FROM cases WHERE code = ?', [code]);
     if (!row) throw new HttpError(404, 'That WSTG test case no longer exists');
     const body = ctx.body || {};
     let category = row.category_code;
@@ -560,7 +560,7 @@ export const routes = {
         throw new HttpError(400, `${category} is not a WSTG category`);
       }
     }
-    await db.run('UPDATE wstg_cases SET category_code = ?, title = ?, slug = ? WHERE code = ?', [
+    await db.run('UPDATE cases SET category_code = ?, title = ?, slug = ? WHERE code = ?', [
       category,
       body.title === undefined ? row.title : wanted(body.title),
       body.slug === undefined
@@ -574,10 +574,10 @@ export const routes = {
     return { categories: fresh.categories, cases: fresh.cases };
   },
 
-  'DELETE /api/wstg/cases/:code': async (ctx) => {
+  'DELETE /api/cases/:code': async (ctx) => {
     requireDeleter(ctx, 'a WSTG test case');
     const code = String(ctx.params.code || '').toUpperCase();
-    const row = await db.get('SELECT * FROM wstg_cases WHERE code = ?', [code]);
+    const row = await db.get('SELECT * FROM cases WHERE code = ?', [code]);
     if (!row) throw new HttpError(404, 'That WSTG test case no longer exists');
     // The shipped checklist is written from this table, so deleting a case that a
     // checklist row already names would leave a row citing a page that is gone.
@@ -591,7 +591,7 @@ export const routes = {
         `${code} is asked by ${count} checklist row(s) — remove those rows in Admin → Checklists first`
       );
     }
-    await db.run('DELETE FROM wstg_cases WHERE code = ?', [code]);
+    await db.run('DELETE FROM cases WHERE code = ?', [code]);
     forgetWstg();
     const fresh = await wstgIndex(true);
     return { categories: fresh.categories, cases: fresh.cases };

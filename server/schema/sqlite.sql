@@ -358,7 +358,7 @@ CREATE TABLE IF NOT EXISTS test_guides (
 -- Seeded once from server/schema/wstg.sql and never rewritten after
 -- that: the twelve categories and their cases are content, and a code change is
 -- the wrong way to fix a typo OWASP has already fixed.
-CREATE TABLE IF NOT EXISTS wstg_categories (
+CREATE TABLE IF NOT EXISTS categories (
   -- `WSTG-ATHZ`. This is what `test_guides.wstg` cites.
   code     TEXT PRIMARY KEY,
   title    TEXT NOT NULL DEFAULT '',
@@ -370,7 +370,7 @@ CREATE TABLE IF NOT EXISTS wstg_categories (
 );
 
 -- One row per test case: `WSTG-ATHZ-04`, its category, and its page slug.
-CREATE TABLE IF NOT EXISTS wstg_cases (
+CREATE TABLE IF NOT EXISTS cases (
   code          TEXT PRIMARY KEY,
   category_code TEXT NOT NULL DEFAULT '',
   title         TEXT NOT NULL DEFAULT '',

@@ -650,7 +650,7 @@ export function guidesPageHTML() {
         false positives to avoid. Deleting one is refused while a test still points at it.
       </p>
       <span class="admin-head-actions">
-        <button class="btn btn-sm" data-catalog-new="wstg">Category</button>
+        <button class="btn btn-sm" data-catalog-new="category">Category</button>
       </span>
     </div>
     <div id="gd-admin-body"><div class="empty"><h3>Loading…</h3></div></div>
@@ -702,8 +702,8 @@ export async function refreshGuides() {
   host.innerHTML = guideSectionsHTML(guides);
   bindGuides(guides, checklists, wstg);
   document
-    .querySelector('[data-catalog-new="wstg"]')
-    ?.addEventListener('click', () => handleNav('wstg'), { once: true });
+    .querySelector('[data-catalog-new="category"]')
+    ?.addEventListener('click', () => handleNav('category'), { once: true });
 }
 
 /**
@@ -932,7 +932,7 @@ function openGuideEditor(guide, ctx = {}, after = null) {
    all read from here, so a correction is one edit and one refresh.
    ------------------------------------------------------------ */
 
-export function wstgPageHTML() {
+export function categoriesPageHTML() {
   return `<div class="admin">
     <div class="admin-head">
       <p>
@@ -940,32 +940,32 @@ export function wstgPageHTML() {
         these, and the OWASP WSTG checklist is written from their cases.
       </p>
       <span class="admin-head-actions">
-        <button class="btn btn-sm" data-catalog-new="wstg-category">${icon.plus(13)} Category</button>
+        <button class="btn btn-sm" data-catalog-new="category-new">${icon.plus(13)} Category</button>
       </span>
     </div>
     <div class="catalog-switch">
-      <button class="chip" type="button" data-wstg-back>← Checklists &amp; Tests</button>
+      <button class="chip" type="button" data-cat-back>← Checklists &amp; Tests</button>
     </div>
-    <div id="wstg-admin-body"><div class="empty"><h3>Loading…</h3></div></div>
+    <div id="category-admin-body"><div class="empty"><h3>Loading…</h3></div></div>
   </div>`;
 }
 
-function wstgCategoryRowHTML(category) {
-  return `<tr data-wstg-cat-row="${h(category.code)}">
+function categoryRowHTML(category) {
+  return `<tr data-cat-row="${h(category.code)}">
     <td class="dev-name">
-      <button type="button" class="ck-open" data-wstg-cat-edit="${h(category.code)}">${h(category.code)}</button>
+      <button type="button" class="ck-open" data-cat-edit="${h(category.code)}">${h(category.code)}</button>
       <span class="ck-sub">${h(category.title)}</span>
     </td>
     <td class="dev-acts"><span class="dev-acts-inner">
-      <button type="button" class="btn btn-icon" data-wstg-cat-edit="${h(category.code)}"
+      <button type="button" class="btn btn-icon" data-cat-edit="${h(category.code)}"
         title="Edit" aria-label="Edit ${h(category.code)}">${icon.edit(13)}</button>
-      <button type="button" class="btn btn-icon btn-icon-danger" data-wstg-cat-del="${h(category.code)}"
+      <button type="button" class="btn btn-icon btn-icon-danger" data-cat-del="${h(category.code)}"
         title="Delete" aria-label="Delete ${h(category.code)}">${icon.trash(13)}</button>
     </span></td>
   </tr>`;
 }
 
-function wstgSectionsHTML({ categories }) {
+function categorySectionsHTML({ categories }) {
   return `<section class="admin-sec">
     <div class="admin-sec-head">
       <h3>Categories</h3>
@@ -978,51 +978,51 @@ function wstgSectionsHTML({ categories }) {
           <th class="dev-h-label"><span class="dev-h-inner"><span class="dev-h-label">Category</span></span></th>
           <th class="dev-h-acts"><span class="sr-only">Actions</span></th>
         </tr></thead>
-        <tbody>${categories.map(wstgCategoryRowHTML).join('')}</tbody>
+        <tbody>${categories.map(categoryRowHTML).join('')}</tbody>
       </table>
     </div>
   </section>`;
 }
 
-export async function refreshWstg() {
-  const host = document.getElementById('wstg-admin-body');
+export async function refreshCategories() {
+  const host = document.getElementById('category-admin-body');
   if (!host) return;
   document
-    .querySelector('[data-wstg-back]')
+    .querySelector('[data-cat-back]')
     ?.addEventListener('click', () => handleNav('checklists'), { once: true });
-  let wstg = { categories: [], cases: [] };
+  let catalog = { categories: [], cases: [] };
   try {
-    wstg = await api.wstg();
+    catalog = await api.categories();
   } catch (err) {
-    host.innerHTML = `<div class="empty"><h3>Could not load the WSTG</h3><p>${h(err.message)}</p></div>`;
+    host.innerHTML = `<div class="empty"><h3>Could not load the categories</h3><p>${h(err.message)}</p></div>`;
     return;
   }
 
-  host.innerHTML = wstgSectionsHTML(wstg);
+  host.innerHTML = categorySectionsHTML(catalog);
   document
-    .querySelector('[data-catalog-new="wstg-category"]')
-    ?.addEventListener('click', () => openWstgCategoryEditor(null), { once: true });
+    .querySelector('[data-catalog-new="category-new"]')
+    ?.addEventListener('click', () => openCategoryEditor(null), { once: true });
 
-  host.querySelectorAll('[data-wstg-cat-edit]').forEach((b) =>
+  host.querySelectorAll('[data-cat-edit]').forEach((b) =>
     b.addEventListener('click', () => {
-      const row = wstg.categories.find((c) => c.code === b.dataset.wstgCatEdit);
-      if (row) openWstgCategoryEditor(row);
+      const row = catalog.categories.find((c) => c.code === b.dataset.catEdit);
+      if (row) openCategoryEditor(row);
     })
   );
-  host.querySelectorAll('[data-wstg-cat-del]').forEach((b) =>
+  host.querySelectorAll('[data-cat-del]').forEach((b) =>
     b.addEventListener('click', async () => {
-      const row = wstg.categories.find((c) => c.code === b.dataset.wstgCatDel);
+      const row = catalog.categories.find((c) => c.code === b.dataset.catDel);
       if (!row) return;
       const ok = await confirmDialog({
         title: `Delete ${row.code}?`,
-        message: `"${row.title}" will be removed from the WSTG. A category that still holds test cases, or that a guide cites, refuses the delete.`,
+        message: `"${row.title}" will be removed from the catalogue. A category that still holds cases, or that a guide cites, refuses the delete.`,
         confirmLabel: 'Delete category',
       });
       if (!ok) return;
       try {
-        await api.deleteWstgCategory(row.code);
+        await api.deleteCategory(row.code);
         toast('Category deleted');
-        await refreshWstg();
+        await refreshCategories();
       } catch (err) {
         toast(err.message, 'err');
       }
@@ -1030,7 +1030,7 @@ export async function refreshWstg() {
   );
 }
 
-function wstgCategoryEditorBody(row) {
+function categoryEditorBody(row) {
   const field = (id, label, value, readOnly) =>
     `<div class="field">
        <label for="wc-${id}">${label}</label>
@@ -1046,12 +1046,12 @@ function wstgCategoryEditorBody(row) {
     <p class="note-line">The code is what a guide cites and what a checklist section is named, so it cannot be renamed. The directory is the folder the case pages live in, like <code>05-Authorization</code>.</p>`;
 }
 
-function openWstgCategoryEditor(row) {
+function openCategoryEditor(row) {
   const editing = Boolean(row);
   const modal = openModal({
-    title: editing ? 'Edit WSTG category' : 'New WSTG category',
+    title: editing ? 'Edit category' : 'New category',
     subtitle: editing ? row.code : 'A category a guide can cite',
-    body: wstgCategoryEditorBody(row),
+    body: categoryEditorBody(row),
     footer: `<button class="btn" data-cancel>Cancel</button>
              <button class="btn btn-primary" data-save>${editing ? 'Save category' : 'Create category'}</button>`,
     initialFocus: editing ? '#wc-title' : '#wc-code',
@@ -1062,13 +1062,13 @@ function openWstgCategoryEditor(row) {
     event.currentTarget.disabled = true;
     try {
       if (editing) {
-        await api.updateWstgCategory(row.code, { title: value('title'), dir: value('dir') });
+        await api.updateCategory(row.code, { title: value('title'), dir: value('dir') });
       } else {
-        await api.createWstgCategory({ code: value('code'), title: value('title'), dir: value('dir') });
+        await api.createCategory({ code: value('code'), title: value('title'), dir: value('dir') });
       }
       modal.close();
       toast(editing ? 'Category saved' : 'Category created');
-      await refreshWstg();
+      await refreshCategories();
     } catch (err) {
       event.currentTarget.disabled = false;
       toast(err.message, 'err');

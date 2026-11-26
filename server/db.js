@@ -996,7 +996,7 @@ async function seedPropertiesIfEmpty() {
  * The rows a shipped template is written with.
  *
  * Every template carries its rows in this file, except the WSTG: that one is
- * written from the `wstg_cases` table, because the table is what the Admin panel
+ * written from the `cases` table, because the table is what the Admin panel
  * edits. A copy in code would make a checklist row that disagrees with the
  * citation a guide carries — two sources of truth for one method. `help` is empty on purpose: the guide that teaches the category is one
  * book button away, and inventing a pass criterion for 116 cases would be writing
@@ -1006,8 +1006,8 @@ async function templateItems(template) {
   if (template.key !== 'owasp-wstg') return template.items;
   const rows = await db.all(
     `SELECT c.code AS category, c.title AS category_title, i.code AS code, i.title AS title
-       FROM wstg_cases i
-       JOIN wstg_categories c ON c.code = i.category_code
+       FROM cases i
+       JOIN categories c ON c.code = i.category_code
       ORDER BY c.position, i.position, i.code`
   );
   return rows.map((one) => [
@@ -1177,7 +1177,7 @@ const DEFAULT_CHECKLISTS = [
       'The OWASP Web Security Testing Guide as published: twelve categories, 116 test cases. Attach it when the client asks for the method, not only the Top 10.',
     category: 'Web',
     isDefault: false,
-    // Filled at seed time from `wstg_cases` — see `templateItems`.
+    // Filled at seed time from `cases` — see `templateItems`.
     items: [],
   },
 ];
@@ -1477,7 +1477,7 @@ async function backfillGuideKeys() {
  *      server/knowledge.js once and never rewritten.
  * 26 — the WSTG arrives as a shipped checklist (116 test cases, twelve sections)
  *      and every guide cites the category its work lands in.
- * 27 — the WSTG is data (`wstg_categories`, `wstg_cases`) an admin owns, seeded
+ * 27 — the WSTG is data (`categories`, `cases`) an admin owns, seeded
  *      once from server/knowledge.js; the checklist template is written from it.
  * 28 — a checklist item was briefly given its own sub-item rows
  *      (`checklist_item_steps`); deleted again in 29, because the item *is* the
@@ -1491,8 +1491,11 @@ async function backfillGuideKeys() {
  *      JSON arrays of one-line entries: a step may hold a command, a table, or
  *      three lines. `reference` holds one link per line, so a guide can cite
  *      several pages.
+ * 32 — the catalog is `categories` and `cases`, not `wstg_categories` and
+ *      `wstg_cases`: it is a category tree a guide cites, whatever method it came
+ *      from, and the prefix promised a source the rows no longer have to share.
  */
-export const SCHEMA_VERSION = 31;
+export const SCHEMA_VERSION = 32;
 
 let appliedSchemaVersion = 0;
 
@@ -1536,6 +1539,7 @@ export async function initDatabase() {
       max: Number(process.env.PGPOOL_MAX || 10),
     });
     await db.waitUntilReady();
+    await renameCatalogTables();
     await db.exec(readSchema('postgres'));
     await migratePostgres();
     await migrateDocumentsKey();
@@ -1547,6 +1551,7 @@ export async function initDatabase() {
     const { createSqliteDriver } = await import('./drivers/sqlite.js');
     fs.mkdirSync(DATA_DIR, { recursive: true });
     driver = createSqliteDriver(path.join(DATA_DIR, 'app.db'));
+    await renameCatalogTables();
     // SQLite schema includes PRAGMA statements, so exec the file verbatim.
     await db.exec(readSchema('sqlite'));
     await migrateSqlite();
@@ -1565,7 +1570,7 @@ export async function initDatabase() {
   // Before the checklists: the WSTG template is written from these tables.
   // The rows themselves arrive with the schema seed (`server/schema/wstg.sql`).
   const wstg = await db.get(
-    'SELECT (SELECT COUNT(*) FROM wstg_categories) AS categories, (SELECT COUNT(*) FROM wstg_cases) AS cases'
+    'SELECT (SELECT COUNT(*) FROM categories) AS categories, (SELECT COUNT(*) FROM cases) AS cases'
   );
   const checklists = await syncSeededChecklists();
   // After the checklists exist, so a guide can point at the one it teaches.
@@ -1684,6 +1689,26 @@ async function tableExists(name) {
     name,
   ]);
   return Boolean(row);
+}
+
+/**
+ * The catalog used to be named after the guide it was seeded from
+ * (`wstg_categories`, `wstg_cases`). It is a plain category tree now, so the
+ * tables are `categories` and `cases`.
+ *
+ * This has to run before the schema does: `CREATE TABLE IF NOT EXISTS
+ * categories` would otherwise make an empty table first, and the rows would stay
+ * stranded under the old name.
+ */
+async function renameCatalogTables() {
+  for (const [from, to] of [
+    ['wstg_categories', 'categories'],
+    ['wstg_cases', 'cases'],
+  ]) {
+    if ((await tableExists(from)) && !(await tableExists(to))) {
+      await db.exec(`ALTER TABLE ${from} RENAME TO ${to}`);
+    }
+  }
 }
 
 async function columnExists(table, column) {

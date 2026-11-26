@@ -67,7 +67,7 @@ test('the shipped seed is twelve categories and the cases they publish', async (
   // after one boot IS the shipped contract: 116 rows in twelve sections is what the
   // checklist promises on the page.
   const categories = await db.all(
-    'SELECT code, dir, position FROM wstg_categories ORDER BY position, code'
+    'SELECT code, dir, position FROM categories ORDER BY position, code'
   );
   assert.deepEqual(
     categories.map((c) => c.code),
@@ -90,7 +90,7 @@ test('the shipped seed is twelve categories and the cases they publish', async (
     assert.ok(category.dir, `${category.code} has no directory`);
   }
 
-  const cases = await db.all('SELECT code, title, slug, category_code FROM wstg_cases');
+  const cases = await db.all('SELECT code, title, slug, category_code FROM cases');
   assert.equal(cases.length, 116, 'the seed lost a test case');
   for (const one of cases) {
     assert.match(one.code, /^WSTG-[A-Z]{4}-\d{2}$/, one.code);
@@ -113,7 +113,7 @@ test('the shipped seed is twelve categories and the cases they publish', async (
 });
 
 test('every case is seeded with its category and a page on wstg.owasp.org', async () => {
-  const { categories, cases } = await call('GET /api/wstg', admin);
+  const { categories, cases } = await call('GET /api/categories', admin);
   assert.equal(categories.length, 12);
   assert.equal(cases.length, 116);
   assert.equal(new Set(cases.map((c) => c.code)).size, 116, 'two test cases share a code');
@@ -178,14 +178,14 @@ test('a guide cites a category, and a case id is refused with the category named
 
 test('an admin adds a category and a case, and the guide citation follows it', async () => {
   // The reason the method is a table: a correction is an edit, not a release.
-  const added = await call('POST /api/wstg/categories', admin, {
+  const added = await call('POST /api/categories', admin, {
     body: { code: 'wstg-zzzz', title: 'Certification Checks', dir: '/20-Certification/' },
   });
   const category = added.categories.find((c) => c.code === 'WSTG-ZZZZ');
   assert.ok(category, 'a new category was not created');
   assert.equal(category.dir, '20-Certification', 'the directory keeps its slashes off');
 
-  const withCase = await call('POST /api/wstg/cases', admin, {
+  const withCase = await call('POST /api/cases', admin, {
     body: { code: 'wstg-zzzz-01', title: 'Check the certificate chain', slug: '01-Check_The_Chain' },
   });
   const one = withCase.cases.find((c) => c.code === 'WSTG-ZZZZ-01');
@@ -206,23 +206,23 @@ test('an admin adds a category and a case, and the guide citation follows it', a
   assert.ok(saved.guide.wstgUrl.endsWith('/20-Certification/'));
 
   // A case nobody asks about can be removed again.
-  await call('DELETE /api/wstg/cases/:code', admin, { params: { code: 'WSTG-ZZZZ-01' } });
+  await call('DELETE /api/cases/:code', admin, { params: { code: 'WSTG-ZZZZ-01' } });
   await call('PATCH /api/tests/:id', admin, { params: { id: guide.id }, body: { wstg: was } });
-  const gone = await call('DELETE /api/wstg/categories/:code', admin, { params: { code: 'WSTG-ZZZZ' } });
+  const gone = await call('DELETE /api/categories/:code', admin, { params: { code: 'WSTG-ZZZZ' } });
   assert.ok(!gone.categories.some((c) => c.code === 'WSTG-ZZZZ'));
 });
 
 test('a case a checklist row asks about, and a category that still holds cases, refuse deletion', async () => {
   await assert.rejects(
-    () => call('DELETE /api/wstg/cases/:code', admin, { params: { code: 'WSTG-ATHZ-04' } }),
+    () => call('DELETE /api/cases/:code', admin, { params: { code: 'WSTG-ATHZ-04' } }),
     { status: 409, message: /checklist row/ }
   );
   await assert.rejects(
-    () => call('DELETE /api/wstg/categories/:code', admin, { params: { code: 'WSTG-APIT' } }),
+    () => call('DELETE /api/categories/:code', admin, { params: { code: 'WSTG-APIT' } }),
     { status: 409, message: /test case/ }
   );
   await assert.rejects(
-    () => call('DELETE /api/wstg/categories/:code', admin, { params: { code: 'WSTG-ATHZ' } }),
+    () => call('DELETE /api/categories/:code', admin, { params: { code: 'WSTG-ATHZ' } }),
     { status: 409 }
   );
 });
@@ -230,11 +230,11 @@ test('a case a checklist row asks about, and a category that still holds cases, 
 test('a plain member cannot edit the method', async () => {
   const member = await asUser('bagas');
   await assert.rejects(
-    () => call('POST /api/wstg/categories', member, { body: { code: 'WSTG-ZZZZ', title: 'x' } }),
+    () => call('POST /api/categories', member, { body: { code: 'WSTG-ZZZZ', title: 'x' } }),
     { status: 403 }
   );
   await assert.rejects(
-    () => call('PATCH /api/wstg/cases/:code', member, {
+    () => call('PATCH /api/cases/:code', member, {
       params: { code: 'WSTG-ATHZ-04' },
       body: { title: 'Renamed' },
     }),

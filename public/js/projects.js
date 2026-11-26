@@ -1,6 +1,6 @@
 import { adminHTML, bindAdmin } from './admin.js';
 import { projectPageHTML } from './project-page.js';
-import { checklistEditorHTML, checklistsPageHTML, guidesPageHTML, wstgPageHTML } from './checklists.js';
+import { checklistEditorHTML, checklistsPageHTML, guidesPageHTML, categoriesPageHTML } from './checklists.js';
 import { bindFindings, bindTests, findingsPageHTML, testsPageHTML } from './library.js';
 import { bindDevices, devicesHTML } from './devices.js';
 import { bindDirectory, directoryHTML } from './directory.js';
@@ -410,9 +410,9 @@ export function mountContent() {
     setTitle(NAV.guides.title, NAV.guides.sub);
     return;
   }
-  if (state.nav === 'wstg') {
-    content.innerHTML = wstgPageHTML();
-    setTitle(NAV.wstg.title, NAV.wstg.sub);
+  if (state.nav === 'category') {
+    content.innerHTML = categoriesPageHTML();
+    setTitle(NAV.category.title, NAV.category.sub);
     return;
   }
 
