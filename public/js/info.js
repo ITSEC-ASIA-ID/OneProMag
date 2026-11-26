@@ -392,7 +392,7 @@ function infoFileRowHTML(file) {
 
 export function infoFilesHTML(sel, label) {
   const files = state.infoFiles || [];
-  return `<section class="doc-block" data-info-files>
+  return `<section class="doc-block" data-info-files data-info-file-drop>
     <div class="doc-head">
       <div class="doc-title">
         <span class="doc-glyph">${icon.fileText(15)}</span>
@@ -402,6 +402,7 @@ export function infoFilesHTML(sel, label) {
         </div>
       </div>
       <div class="doc-actions">
+        <span class="files-hint">or drop files here</span>
         <button class="btn btn-sm" data-info-file-add>${icon.upload(13)} Upload</button>
       </div>
     </div>
@@ -1310,6 +1311,41 @@ async function uploadInfoFile(sel, file) {
   });
 }
 
+/**
+ * Uploads a batch, then repaints once.
+ *
+ * Sequential on purpose: each file is base64 in one JSON body, and firing five of
+ * those at once is how a laptop on hotel wifi produces five timeouts instead of
+ * two successes. One failure does not abandon the rest of the drop.
+ */
+async function uploadInfoFiles(sel, list) {
+  const files = [...list];
+  const failed = [];
+  let done = 0;
+  for (const file of files) {
+    try {
+      toast(`Uploading ${file.name}…${files.length > 1 ? ` (${done + 1}/${files.length})` : ''}`);
+      await uploadInfoFile(sel, file);
+      done += 1;
+    } catch (err) {
+      failed.push(`${file.name}: ${err.message}`);
+    }
+  }
+  if (done) {
+    await reloadInfoFiles();
+    mountContent();
+  }
+  if (done === 1) toast('File uploaded');
+  else if (done > 1) toast(`${done} files uploaded`);
+  if (failed.length) toast(failed[0], 'err');
+}
+
+/** A drag that carries files, not text or a link. */
+function carriesFiles(event) {
+  const types = event.dataTransfer?.types;
+  return Boolean(types && [...types].includes('Files'));
+}
+
 /** Re-reads only the file list, so a delete does not reload the whole sheet. */
 export async function reloadInfoFiles() {
   const sel = infoSelected();
@@ -1358,11 +1394,7 @@ function bindInfoFiles() {
         input.remove();
         if (!file) return;
         try {
-          toast(`Uploading ${file.name}…`);
-          await uploadInfoFile(sel, file);
-          toast('File uploaded');
-          await reloadInfoFiles();
-          mountContent();
+          await uploadInfoFiles(sel, [file]);
         } catch (err) {
           toast(err.message, 'err');
         }
@@ -1371,6 +1403,46 @@ function bindInfoFiles() {
       input.click();
     })
   );
+
+  // Drag and drop. The whole block is the target, because aiming at a thin dashed
+  // box while carrying a file is a worse experience than "drop it on Files".
+  const zone = document.querySelector('[data-info-file-drop]');
+  if (zone) {
+    let depth = 0;
+    const clear = () => {
+      depth = 0;
+      zone.classList.remove('is-over');
+    };
+    zone.addEventListener('dragenter', (e) => {
+      if (!carriesFiles(e)) return;
+      e.preventDefault();
+      depth += 1;
+      zone.classList.add('is-over');
+    });
+    zone.addEventListener('dragover', (e) => {
+      if (!carriesFiles(e)) return;
+      // Without this the browser navigates away and opens the file itself.
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'copy';
+    });
+    zone.addEventListener('dragleave', (e) => {
+      if (!carriesFiles(e)) return;
+      depth -= 1;
+      if (depth <= 0 || !zone.contains(e.relatedTarget)) clear();
+    });
+    zone.addEventListener('drop', async (e) => {
+      if (!carriesFiles(e)) return;
+      e.preventDefault();
+      clear();
+      const dropped = [...(e.dataTransfer?.files || [])];
+      if (!dropped.length) return;
+      try {
+        await uploadInfoFiles(sel, dropped);
+      } catch (err) {
+        toast(err.message, 'err');
+      }
+    });
+  }
 
   document.querySelectorAll('[data-info-file-del]').forEach((b) =>
     b.addEventListener('click', async () => {

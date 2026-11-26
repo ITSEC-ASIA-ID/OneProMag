@@ -6581,6 +6581,16 @@ svg { display: block; }
 .files.is-over .files-hint {
   color: var(--accent);
 }
+/* The Information center's file block is a drop target too, but it borrows the
+   notes page's block shell, so the cue lives here instead of on `.files`. */
+.doc-block.is-over {
+  outline: 2px dashed var(--accent);
+  outline-offset: -4px;
+  border-radius: 12px;
+}
+.doc-block.is-over .files-hint {
+  color: var(--accent);
+}
 .ck-pick-now {
   font-size: 11px;
   font-weight: 500;
