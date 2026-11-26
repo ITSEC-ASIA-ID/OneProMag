@@ -1378,6 +1378,33 @@ test('a file on the Information center uploads, downloads byte-identical, and de
   assert.ok(!after.files.some((f) => f.id === created.file.id), 'the row survived the delete');
 });
 
+test('an information-center file may be bigger than a project attachment', async () => {
+  const user = await lead();
+  const { clients } = await call('GET /api/clients', user);
+  const scopeId = clients[0].id;
+  // 21 MB: over the attachment ceiling, under this one. It is written to disk,
+  // so it is deleted again before the test ends.
+  const bytes = Buffer.alloc(21 * 1024 * 1024, 0x42);
+  const created = await call('POST /api/info-files', user, {
+    body: { scope: 'client', scopeId, name: 'capture.pcap', data: bytes.toString('base64') },
+  });
+  assert.equal(created.file.size, bytes.length);
+  await call('DELETE /api/info-files/:id', user, { params: { id: created.file.id } });
+});
+
+test('an information-center upload over 50 MB is refused', async () => {
+  const user = await lead();
+  const { clients } = await call('GET /api/clients', user);
+  const bytes = Buffer.alloc(50 * 1024 * 1024 + 1, 0x41);
+  await assert.rejects(
+    () =>
+      call('POST /api/info-files', user, {
+        body: { scope: 'client', scopeId: clients[0].id, name: 'huge.bin', data: bytes.toString('base64') },
+      }),
+    (err) => err.status === 413 && /50 MB/.test(err.message)
+  );
+});
+
 test('an information-center upload names a real target and a real scope', async () => {
   const user = await lead();
   await assert.rejects(

@@ -1628,10 +1628,26 @@ download with a click, delete with a lead's account.
 | --- | --- |
 | Where the bytes live | `${DATA_DIR}/uploads/<projectId>/<uuid>` — a volume, not the database |
 | Where the facts live | `project_files`: name, mime, size, who uploaded it, stored name |
-| Limit | **20 MB per file**, checked in the browser and again on the server |
+| Limit | **20 MB per file**, checked in the browser and again on the server. A file on the Information center gets **50 MB** — see [Files on the Information center](#files-on-the-information-center) |
 | Upload | the **Upload** button, or drag files into the Files tab (a batch goes one file at a time) |
 | Transport | base64 JSON POST — no multipart dependency, one code path |
 | Download | `Content-Disposition: attachment`, `application/octet-stream`, never the stored mime |
+
+### Files on the Information center
+
+A client, an application or a variant can carry files too — the vendor's
+questionnaire, an exported scan, a packet capture taken during the test:
+
+| | |
+| --- | --- |
+| Where the bytes live | `${DATA_DIR}/uploads/info/<scope>-<id>/<uuid>` (scope is `client`, `application` or `variant`) |
+| Where the facts live | `info_files`: scope, scope id, name, mime, size, who uploaded it, stored name |
+| Limit | **50 MB per file** — engagement input is bigger than engagement paperwork |
+| Upload | the **Upload** button, or drag files onto the Files block (a batch goes one file at a time) |
+| Route | `POST /api/info-files` (body cap is base64-inflated: `ceil(50 MB × 4/3) + 64 KB`) |
+
+Deleting the client, application or variant deletes its rows and its directory —
+those bytes are reachable from nothing else, so nothing may survive them.
 
 **Why the filesystem and not the database.** Two hundred megabytes of reports in
 Postgres would make every nightly dump 200 MB, kept for `KEEP_DAYS`, and a big

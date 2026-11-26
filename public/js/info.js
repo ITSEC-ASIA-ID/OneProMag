@@ -1,5 +1,5 @@
 import { syncTableOverflow } from './devices.js';
-import { MAX_UPLOAD_BYTES, fmtSize } from './files.js';
+import { MAX_INFO_BYTES, fmtSize } from './files.js';
 import { mountContent } from './projects.js';
 import { canManageCatalog, root, state } from './state.js';
 import { api } from './api.js';
@@ -398,7 +398,7 @@ export function infoFilesHTML(sel, label) {
         <span class="doc-glyph">${icon.fileText(15)}</span>
         <div>
           <h3>Files <span class="note-count">${files.length}</span></h3>
-          <p class="doc-sub">Anything ${h(label)} has to carry — up to ${fmtSize(MAX_UPLOAD_BYTES)} each.</p>
+          <p class="doc-sub">Anything ${h(label)} has to carry — up to ${fmtSize(MAX_INFO_BYTES)} each.</p>
         </div>
       </div>
       <div class="doc-actions">
@@ -1288,8 +1288,8 @@ export async function refreshInfoCounts() {
  * this; the difference is only which target the row names.
  */
 async function uploadInfoFile(sel, file) {
-  if (file.size > MAX_UPLOAD_BYTES) {
-    throw new Error(`"${file.name}" is ${fmtSize(file.size)} — the limit is ${fmtSize(MAX_UPLOAD_BYTES)}`);
+  if (file.size > MAX_INFO_BYTES) {
+    throw new Error(`"${file.name}" is ${fmtSize(file.size)} — the limit is ${fmtSize(MAX_INFO_BYTES)}`);
   }
   const dataUrl = await new Promise((resolve, reject) => {
     const reader = new FileReader();

@@ -18,13 +18,23 @@ import { assertInfoScope, assertScopeExists } from './info.js';
  * backup has two artefacts instead of one — see deploy/backup.sh, which archives
  * this directory beside the dump. */
 
-const MAX_UPLOAD_BYTES = 20 * 1024 * 1024;
+export const MAX_UPLOAD_BYTES = 20 * 1024 * 1024;
+
+/**
+ * An information-center file is an input to the engagement, not its paperwork:
+ * a packet capture, a scan export, a vendor questionnaire dump. Those are an
+ * order of magnitude bigger than a scope PDF, so they get their own ceiling
+ * instead of raising everyone's.
+ */
+export const MAX_INFO_BYTES = 50 * 1024 * 1024;
 
 /** base64 inflates by 4/3; +64 KB of slack covers the rest of the envelope. */
 export const UPLOAD_BODY_LIMIT = Math.ceil((MAX_UPLOAD_BYTES * 4) / 3) + 64 * 1024;
+export const INFO_BODY_LIMIT = Math.ceil((MAX_INFO_BYTES * 4) / 3) + 64 * 1024;
 
 /** Refused before the transfer starts, so the message is about the file. */
 const SIZE_MESSAGE = `Files are limited to ${MAX_UPLOAD_BYTES / (1024 * 1024)} MB`;
+const INFO_SIZE_MESSAGE = `Files are limited to ${MAX_INFO_BYTES / (1024 * 1024)} MB`;
 
 function shapeFile(row) {
   return {
@@ -296,7 +306,7 @@ export const routes = {
 
     const bytes = Buffer.from(data, 'base64');
     if (!bytes.length) throw new HttpError(400, 'The file is empty');
-    if (bytes.length > MAX_UPLOAD_BYTES) throw new HttpError(413, SIZE_MESSAGE);
+    if (bytes.length > MAX_INFO_BYTES) throw new HttpError(413, INFO_SIZE_MESSAGE);
 
     const row = {
       scope,

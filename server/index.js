@@ -5,7 +5,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { api } from './api.js';
 import { HANDLED } from './shared.js';
-import { UPLOAD_BODY_LIMIT } from './routes/files.js';
+import { INFO_BODY_LIMIT, MAX_INFO_BYTES, MAX_UPLOAD_BYTES, UPLOAD_BODY_LIMIT } from './routes/files.js';
 import { initDatabase, db, bootstrapCredentials, DEMO_MODE } from './db.js';
 import { SECURITY_HEADERS } from './security.js';
 import {
@@ -81,8 +81,10 @@ async function readBody(req, limit = 1024 * 512) {
  * the body reader, means a route can never raise its own limit by accident.
  */
 const LARGE_BODIES = new Map([
-  ['POST /api/projects/:id/files', UPLOAD_BODY_LIMIT],
-  ['POST /api/info-files', UPLOAD_BODY_LIMIT],
+  // The body carries base64, so the body cap is not the file cap — carry both,
+  // and answer with the number the person can act on.
+  ['POST /api/projects/:id/files', { limit: UPLOAD_BODY_LIMIT, max: MAX_UPLOAD_BYTES }],
+  ['POST /api/info-files', { limit: INFO_BODY_LIMIT, max: MAX_INFO_BYTES }],
 ]);
 
 function matchRoute(method, pathname) {
@@ -291,13 +293,13 @@ const server = http.createServer(async (req, res) => {
       if (!route) return sendJSON(res, 404, { error: 'Endpoint not found' });
 
       const isMutation = method !== 'GET';
-      const limit = LARGE_BODIES.get(route.key);
-      if (limit && Number(req.headers['content-length'] || 0) > limit) {
+      const large = LARGE_BODIES.get(route.key);
+      if (large && Number(req.headers['content-length'] || 0) > large.limit) {
         // Refused before a byte of it is buffered, so the answer is about the file
         // the person chose rather than an opaque "payload too large" after a wait.
-        throw new HttpError(413, 'That file is too large — the limit is 20 MB');
+        throw new HttpError(413, `That file is too large — the limit is ${large.max / (1024 * 1024)} MB`);
       }
-      const body = isMutation ? await readBody(req, limit) : null;
+      const body = isMutation ? await readBody(req, large?.limit) : null;
       const result = await route.handler({
         user,
         params: route.params,

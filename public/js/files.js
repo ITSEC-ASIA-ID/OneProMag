@@ -20,6 +20,10 @@ import { confirmDialog, escapeHtml as h, fmtRelative, toast } from './ui.js';
    ============================================================ */
 export const MAX_UPLOAD_BYTES = 20 * 1024 * 1024;
 
+/** A file on the Information center is engagement input — a capture, a scan
+    export — so it gets a bigger ceiling than a project's attached paperwork. */
+export const MAX_INFO_BYTES = 50 * 1024 * 1024;
+
 const MB = 1024 * 1024;
 
 /** `132 KB`, `4.2 MB` — a size a person can compare, not a byte count. */
