@@ -1494,8 +1494,11 @@ async function backfillGuideKeys() {
  * 32 — the catalog is `categories` and `cases`, not `wstg_categories` and
  *      `wstg_cases`: it is a category tree a guide cites, whatever method it came
  *      from, and the prefix promised a source the rows no longer have to share.
+ * 33 — `info_files`: a client, an application or a variant can carry files, the
+ *      way a project can. The notes page is where the vendor's PDF and the
+ *      asset list were being pasted as links.
  */
-export const SCHEMA_VERSION = 32;
+export const SCHEMA_VERSION = 33;
 
 let appliedSchemaVersion = 0;
 

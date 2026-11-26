@@ -243,6 +243,8 @@ export const state = {
   doc: undefined,
   infoSearching: false,
   infoCounts: {},
+  // Files filed on the selected client / application / variant.
+  infoFiles: [],
   // Per-client open/closed choice for the target tree; absent means "decide from
   // the current selection". Kept in memory only — this is a view preference.
   infoOpen: {},

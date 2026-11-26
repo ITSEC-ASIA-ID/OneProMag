@@ -106,6 +106,23 @@ CREATE TABLE IF NOT EXISTS documents (
   PRIMARY KEY (scope, scope_id, env)
 );
 
+-- Files on the Information center, keyed by (scope, scope_id) rather than a
+-- project: the bytes live on disk under UPLOAD_DIR/info/<scope>-<scopeId>/ and
+-- this row is the index.
+CREATE TABLE IF NOT EXISTS info_files (
+  id          SERIAL PRIMARY KEY,
+  scope       TEXT NOT NULL,
+  scope_id    INTEGER NOT NULL,
+  name        TEXT NOT NULL,
+  mime        TEXT NOT NULL DEFAULT '',
+  size        INTEGER NOT NULL DEFAULT 0,
+  stored_name TEXT NOT NULL,
+  uploaded_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  created_at  TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS info_files_scope ON info_files (scope, scope_id);
+
 CREATE TABLE IF NOT EXISTS devices (
   id         SERIAL PRIMARY KEY,
   kind       TEXT NOT NULL DEFAULT 'Android',

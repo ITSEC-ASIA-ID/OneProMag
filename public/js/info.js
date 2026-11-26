@@ -1,6 +1,7 @@
 import { syncTableOverflow } from './devices.js';
+import { MAX_UPLOAD_BYTES, fmtSize } from './files.js';
 import { mountContent } from './projects.js';
-import { root, state } from './state.js';
+import { canManageCatalog, root, state } from './state.js';
 import { api } from './api.js';
 import { icon } from './icons.js';
 import {
@@ -287,7 +288,16 @@ export function infoDocsHTML(sel) {
 
   let textBody;
   if (editingText) {
-    textBody = `<textarea class="textarea code doc-textarea" id="doc-text" rows="12"
+    // Three heading types, because a note is a document and a document needs a
+    // shape. Typing `#` still works — the buttons exist so nobody has to remember
+    // how many hashes a given size takes.
+    textBody = `<div class="md-tools" role="toolbar" aria-label="Headings">
+        <span class="md-tools-label">Heading</span>
+        <button type="button" class="btn btn-sm" data-md-heading="1" title="Heading 1">H1</button>
+        <button type="button" class="btn btn-sm" data-md-heading="2" title="Heading 2">H2</button>
+        <button type="button" class="btn btn-sm" data-md-heading="3" title="Heading 3">H3</button>
+      </div>
+      <textarea class="textarea code doc-textarea" id="doc-text" rows="12"
       placeholder="Markdown. Headings, lists, **bold**, code, fenced blocks, tables and links…">${h(doc.text)}</textarea>
       <span class="hint">Markdown: <code># heading</code>, <code>- list</code>, <code>**bold**</code>,
         <code>\`code\`</code>, <code>[text](url)</code>, <code>| table |</code>. Wrap anything that must
@@ -350,7 +360,62 @@ export function infoDocsHTML(sel) {
 
   // Table first, notes below it — the short scannable block above the long prose.
   return `<section class="doc-block${editingTable ? ' is-editing' : ''}">${tableHead}<div class="doc-body" data-doc-body="table">${tableBody}</div>${stamp}</section>
-    <section class="doc-block${editingText ? ' is-editing' : ''}">${textHead}<div class="doc-body">${textBody}</div></section>`;
+    <section class="doc-block${editingText ? ' is-editing' : ''}">${textHead}<div class="doc-body">${textBody}</div></section>
+    ${infoFilesHTML(sel, label)}`;
+}
+
+
+/**
+ * Files on this target: the asset list, a screenshot, the vendor's PDF.
+ *
+ * Same shape as a project's attachments — the row is the index, the bytes are on
+ * the server and the download is the server's own answer — because a second way
+ * to do uploads is a second way to get them wrong.
+ */
+function infoFileRowHTML(file) {
+  const href = `/api/info-files/${file.id}/download`;
+  const who = file.uploadedByName ? ` · ${h(file.uploadedByName)}` : '';
+  return `<li class="file-row" data-info-file="${file.id}">
+    <span class="file-icon">${icon.fileText(16)}</span>
+    <div class="file-text">
+      <a class="file-name" href="${href}" download>${h(file.name)}</a>
+      <div class="file-meta">${fmtSize(file.size)}${who} · ${h(fmtRelative(file.createdAt))}</div>
+    </div>
+    <a class="btn btn-icon" href="${href}" download title="Download" aria-label="Download ${h(file.name)}">${icon.download()}</a>
+    ${
+      canManageCatalog()
+        ? `<button class="btn btn-icon btn-icon-danger" data-info-file-del="${file.id}" title="Delete file" aria-label="Delete ${h(file.name)}">${icon.trash()}</button>`
+        : ''
+    }
+  </li>`;
+}
+
+export function infoFilesHTML(sel, label) {
+  const files = state.infoFiles || [];
+  return `<section class="doc-block" data-info-files>
+    <div class="doc-head">
+      <div class="doc-title">
+        <span class="doc-glyph">${icon.fileText(15)}</span>
+        <div>
+          <h3>Files <span class="note-count">${files.length}</span></h3>
+          <p class="doc-sub">Anything ${h(label)} has to carry — up to ${fmtSize(MAX_UPLOAD_BYTES)} each.</p>
+        </div>
+      </div>
+      <div class="doc-actions">
+        <button class="btn btn-sm" data-info-file-add>${icon.upload(13)} Upload</button>
+      </div>
+    </div>
+    <div class="doc-body">
+      ${
+        files.length
+          ? `<ul class="file-list">${files.map(infoFileRowHTML).join('')}</ul>`
+          : `<div class="doc-empty">
+               <p>No files yet.</p>
+               <button class="btn btn-sm" data-info-file-add>${icon.upload(13)} Upload a file</button>
+             </div>`
+      }
+    </div>
+  </section>`;
 }
 
 
@@ -1126,6 +1191,7 @@ export async function loadInfoPage() {
   const sel = infoSelected();
   if (!sel) {
     state.info = [];
+    state.infoFiles = [];
     mountContent();
     await refreshInfoCounts();
     if (state.nav === 'info') mountContent();
@@ -1143,17 +1209,20 @@ export async function loadInfo(scope, scopeId, env = 'Dev') {
     // Both halves in flight together: the notes list and the fixed document are
     // always shown side by side, so loading them in sequence would double the
     // perceived wait for no reason.
-    const [res, docRes] = await Promise.all([
+    const [res, docRes, filesRes] = await Promise.all([
       api.info(scope, scopeId, env),
       api.doc(scope, scopeId, env),
+      api.infoFiles(scope, scopeId),
     ]);
     state.info = res.entries;
     state.doc = docRes.doc;
     state.docEnv = env;
+    state.infoFiles = filesRes.files;
   } catch (err) {
     toast(err.message, 'err');
     state.info = [];
     state.doc = undefined;
+    state.infoFiles = [];
   }
 }
 
@@ -1213,6 +1282,118 @@ export async function refreshInfoCounts() {
 }
 
 
+/**
+ * Reads a file into base64, then posts it. The project attachments do exactly
+ * this; the difference is only which target the row names.
+ */
+async function uploadInfoFile(sel, file) {
+  if (file.size > MAX_UPLOAD_BYTES) {
+    throw new Error(`"${file.name}" is ${fmtSize(file.size)} — the limit is ${fmtSize(MAX_UPLOAD_BYTES)}`);
+  }
+  const dataUrl = await new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || ''));
+    reader.onerror = () => reject(new Error(`Could not read "${file.name}"`));
+    reader.readAsDataURL(file);
+  });
+  const comma = dataUrl.indexOf(',');
+  const data = comma >= 0 ? dataUrl.slice(comma + 1) : '';
+  if (!data) throw new Error(`"${file.name}" looks empty`);
+  await api.uploadInfoFile({
+    scope: sel.scope,
+    scopeId: sel.scopeId,
+    name: file.name,
+    // The browser's guess is a hint for the list, never the download type: the
+    // server always answers application/octet-stream.
+    mime: file.type || 'application/octet-stream',
+    data,
+  });
+}
+
+/** Re-reads only the file list, so a delete does not reload the whole sheet. */
+export async function reloadInfoFiles() {
+  const sel = infoSelected();
+  if (!sel) {
+    state.infoFiles = [];
+    return;
+  }
+  state.infoFiles = (await api.infoFiles(sel.scope, sel.scopeId)).files;
+}
+
+/**
+ * Applies one of the three heading types to the line the caret sits on.
+ *
+ * Clicking the same button twice removes it again, and switching from H2 to H1
+ * replaces the hashes instead of stacking them — a heading is a property of the
+ * line, not something you add to it.
+ */
+function applyHeading(area, level) {
+  const hashes = '#'.repeat(Math.min(6, Math.max(1, level)));
+  const text = area.value;
+  const start = text.lastIndexOf('\n', Math.max(0, area.selectionStart - 1)) + 1;
+  const end = text.indexOf('\n', area.selectionStart);
+  const lineEnd = end < 0 ? text.length : end;
+  const line = text.slice(start, lineEnd);
+  const bare = line.replace(/^\s*#{1,6}\s+/, '');
+  const current = (line.match(/^\s*(#{1,6})\s+/) || [])[1] || '';
+  const next = current === hashes ? bare : `${hashes} ${bare}`;
+  area.value = text.slice(0, start) + next + text.slice(lineEnd);
+  const caret = start + next.length;
+  area.focus();
+  area.setSelectionRange(caret, caret);
+  return next;
+}
+
+function bindInfoFiles() {
+  const sel = infoSelected();
+  if (!sel) return;
+
+  document.querySelectorAll('[data-info-file-add]').forEach((b) =>
+    b.addEventListener('click', () => {
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.className = 'sr-only';
+      input.addEventListener('change', async () => {
+        const file = input.files && input.files[0];
+        input.remove();
+        if (!file) return;
+        try {
+          toast(`Uploading ${file.name}…`);
+          await uploadInfoFile(sel, file);
+          toast('File uploaded');
+          await reloadInfoFiles();
+          mountContent();
+        } catch (err) {
+          toast(err.message, 'err');
+        }
+      });
+      document.body.appendChild(input);
+      input.click();
+    })
+  );
+
+  document.querySelectorAll('[data-info-file-del]').forEach((b) =>
+    b.addEventListener('click', async () => {
+      const file = (state.infoFiles || []).find((f) => f.id === Number(b.dataset.infoFileDel));
+      if (!file) return;
+      const ok = await confirmDialog({
+        title: 'Delete file?',
+        message: `"${file.name}" will be deleted. This cannot be undone.`,
+        confirmLabel: 'Delete file',
+      });
+      if (!ok) return;
+      try {
+        await api.deleteInfoFile(file.id);
+        toast('File deleted');
+        await reloadInfoFiles();
+        mountContent();
+      } catch (err) {
+        toast(err.message, 'err');
+      }
+    })
+  );
+}
+
 export function bindDocs() {
   document.querySelectorAll('[data-doc-edit]').forEach((b) =>
     b.addEventListener('click', () => {
@@ -1241,6 +1422,9 @@ export function bindDocs() {
 
   const textarea = document.getElementById('doc-text');
   if (textarea) {
+    document.querySelectorAll('[data-md-heading]').forEach((b) =>
+      b.addEventListener('click', () => applyHeading(textarea, Number(b.dataset.mdHeading)))
+    );
     textarea.addEventListener('keydown', (e) => {
       if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') saveDoc('text');
       if (e.key === 'Escape') {
@@ -1263,6 +1447,8 @@ export function bindDocs() {
       if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') saveDoc('table');
     });
   }
+
+  bindInfoFiles();
 
   // The rendered (non-editing) sheet is the Devices table, so it owns the same
   // overflow cue. Nothing else to wire: its controls live in the editor behind

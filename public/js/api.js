@@ -57,6 +57,13 @@ export const api = {
       ...payload,
     }),
   createInfo: (payload) => request('POST', '/api/info', payload),
+  infoFiles: (scope, scopeId) =>
+    request(
+      'GET',
+      `/api/info-files?scope=${encodeURIComponent(scope)}&scopeId=${Number(scopeId)}`
+    ),
+  uploadInfoFile: (payload) => request('POST', '/api/info-files', payload),
+  deleteInfoFile: (id) => request('DELETE', `/api/info-files/${Number(id)}`),
   updateInfo: (id, payload) => request('PATCH', `/api/info/${id}`, payload),
   deleteInfo: (id) => request('DELETE', `/api/info/${id}`),
   createSupervisor: (payload) => request('POST', '/api/supervisors', payload),

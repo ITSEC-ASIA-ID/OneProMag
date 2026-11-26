@@ -80,7 +80,10 @@ async function readBody(req, limit = 1024 * 512) {
  * for the one endpoint that carries a file. Keeping the exception here, next to
  * the body reader, means a route can never raise its own limit by accident.
  */
-const LARGE_BODIES = new Map([['POST /api/projects/:id/files', UPLOAD_BODY_LIMIT]]);
+const LARGE_BODIES = new Map([
+  ['POST /api/projects/:id/files', UPLOAD_BODY_LIMIT],
+  ['POST /api/info-files', UPLOAD_BODY_LIMIT],
+]);
 
 function matchRoute(method, pathname) {
   const key = `${method} ${pathname}`;

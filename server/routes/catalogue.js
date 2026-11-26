@@ -8,6 +8,7 @@ import {
 } from '../shared.js';
 import { db } from '../db.js';
 import { HttpError, nowISO } from '../auth.js';
+import { purgeInfoFileDirs } from './files.js';
 
 
 /* ============================================================
@@ -191,7 +192,10 @@ async function purgeInfoFor(tx, scope, ids) {
   const list = (ids || []).map(Number).filter(Boolean);
   if (!list.length) return;
   const marks = list.map(() => '?').join(',');
-  for (const table of ['info_entries', 'documents']) {
+  // `info_files` rows go with the notes, but their bytes are on disk: the caller
+  // removes the directories with purgeInfoFileDirs() once the transaction has
+  // committed, because a file tree is not something a transaction can roll back.
+  for (const table of ['info_entries', 'documents', 'info_files']) {
     await tx.run(`DELETE FROM ${table} WHERE scope = ? AND scope_id IN (${marks})`, [scope, ...list]);
   }
 }
@@ -450,12 +454,14 @@ export const routes = {
         `Cannot delete: ${used.n} project(s) still use this client. Reassign or delete them first.`
       );
     }
+    let appIds = [];
+    let variantIds = [];
     await db.transaction(async (tx) => {
       // The child ids MUST be read before the client row goes: applications and
       // variants declare ON DELETE CASCADE, so deleting the client erases them
       // first and a later lookup returns nothing, silently leaking their notes.
       const apps = await tx.all('SELECT id FROM applications WHERE client_id = ?', [row.id]);
-      const appIds = apps.map((a) => Number(a.id));
+      appIds = apps.map((a) => Number(a.id));
       const variants = appIds.length
         ? await tx.all(
             `SELECT id FROM application_variants WHERE application_id IN (${appIds
@@ -464,15 +470,17 @@ export const routes = {
             appIds
           )
         : [];
+      variantIds = variants.map((v) => Number(v.id));
       await tx.run('DELETE FROM clients WHERE id = ?', [row.id]);
       await purgeInfoFor(tx, 'client', [row.id]);
       await purgeInfoFor(tx, 'application', appIds);
-      await purgeInfoFor(
-        tx,
-        'variant',
-        variants.map((v) => Number(v.id))
-      );
+      await purgeInfoFor(tx, 'variant', variantIds);
     });
+    // The rows are gone; the bytes are not in the database, so they are removed
+    // here, after the commit that made them unreachable.
+    await purgeInfoFileDirs('client', [row.id]);
+    await purgeInfoFileDirs('application', appIds);
+    await purgeInfoFileDirs('variant', variantIds);
     return { ok: true };
   },
 
@@ -636,6 +644,7 @@ export const routes = {
       await tx.run('DELETE FROM application_variants WHERE id = ?', [row.id]);
       await purgeInfoFor(tx, 'variant', [row.id]);
     });
+    await purgeInfoFileDirs('variant', [row.id]);
     return { ok: true };
   },
 
@@ -651,6 +660,7 @@ export const routes = {
         `Cannot delete: ${used.n} project(s) still use this application. Reassign or delete them first.`
       );
     }
+    let variantIds = [];
     await db.transaction(async (tx) => {
       // The variant ids have to be read first: application_variants declares
       // ON DELETE CASCADE, so after the application row goes there is nothing left
@@ -658,14 +668,13 @@ export const routes = {
       const variants = await tx.all('SELECT id FROM application_variants WHERE application_id = ?', [
         row.id,
       ]);
+      variantIds = variants.map((v) => Number(v.id));
       await tx.run('DELETE FROM applications WHERE id = ?', [row.id]);
       await purgeInfoFor(tx, 'application', [row.id]);
-      await purgeInfoFor(
-        tx,
-        'variant',
-        variants.map((v) => Number(v.id))
-      );
+      await purgeInfoFor(tx, 'variant', variantIds);
     });
+    await purgeInfoFileDirs('application', [row.id]);
+    await purgeInfoFileDirs('variant', variantIds);
     return { ok: true };
   },
 };

@@ -1329,6 +1329,90 @@ test('deleting a project takes its attachment bytes with it', async () => {
   assert.ok(!fs.existsSync(dir), 'the upload directory must not outlive its project');
 });
 
+test('a file on the Information center uploads, downloads byte-identical, and deletes', async () => {
+  const user = await lead();
+  const { clients } = await call('GET /api/clients', user);
+  const scopeId = clients[0].id;
+  const payload = Buffer.from('asset list\nweb01,web02\n', 'utf8');
+
+  const created = await call('POST /api/info-files', user, {
+    body: { scope: 'client', scopeId, name: 'Asset list.csv', mime: 'text/csv', data: payload.toString('base64') },
+  });
+  assert.equal(created.file.name, 'Asset list.csv');
+  assert.equal(created.file.size, payload.length);
+  assert.equal(created.file.scope, 'client');
+  assert.equal(created.file.scopeId, scopeId);
+
+  const listed = await call('GET /api/info-files', user, { query: { scope: 'client', scopeId } });
+  assert.ok(listed.files.some((f) => f.id === created.file.id), 'uploaded file is not listed');
+
+  const chunks = [];
+  const res = new Writable({
+    write(chunk, _enc, next) {
+      chunks.push(chunk);
+      next();
+    },
+  });
+  res.writeHead = (status, headers) => {
+    res.status = status;
+    res.headers = headers;
+  };
+  const result = await api['GET /api/info-files/:id/download']({
+    user,
+    params: { id: created.file.id },
+    query: {},
+    body: null,
+    res,
+  });
+  assert.equal(result, HANDLED, 'a streaming handler must not return a JSON body');
+  assert.equal(res.status, 200);
+  assert.match(res.headers['Content-Disposition'], /^attachment;/);
+  assert.deepEqual(Buffer.concat(chunks), payload, 'download is not byte-identical');
+
+  const dir = path.join(DATA_DIR, 'uploads', 'info', `client-${scopeId}`);
+  assert.equal(fs.readdirSync(dir).length, 1, 'expected exactly one stored file');
+
+  await call('DELETE /api/info-files/:id', user, { params: { id: created.file.id } });
+  assert.equal(fs.existsSync(dir), false, 'deleting the last file must delete the bytes and the folder');
+  const after = await call('GET /api/info-files', user, { query: { scope: 'client', scopeId } });
+  assert.ok(!after.files.some((f) => f.id === created.file.id), 'the row survived the delete');
+});
+
+test('an information-center upload names a real target and a real scope', async () => {
+  const user = await lead();
+  await assert.rejects(
+    () => call('POST /api/info-files', user, { body: { scope: 'galaxy', scopeId: 1, name: 'x', data: 'AA==' } }),
+    { status: 400 }
+  );
+  await assert.rejects(
+    () => call('POST /api/info-files', user, { body: { scope: 'client', scopeId: 999999, name: 'x', data: 'AA==' } }),
+    { status: 404 }
+  );
+  await assert.rejects(
+    () =>
+      call('POST /api/info-files', user, {
+        body: { scope: 'client', scopeId: 1, name: 'x', data: '' },
+      }),
+    { status: 400 }
+  );
+});
+
+test('deleting a client takes its files with it', async () => {
+  const admin = await asUser('admin');
+  const { client } = await call('POST /api/clients', admin, { body: { name: 'Info file purge check' } });
+  const scopeId = client.id;
+  await call('POST /api/info-files', admin, {
+    body: { scope: 'client', scopeId, name: 'vendor.pdf', data: Buffer.from('hello').toString('base64') },
+  });
+  const dir = path.join(DATA_DIR, 'uploads', 'info', `client-${scopeId}`);
+  assert.equal(fs.readdirSync(dir).length, 1);
+
+  await call('DELETE /api/clients/:id', admin, { params: { id: client.id } });
+  assert.equal(fs.existsSync(dir), false, 'the upload directory must not outlive its client');
+  const { clients } = await call('GET /api/clients', admin);
+  assert.ok(!clients.some((c) => c.id === client.id));
+});
+
 test('a fresh install arrives with the current OWASP lists, each the default of its category', async () => {
   const user = await member();
   const { checklists } = await call('GET /api/checklists', user);

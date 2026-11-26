@@ -127,6 +127,25 @@ CREATE TABLE IF NOT EXISTS documents (
   PRIMARY KEY (scope, scope_id, env)
 );
 
+-- Files on the Information center: the client's asset list, a screenshot of the
+-- login page, the vendor's PDF. Same shape as project_files — the bytes live on
+-- disk under UPLOAD_DIR/info/<scope>-<scopeId>/ and this row is the index — but
+-- keyed by (scope, scope_id) instead of a project, because what they hang off is
+-- a client, an application or one variant of an application.
+CREATE TABLE IF NOT EXISTS info_files (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  scope       TEXT NOT NULL,
+  scope_id    INTEGER NOT NULL,
+  name        TEXT NOT NULL,
+  mime        TEXT NOT NULL DEFAULT '',
+  size        INTEGER NOT NULL DEFAULT 0,
+  stored_name TEXT NOT NULL,
+  uploaded_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  created_at  TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS info_files_scope ON info_files (scope, scope_id);
+
 -- Device inventory: the phones, tablets and EDC terminals the team tests with.
 --
 -- The columns here are the UNION of the four kinds' fields, not a per-kind table,

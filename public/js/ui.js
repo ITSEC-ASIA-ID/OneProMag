@@ -862,17 +862,23 @@ export function renderMarkdown(source) {
 
     // Lists: consecutive items of the same kind become one list.
     const bullet = /^\s*[-*+]\s+(.*)$/;
-    const numbered = /^\s*\d+[.)]\s+(.*)$/;
+    const numbered = /^\s*(\d+)[.)]\s+(.*)$/;
     if (bullet.test(line) || numbered.test(line)) {
       const ordered = numbered.test(line);
       const re = ordered ? numbered : bullet;
       const items = [];
+      let start = 1;
       while (i < lines.length && re.test(lines[i])) {
-        items.push(re.exec(lines[i])[1]);
+        const m = re.exec(lines[i]);
+        // A list keeps the number it was written with. `<ol>` counts from 1 on
+        // its own, which is why a note whose first line read "2." showed "1.".
+        if (ordered && !items.length) start = Number(m[1]);
+        items.push(ordered ? m[2] : m[1]);
         i += 1;
       }
       const tag = ordered ? 'ol' : 'ul';
-      out.push(`<${tag} class="md-list">${items.map((t) => `<li>${inline(t)}</li>`).join('')}</${tag}>`);
+      const from = ordered && start > 1 ? ` start="${start}"` : '';
+      out.push(`<${tag} class="md-list"${from}>${items.map((t) => `<li>${inline(t)}</li>`).join('')}</${tag}>`);
       continue;
     }
 

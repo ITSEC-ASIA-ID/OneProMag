@@ -4031,6 +4031,19 @@ svg { display: block; }
 }
 .doc-text { max-height: 340px; overflow: auto; }
 .doc-textarea { width: 100%; min-height: 190px; }
+/* The three heading buttons above the notes editor: a row, not a formatting bar.
+   They act on the line the caret is on, so they sit with the field they change. */
+.md-tools {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 8px;
+}
+.md-tools-label {
+  font-size: 11.5px;
+  color: var(--faint);
+  margin-right: 2px;
+}
 .doc-empty { text-align: center; padding: 10px 0 4px; }
 .doc-empty p { margin: 0 0 9px; font-size: 12.5px; color: var(--faint); }
 .doc-foot { padding: 0 13px 11px; font-size: 11.5px; color: var(--faint); }

@@ -10,7 +10,8 @@ import { HttpError, nowISO } from '../auth.js';
 const INFO_SCOPES = new Set(['client', 'application', 'variant']);
 
 
-function assertInfoScope(scope) {
+/** Exported because the file routes hang off the same three targets. */
+export function assertInfoScope(scope) {
   if (!INFO_SCOPES.has(scope)) {
     throw new HttpError(400, "Scope must be 'client', 'application' or 'variant'");
   }
@@ -19,9 +20,10 @@ function assertInfoScope(scope) {
 
 /**
  * A note can only hang off a target that really exists; without this a typo'd
- * scopeId would silently create orphan notes nothing links to.
+ * scopeId would silently create orphan notes nothing links to. Exported for the
+ * file routes, which ask the same question before storing bytes.
  */
-async function assertScopeExists(scope, scopeId) {
+export async function assertScopeExists(scope, scopeId) {
   const table =
     scope === 'client' ? 'clients' : scope === 'variant' ? 'application_variants' : 'applications';
   const row = await db.get(`SELECT id FROM ${table} WHERE id = ?`, [scopeId]);
