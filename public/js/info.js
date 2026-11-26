@@ -288,20 +288,32 @@ export function infoDocsHTML(sel) {
 
   let textBody;
   if (editingText) {
-    // Three heading types, because a note is a document and a document needs a
-    // shape. Typing `#` still works — the buttons exist so nobody has to remember
-    // how many hashes a given size takes.
-    textBody = `<div class="md-tools" role="toolbar" aria-label="Headings">
+    // A note is a document, and a document is more than headings. Typing the
+    // Markdown still works — the buttons exist so nobody has to remember whether
+    // emphasis is one asterisk or two.
+    textBody = `<div class="md-tools" role="toolbar" aria-label="Formatting">
         <span class="md-tools-label">Heading</span>
-        <button type="button" class="btn btn-sm" data-md-heading="1" title="Heading 1">H1</button>
-        <button type="button" class="btn btn-sm" data-md-heading="2" title="Heading 2">H2</button>
-        <button type="button" class="btn btn-sm" data-md-heading="3" title="Heading 3">H3</button>
+        <button type="button" class="btn btn-sm" data-md-heading="1" title="Heading 1 (Ctrl/⌘+1)">H1</button>
+        <button type="button" class="btn btn-sm" data-md-heading="2" title="Heading 2 (Ctrl/⌘+2)">H2</button>
+        <button type="button" class="btn btn-sm" data-md-heading="3" title="Heading 3 (Ctrl/⌘+3)">H3</button>
+        <span class="md-tools-sep"></span>
+        <button type="button" class="btn btn-sm" data-md-action="bold" title="Bold (Ctrl/⌘+B)"><b>B</b></button>
+        <button type="button" class="btn btn-sm" data-md-action="italic" title="Italic (Ctrl/⌘+I)"><i>I</i></button>
+        <button type="button" class="btn btn-sm" data-md-action="code" title="Inline code"><code>&#96;</code></button>
+        <span class="md-tools-sep"></span>
+        <button type="button" class="btn btn-sm" data-md-action="bullet" title="Bulleted list">• List</button>
+        <button type="button" class="btn btn-sm" data-md-action="number" title="Numbered list">1. List</button>
+        <button type="button" class="btn btn-sm" data-md-action="quote" title="Quote">❝</button>
+        <span class="md-tools-sep"></span>
+        <button type="button" class="btn btn-sm" data-md-action="link" title="Link (Ctrl/⌘+K)">Link</button>
+        <button type="button" class="btn btn-sm" data-md-action="rule" title="Horizontal rule">—</button>
       </div>
       <textarea class="textarea code doc-textarea" id="doc-text" rows="12"
       placeholder="Markdown. Headings, lists, **bold**, code, fenced blocks, tables and links…">${h(doc.text)}</textarea>
       <span class="hint">Markdown: <code># heading</code>, <code>- list</code>, <code>**bold**</code>,
-        <code>\`code\`</code>, <code>[text](url)</code>, <code>| table |</code>. Wrap anything that must
-        keep its exact alignment in a <code>\`\`\`</code> fence. Ctrl/⌘+Enter saves.</span>`;
+        <code>\`code\`</code>, <code>[text](url)</code>, <code>&gt; quote</code>, <code>| table |</code>.
+        Wrap anything that must keep its exact alignment in a <code>\`\`\`</code> fence.
+        Ctrl/⌘+B, +I, +K and +1/+2/+3 format; Ctrl/⌘+Enter saves.</span>`;
   } else if (doc.text.trim()) {
     // Markdown, not a <pre>: the sheet is long prose and headings/lists/bold make
     // it scannable. A fenced code block keeps its exact alignment, which is what
@@ -1417,6 +1429,104 @@ function applyHeading(area, level) {
   return next;
 }
 
+/**
+ * Wraps what is selected, or the placeholder, in a pair of Markdown markers.
+ *
+ * Selection is kept on the inner text afterwards, so a second click on Bold
+ * removes what the first one added instead of stacking asterisks.
+ */
+function wrapSelection(area, before, after, placeholder) {
+  const { selectionStart: start, selectionEnd: end, value } = area;
+  const picked = value.slice(start, end) || placeholder;
+  // Pressing Bold twice has to give the text back. Two shapes count as "already
+  // bold": the selection carries its own markers, or it sits between a pair.
+  const selfMarked =
+    picked.length > before.length + after.length && picked.startsWith(before) && picked.endsWith(after);
+  const outside =
+    value.slice(Math.max(0, start - before.length), start) === before &&
+    value.slice(end, end + after.length) === after;
+  if (selfMarked || outside) {
+    const from = selfMarked ? start : start - before.length;
+    const inner = selfMarked ? picked.slice(before.length, picked.length - after.length) : picked;
+    const to = selfMarked ? end : end + after.length;
+    const next = value.slice(0, from) + inner + value.slice(to);
+    area.value = next;
+    area.focus();
+    area.setSelectionRange(from, from + inner.length);
+    return next;
+  }
+  const next = before + picked + after;
+  area.value = value.slice(0, start) + next + value.slice(end);
+  area.focus();
+  const from = start + before.length;
+  area.setSelectionRange(from, from + picked.length);
+  return next;
+}
+
+/**
+ * Adds (or removes) a marker at the start of every line the selection touches.
+ *
+ * A list is a property of the block, so clicking `• List` twice gives the text
+ * back rather than a list of lists.
+ */
+function prefixLines(area, marker, strip) {
+  const { selectionStart: start, selectionEnd: end, value } = area;
+  const from = value.lastIndexOf('\n', Math.max(0, start - 1)) + 1;
+  const found = value.indexOf('\n', end);
+  const to = found < 0 ? value.length : found;
+  const lines = value.slice(from, to).split('\n');
+  const on = lines.every((line) => strip.test(line));
+  const next = lines
+    .map((line, i) => {
+      const bare = line.replace(strip, '');
+      return on ? bare : (typeof marker === 'function' ? marker(i) : marker) + bare;
+    })
+    .join('\n');
+  area.value = value.slice(0, from) + next + value.slice(to);
+  area.focus();
+  const caret = from + next.length;
+  area.setSelectionRange(caret, caret);
+  return next;
+}
+
+/** One toolbar button, one edit. Keys are the `data-md-action` values. */
+function applyFormat(area, action) {
+  switch (action) {
+    case 'bold':
+      return wrapSelection(area, '**', '**', 'bold text');
+    case 'italic':
+      return wrapSelection(area, '*', '*', 'italic text');
+    case 'code':
+      return wrapSelection(area, '`', '`', 'code');
+    case 'bullet':
+      return prefixLines(area, '- ', /^\s*[-*+]\s+/);
+    case 'number':
+      return prefixLines(area, (i) => `${i + 1}. `, /^\s*\d+[.)]\s+/);
+    case 'quote':
+      return prefixLines(area, '> ', /^\s*>\s?/);
+    case 'link': {
+      // The address is left selected: it is the part that has to be typed, and
+      // bracketed text with no link is a broken link.
+      const wrapped = wrapSelection(area, '[', '](https://)', 'text');
+      const caret = area.value.lastIndexOf('https://');
+      if (caret >= 0) area.setSelectionRange(caret, caret + 'https://'.length);
+      return wrapped;
+    }
+    case 'rule': {
+      const { selectionStart: start, value } = area;
+      const lineStart = value.lastIndexOf('\n', Math.max(0, start - 1)) + 1;
+      const insert = `${lineStart === start ? '' : '\n\n'}---\n\n`;
+      area.value = value.slice(0, start) + insert + value.slice(start);
+      area.focus();
+      const caret = start + insert.length;
+      area.setSelectionRange(caret, caret);
+      return insert;
+    }
+    default:
+      return '';
+  }
+}
+
 function bindInfoFiles() {
   const sel = infoSelected();
   if (!sel) return;
@@ -1534,8 +1644,24 @@ export function bindDocs() {
     document.querySelectorAll('[data-md-heading]').forEach((b) =>
       b.addEventListener('click', () => applyHeading(textarea, Number(b.dataset.mdHeading)))
     );
+    document.querySelectorAll('[data-md-action]').forEach((b) =>
+      b.addEventListener('click', () => applyFormat(textarea, b.dataset.mdAction))
+    );
     textarea.addEventListener('keydown', (e) => {
       if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') saveDoc('text');
+      // The shortcuts people already have in their fingers.
+      if (e.metaKey || e.ctrlKey) {
+        const key = e.key.toLowerCase();
+        const heading = /^[1-6]$/.test(key) ? Number(key) : 0;
+        const action = { b: 'bold', i: 'italic', k: 'link' }[key];
+        if (heading) {
+          e.preventDefault();
+          applyHeading(textarea, heading);
+        } else if (action) {
+          e.preventDefault();
+          applyFormat(textarea, action);
+        }
+      }
       if (e.key === 'Escape') {
         state.docEditing = '';
         mountContent();

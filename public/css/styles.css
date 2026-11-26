@@ -4078,6 +4078,7 @@ svg { display: block; }
 }
 .md-tools {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 6px;
   margin: 0 0 8px;
@@ -4087,6 +4088,16 @@ svg { display: block; }
   color: var(--faint);
   margin-right: 2px;
 }
+.md-tools-sep {
+  width: 1px;
+  height: 18px;
+  background: var(--border);
+  margin: 0 3px;
+}
+.md-tools .btn[data-md-action='bold'] b { font-weight: 720; }
+.md-tools .btn[data-md-action='italic'] i { font-family: Georgia, 'Times New Roman', serif; }
+.md-tools .btn[data-md-action='code'] code { font-size: 12px; }
+.md-tools .btn[data-md-action='quote'] { font-family: Georgia, serif; font-size: 13px; line-height: 1; }
 .doc-empty { text-align: center; padding: 10px 0 4px; }
 .doc-empty p { margin: 0 0 9px; font-size: 12.5px; color: var(--faint); }
 .doc-foot { padding: 0 13px 11px; font-size: 11.5px; color: var(--faint); }
@@ -4127,11 +4138,31 @@ svg { display: block; }
   letter-spacing: -0.01em;
   line-height: 1.32;
 }
-.doc-md h2 { font-size: 15px; }
-.doc-md h3 { font-size: 14px; }
-.doc-md h4,
+/* Three clearly different sizes, not three near-identical ones: at 15/14/13px a
+   reader cannot tell a section from a subsection, which defeats the headings.
+   The rule under H2 exists for the same reason — it marks a section boundary
+   before the eye gets to the size difference. */
+.doc-md h2 {
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  margin: 24px 0 10px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--border);
+}
+.doc-md h3 {
+  font-size: 16.5px;
+  font-weight: 680;
+  margin: 20px 0 7px;
+}
+.doc-md h4 {
+  font-size: 14.5px;
+  font-weight: 660;
+  margin: 16px 0 5px;
+}
 .doc-md h5,
 .doc-md h6 { font-size: 13px; color: var(--ink-2); }
+.doc-md > h2:first-child { margin-top: 4px; }
 .doc-md p { margin: 0 0 9px; }
 .doc-md ul,
 .doc-md ol { margin: 0 0 9px; padding-left: 20px; }
