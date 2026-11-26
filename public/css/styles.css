@@ -6806,6 +6806,8 @@ svg { display: block; }
 .cke-sec-name:hover { border-color: var(--border); }
 .cke-sec-name:focus { background: var(--surface); border-color: var(--accent); }
 .cke-sec-count { font-size: 11.6px; color: var(--faint); font-variant-numeric: tabular-nums; }
+/* An item that is opening has asked for its rows and does not have them yet. */
+.cke-loading { padding: 10px 4px 12px; font-size: 12px; color: var(--faint); }
 /* The guide a sub item opens when the tester starts: code first, then its title,
    both inside one button that edits that guide. */
 .cke-guide-chip {

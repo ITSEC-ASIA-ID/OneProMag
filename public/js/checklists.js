@@ -1099,19 +1099,63 @@ function emptyEditor() {
     category: '',
     isDefault: false,
     rows: [],
+    // Every item, in the order the server lists them, with the count it holds.
+    // `rows` only ever carries the sub items of the items that have been opened.
+    groups: [],
+    loaded: new Set(),
     removed: new Set(),
     collapsed: new Set(),
   };
 }
 
+function shapeRow(item) {
+  return {
+    id: Number(item.id),
+    section: item.section || '',
+    title: item.title || '',
+    help: item.help || '',
+    guide: item.guide || '',
+    wstgUrl: item.wstgUrl || '',
+    orig: { section: item.section || '', title: item.title || '', help: item.help || '' },
+  };
+}
+
 function editorGroups() {
   const groups = new Map();
+  editor.groups.forEach((group) => groups.set(group.name, []));
   editor.rows.forEach((row, index) => {
     const key = (row.section || '').trim();
     if (!groups.has(key)) groups.set(key, []);
     groups.get(key).push(index);
   });
   return groups;
+}
+
+/** Whether this item's sub items are in `rows` — a new checklist holds all of them. */
+function isLoaded(section) {
+  return !editor.id || editor.loaded.has(section);
+}
+
+/**
+ * How many sub items an item holds: the server's count until it is opened, its
+ * rows afterwards, because the count the server gave stops being true the moment
+ * a row is added or deleted.
+ */
+function groupSubCount(section, indexes = []) {
+  if (isLoaded(section)) return indexes.filter((i) => (editor.rows[i].title || '').trim()).length;
+  const known = editor.groups.find((group) => group.name === section);
+  return known ? known.count : 0;
+}
+
+/** Fetches one item's sub items, once. */
+async function loadSection(section) {
+  if (!editor.id || editor.loaded.has(section)) return;
+  const { items } = await api.checklistItems(editor.id, section);
+  const seen = new Set(editor.rows.map((row) => row.id).filter(Boolean));
+  items.forEach((item) => {
+    if (!seen.has(Number(item.id))) editor.rows.push(shapeRow(item));
+  });
+  editor.loaded.add(section);
 }
 
 /**
@@ -1155,7 +1199,7 @@ function editorItemHTML(row, index) {
 }
 
 function editorListHTML() {
-  if (!editor.rows.length) {
+  if (!editorGroups().size) {
     return `<div class="cke-empty">
       <div class="icon">${icon.shield(22)}</div>
       <h3>No items yet</h3>
@@ -1168,7 +1212,13 @@ function editorListHTML() {
   return [...groups.entries()]
     .map(([section, indexes]) => {
       const open = !editor.collapsed.has(section);
-      const count = `${indexes.length} sub item${indexes.length === 1 ? '' : 's'}`;
+      const count = groupSubCount(section, indexes);
+      const label = `${count} sub item${count === 1 ? '' : 's'}`;
+      const body = !open
+        ? ''
+        : isLoaded(section)
+          ? indexes.map((i) => editorItemHTML(editor.rows[i], i)).join('')
+          : `<div class="cke-loading">Loading sub items…</div>`;
       return `<section class="cke-sec" data-sec="${h(section)}">
         <div class="cke-sec-head">
           <button type="button" class="cke-sec-toggle" data-sec-toggle aria-expanded="${open}"
@@ -1177,7 +1227,7 @@ function editorListHTML() {
             }</button>
           <input class="input cke-sec-name" data-sec-name value="${h(section)}"
             placeholder="Item name" aria-label="Item name" autocomplete="off" />
-          <span class="cke-sec-count">${count}</span>
+          <span class="cke-sec-count">${label}</span>
           <span class="spacer"></span>
           <button type="button" class="btn btn-sm btn-ghost" data-add-sec="${h(section)}">${icon.plus(
             12
@@ -1185,7 +1235,7 @@ function editorListHTML() {
           <button type="button" class="btn btn-icon btn-icon-sm btn-icon-danger" data-sec-del="${h(section)}"
             title="Delete this item" aria-label="Delete this item">${icon.trash(12)}</button>
         </div>
-        ${open ? indexes.map((i) => editorItemHTML(editor.rows[i], i)).join('') : ''}
+        ${body}
       </section>`;
     })
     .join('');
@@ -1224,6 +1274,9 @@ function editorBodyHTML() {
     <div class="cke-tools">
       <button type="button" class="btn btn-sm" data-cke-add>${icon.plus(13)} Item</button>
       <button type="button" class="btn btn-sm btn-ghost" data-cke-paste-open>Paste a list</button>
+      <span class="md-tools-sep"></span>
+      <button type="button" class="btn btn-sm btn-ghost" data-cke-expand-all>Expand all</button>
+      <button type="button" class="btn btn-sm btn-ghost" data-cke-collapse-all>Collapse all</button>
       <span class="spacer"></span>
       <span class="cke-total" id="cke-total"></span>
     </div>
@@ -1246,8 +1299,8 @@ export async function mountChecklistEditor() {
   editor = emptyEditor();
   if (id) {
     try {
-      const [{ checklist }, { guides, wstg }, { checklists }] = await Promise.all([
-        api.checklist(id),
+      const [{ checklist, groups }, { guides, wstg }, { checklists }] = await Promise.all([
+        api.checklistSummary(id),
         api.tests(),
         api.checklists(),
       ]);
@@ -1255,22 +1308,16 @@ export async function mountChecklistEditor() {
       editorChecklists = checklists;
       editorWstg = wstg;
       editor = {
+        ...emptyEditor(),
         id: checklist.id,
         name: checklist.name || '',
         description: checklist.description || '',
         category: checklist.category || '',
         isDefault: Boolean(checklist.isDefault),
-        rows: (checklist.items || []).map((item) => ({
-          id: Number(item.id),
-          section: item.section || '',
-          title: item.title || '',
-          help: item.help || '',
-          guide: item.guide || '',
-          wstgUrl: item.wstgUrl || '',
-          orig: { section: item.section || '', title: item.title || '', help: item.help || '' },
-        })),
-        removed: new Set(),
-        collapsed: new Set(),
+        groups: groups || [],
+        // Closed by default: a 116-row WSTG lists twelve names first, and the rows
+        // belong to whoever opens one.
+        collapsed: new Set((groups || []).map((group) => group.name)),
       };
     } catch (err) {
       toast(err.message, 'err');
@@ -1281,9 +1328,12 @@ export async function mountChecklistEditor() {
   paintEditor();
 }
 
-/** "12 items · 116 sub items" — an item is a group, the rows are its sub items. */
+/** "12 items · 116 sub items" — counted from what is known, not from what is open. */
 function editorCounts() {
-  const subItems = editor.rows.filter((row) => (row.title || '').trim()).length;
+  let subItems = 0;
+  editorGroups().forEach((indexes, section) => {
+    subItems += groupSubCount(section, indexes);
+  });
   const items = editorGroups().size;
   return `${items} item${items === 1 ? '' : 's'} · ${subItems} sub item${subItems === 1 ? '' : 's'}`;
 }
@@ -1444,29 +1494,60 @@ function bindEditor(host) {
       el.querySelector('[data-act="up"]')?.addEventListener('click', () => moveWithin(index, -1));
       el.querySelector('[data-act="down"]')?.addEventListener('click', () => moveWithin(index, +1));
     });
+    // Opening an item is what asks for its sub items. Closing one only stops
+    // showing them — the rows stay, so reopening is instant.
+    const openSection = async (section) => {
+      editor.collapsed.delete(section);
+      if (editor.id && !editor.loaded.has(section)) {
+        repaintList();
+        try {
+          await loadSection(section);
+        } catch (err) {
+          toast(err.message, 'err');
+        }
+      }
+      repaintList();
+    };
+
     list.querySelectorAll('[data-sec-toggle]').forEach((btn) =>
       btn.addEventListener('click', () => {
         const section = btn.closest('.cke-sec')?.dataset.sec || '';
-        if (editor.collapsed.has(section)) editor.collapsed.delete(section);
-        else editor.collapsed.add(section);
-        repaintList();
+        if (editor.collapsed.has(section)) openSection(section);
+        else {
+          editor.collapsed.add(section);
+          repaintList();
+        }
       })
     );
 
     list.querySelectorAll('[data-sec-name]').forEach((input) =>
-      input.addEventListener('change', () => {
+      input.addEventListener('change', async () => {
         const from = input.closest('.cke-sec')?.dataset.sec || '';
         const to = input.value.trim();
         if (to === from) {
           input.value = from;
           return;
         }
-        // The item's name is the row's section, so renaming the item renames it on
-        // every sub item it holds — including ones the panel is not showing.
+        // The item's name is the row's section, so renaming it renames it on every
+        // sub item — which means the rows have to be here, opened or not.
+        if (editor.id && !editor.loaded.has(from)) {
+          try {
+            await loadSection(from);
+          } catch (err) {
+            toast(err.message, 'err');
+            input.value = from;
+            return;
+          }
+        }
         editor.rows.forEach((row) => {
           if ((row.section || '').trim() === from) row.section = to;
         });
+        const seen = new Set();
+        editor.groups = editor.groups
+          .map((group) => (group.name === from ? { ...group, name: to } : group))
+          .filter((group) => (seen.has(group.name) ? false : seen.add(group.name)));
         if (editor.collapsed.delete(from)) editor.collapsed.add(to);
+        if (editor.loaded.delete(from)) editor.loaded.add(to);
         repaintList();
       })
     );
@@ -1474,6 +1555,14 @@ function bindEditor(host) {
     list.querySelectorAll('[data-sec-del]').forEach((btn) =>
       btn.addEventListener('click', async () => {
         const section = btn.dataset.secDel || '';
+        if (editor.id && !editor.loaded.has(section)) {
+          try {
+            await loadSection(section);
+          } catch (err) {
+            toast(err.message, 'err');
+            return;
+          }
+        }
         const held = editor.rows.filter((row) => (row.section || '').trim() === section);
         const ok = await confirmDialog({
           title: 'Delete this item?',
@@ -1489,17 +1578,27 @@ function bindEditor(host) {
           if (row.id) editor.removed.add(row.id);
         });
         editor.rows = editor.rows.filter((row) => (row.section || '').trim() !== section);
+        editor.groups = editor.groups.filter((group) => group.name !== section);
+        editor.loaded.delete(section);
+        editor.collapsed.delete(section);
         repaintList();
       })
     );
 
     list.querySelectorAll('[data-add-sec]').forEach((btn) =>
-      btn.addEventListener('click', () => {
+      btn.addEventListener('click', async () => {
         const section = btn.dataset.addSec || '';
-        if (editor.collapsed.has(section)) {
-          editor.collapsed.delete(section);
-          repaintList();
+        // A new row goes after the last one this item holds, so the ones it already
+        // has have to be here first.
+        if (editor.id && !editor.loaded.has(section)) {
+          try {
+            await loadSection(section);
+          } catch (err) {
+            toast(err.message, 'err');
+            return;
+          }
         }
+        editor.collapsed.delete(section);
         addRow(section, lastIndexOfSection(section));
       })
     );
@@ -1523,6 +1622,28 @@ function bindEditor(host) {
 
   bindRows();
 
+  // Two buttons for the whole list: 12 items is fine to open one by one, 116 rows
+  // is not, and "I want to see everything" is a real thing to want.
+  host.querySelector('[data-cke-expand-all]')?.addEventListener('click', async () => {
+    const names = [...editorGroups().keys()];
+    editor.collapsed = new Set();
+    repaintList();
+    for (const name of names) {
+      if (!editor.id || editor.loaded.has(name)) continue;
+      try {
+        await loadSection(name);
+        repaintList();
+      } catch (err) {
+        toast(err.message, 'err');
+      }
+    }
+    repaintList();
+  });
+  host.querySelector('[data-cke-collapse-all]')?.addEventListener('click', () => {
+    editor.collapsed = new Set([...editorGroups().keys()]);
+    repaintList();
+  });
+
   // "+ Item" makes a group, not a row: the name is asked for once, then a group with
   // one empty sub item to type into. Naming an item that exists just adds to it.
   host.querySelector('[data-cke-add]')?.addEventListener('click', () => {
@@ -1540,7 +1661,7 @@ function bindEditor(host) {
       onMount(modal, close) {
         const input = modal.querySelector('#cke-new-item');
         input.focus();
-        const create = () => {
+        const create = async () => {
           const name = input.value.trim();
           if (!name) {
             toast('An item needs a name', 'err');
@@ -1548,8 +1669,20 @@ function bindEditor(host) {
           }
           close();
           editor.collapsed.delete(name);
-          if (editorGroups().has(name)) addRow(name, lastIndexOfSection(name));
-          else addRow(name, editor.rows.length - 1);
+          if (!editorGroups().has(name)) {
+            addRow(name, editor.rows.length - 1);
+            return;
+          }
+          // Adding to an item that exists means after the sub items it already has.
+          if (editor.id && !editor.loaded.has(name)) {
+            try {
+              await loadSection(name);
+            } catch (err) {
+              toast(err.message, 'err');
+              return;
+            }
+          }
+          addRow(name, lastIndexOfSection(name));
         };
         modal.querySelector('[data-create-item]').addEventListener('click', create);
         input.addEventListener('keydown', (event) => {
@@ -1580,9 +1713,7 @@ function bindEditor(host) {
   host.querySelector('[data-cke-del]')?.addEventListener('click', async () => {
     const ok = await confirmDialog({
       title: 'Delete checklist?',
-      message: `"${editor.name}" and its ${editor.rows.length} item${
-        editor.rows.length === 1 ? '' : 's'
-      } will be deleted. A project that links it keeps you from deleting it by mistake.`,
+      message: `"${editor.name}" and ${editorCounts()} will be deleted. A project that links it keeps you from deleting it by mistake.`,
       confirmLabel: 'Delete checklist',
     });
     if (!ok) return;
@@ -1662,6 +1793,16 @@ function bindEditor(host) {
       // checklist again and scroll back down to the row they were editing.
       editor.id = targetId;
       if (wasNew) history.replaceState(history.state, '', CHECKLIST_EDIT_PATH(targetId));
+      // An item that was never opened was not sent, so its rows are exactly what
+      // they were: its count stays the server's, and it stays "not loaded".
+      if (wasNew) editor.loaded = new Set([...editorGroups().keys()]);
+      const counts = new Map(editor.groups.map((group) => [group.name, group.count]));
+      editor.groups = [...editorGroups().keys()].map((name) => ({
+        name,
+        count: editor.loaded.has(name)
+          ? editor.rows.filter((row) => (row.section || '').trim() === name).length
+          : (counts.get(name) ?? 0),
+      }));
       // A row that was just written has an id now, and a baseline: the next Save
       // updates it instead of inserting a second copy of the same sub item.
       created.forEach((row, k) => {

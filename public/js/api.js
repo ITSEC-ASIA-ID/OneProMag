@@ -208,6 +208,11 @@ export const api = {
   // Checklists: the catalogue the Admin panel owns.
   checklists: () => request('GET', '/api/checklists'),
   checklist: (id) => request('GET', `/api/checklists/${id}`),
+  /** Groups and their counts only — the editor's first paint, without the rows. */
+  checklistSummary: (id) => request('GET', `/api/checklists/${Number(id)}?summary=1`),
+  /** One item's sub items, which is one group's worth of rows. */
+  checklistItems: (id, section) =>
+    request('GET', `/api/checklists/${Number(id)}/items?section=${encodeURIComponent(section)}`),
   createChecklist: (payload) => request('POST', '/api/checklists', payload),
   updateChecklist: (id, payload) => request('PATCH', `/api/checklists/${id}`, payload),
   deleteChecklist: (id) => request('DELETE', `/api/checklists/${id}`),

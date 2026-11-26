@@ -1572,6 +1572,43 @@ test('an item is the group and its rows are the sub items', async () => {
   );
 });
 
+test('the editor asks for a checklist in pieces: groups first, then one item', async () => {
+  const leadUser = await lead();
+  const { checklist } = await call('POST /api/checklists', leadUser, { body: { name: 'Piecemeal list' } });
+  await call('POST /api/checklists/:id/items', leadUser, {
+    params: { id: checklist.id },
+    body: {
+      items: [
+        { section: 'Group A', title: 'A-01 one' },
+        { section: 'Group A', title: 'A-02 two' },
+        { section: 'Group B', title: 'B-01 three' },
+      ],
+    },
+  });
+
+  // The first paint: twelve names and their counts, without a single row.
+  const summary = await call('GET /api/checklists/:id', leadUser, {
+    params: { id: checklist.id },
+    query: { summary: '1' },
+  });
+  assert.deepEqual(summary.groups, [
+    { name: 'Group A', count: 2 },
+    { name: 'Group B', count: 1 },
+  ]);
+  assert.ok(!('items' in summary.checklist), 'no rows on the summary call');
+
+  // Opening one item asks for that item only.
+  const group = await call('GET /api/checklists/:id/items', leadUser, {
+    params: { id: checklist.id },
+    query: { section: 'Group A' },
+  });
+  assert.deepEqual(group.items.map((row) => row.title), ['A-01 one', 'A-02 two']);
+
+  // Without a section it is the whole checklist, for callers that want it.
+  const all = await call('GET /api/checklists/:id/items', leadUser, { params: { id: checklist.id } });
+  assert.equal(all.items.length, 3);
+});
+
 test('a sub item owns its guide: derived by default, overridable, refusable', async () => {
   const leadUser = await lead();
   const { checklist } = await call('POST /api/checklists', leadUser, { body: { name: 'Guide per sub item' } });

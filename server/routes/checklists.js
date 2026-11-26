@@ -273,8 +273,26 @@ export const routes = {
     return { checklists: rows.map(shapeChecklist) };
   },
 
+  // The editor opens with every item closed: twelve group names and their counts
+  // are enough to draw the page, and the 116 rows underneath are one request each
+  // when a group is opened. Sending them all first is what made the page feel like
+  // it was loading the whole standard before it would show anything.
   'GET /api/checklists/:id': async (ctx) => {
     const row = await checklistRow(ctx.params.id);
+    if (ctx.query && ctx.query.summary !== undefined) {
+      const counts = await db.all(
+        `SELECT COALESCE(section, '') AS name, COUNT(*) AS item_count
+           FROM checklist_items
+          WHERE checklist_id = ?
+          GROUP BY COALESCE(section, '')
+          ORDER BY MIN(position), MIN(id)`,
+        [row.id]
+      );
+      return {
+        checklist: shapeChecklist(row),
+        groups: counts.map((entry) => ({ name: entry.name, count: Number(entry.item_count) })),
+      };
+    }
     const items = await db.all(
       'SELECT * FROM checklist_items WHERE checklist_id = ? ORDER BY position, id',
       [row.id]
@@ -283,6 +301,26 @@ export const routes = {
     return {
       checklist: { ...shapeChecklist(row), items: items.map((item) => shapeItem(item, index)) },
     };
+  },
+
+  // One item's sub items. `section` is the item name, so this is what a closed
+  // group asks for when it opens.
+  'GET /api/checklists/:id/items': async (ctx) => {
+    const row = await checklistRow(ctx.params.id);
+    const section = ctx.query ? ctx.query.section : undefined;
+    const items =
+      section === undefined
+        ? await db.all('SELECT * FROM checklist_items WHERE checklist_id = ? ORDER BY position, id', [
+            row.id,
+          ])
+        : await db.all(
+            `SELECT * FROM checklist_items
+              WHERE checklist_id = ? AND COALESCE(section, '') = ?
+              ORDER BY position, id`,
+            [row.id, String(section)]
+          );
+    const index = await wstgIndex();
+    return { items: items.map((item) => shapeItem(item, index)) };
   },
 
   'POST /api/checklists': async (ctx) => {
