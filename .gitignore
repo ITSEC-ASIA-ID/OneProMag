@@ -62,7 +62,14 @@ coverage/
 dist/
 build/
 
-# ---- 6. Logs, editors, operating systems --------------------------------
+# ---- 6. Scratch work ----------------------------------------------------
+# Notes, plans, dumps and half-finished drafts that belong to a session, not to
+# the product. They stay on disk; the tree does not carry them.
+tmp/
+tasks/
+work/
+
+# ---- 7. Logs, editors, operating systems --------------------------------
 *.log
 logs/
 *.tmp
