@@ -1446,8 +1446,8 @@ test('a fresh install arrives with the current OWASP lists, each the default of 
   const names = checklists.map((c) => c.name);
   assert.ok(names.includes('OWASP Top 10:2025'), `seeded: ${names.join(', ')}`);
   assert.ok(names.includes('OWASP API Security Top 10 2023'));
-  assert.ok(names.includes('Web hardening basics'));
   assert.ok(!names.includes('OWASP Top 10 2021'), 'the 2021 list must not survive beside 2025');
+  assert.ok(!names.includes('Web hardening basics'), 'the retired hardening list must not survive');
 
   const web = checklists.find((c) => c.name === 'OWASP Top 10:2025');
   assert.equal(web.category, 'Web');
@@ -1489,15 +1489,15 @@ test('choosing a category attaches its default checklist, and only once', async 
   // exactly one checklist, attaching it REPLACES the default rather than adding a
   // second one. The old list had no answers, so nothing is lost.
   const { checklists } = await call('GET /api/checklists', user);
-  const hardening = checklists.find((c) => c.name === 'Web hardening basics');
+  const methodList = checklists.find((c) => c.name === 'OWASP WSTG');
   const swapped = await call('POST /api/projects/:id/checklists', user, {
     params: { id: project.id },
-    body: { checklistId: hardening.id },
+    body: { checklistId: methodList.id },
   });
   assert.equal(swapped.replaced, true, 'attaching another list replaces the first');
   assert.equal(swapped.answered, 0, 'and reports how much work it destroyed');
   assert.equal(swapped.checklists.length, 1);
-  assert.equal(swapped.checklists[0].name, 'Web hardening basics');
+  assert.equal(swapped.checklists[0].name, 'OWASP WSTG');
 
   await call('DELETE /api/projects/:id', admin, { params: { id: project.id } });
 });
@@ -1660,7 +1660,7 @@ test('attach, answer, progress and detach — with the in-use delete refused', a
   const leadUser = await lead();
   const user = await member();
   const { checklists } = await call('GET /api/checklists', user);
-  const template = checklists.find((c) => c.name === 'Web hardening basics');
+  const template = checklists.find((c) => c.name === 'OWASP API Security Top 10 2023');
   const { projects } = await call('GET /api/projects', user);
   const projectId = projects[0].id;
 

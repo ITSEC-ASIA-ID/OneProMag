@@ -1150,26 +1150,6 @@ const DEFAULT_CHECKLISTS = [
     ],
   },
   {
-    key: 'web-hardening',
-    version: 1,
-    name: 'Web hardening basics',
-    description: 'The checks that are always the same, on every engagement.',
-    category: 'Web',
-    isDefault: false,
-    items: [
-      ['Security headers', 'Read the response headers of the landing page and an API call.', 'CSP, HSTS, X-Content-Type-Options, Referrer-Policy, frame-ancestors.'],
-      ['TLS configuration', 'Run a protocol and cipher scan against the host.', 'TLS 1.2+, no RC4/3DES/export ciphers, valid chain, HSTS on the apex.'],
-      ['Cookies and sessions', 'Read Set-Cookie on login and try to reuse a token after logout.', 'HttpOnly, Secure, SameSite; session id rotated on login and killed on logout.'],
-      ['Error handling', 'Trigger a 500 and a malformed request.', 'Generic message to the user, detail to the log only; no stack trace or SQL in the response.'],
-      ['File uploads', 'Upload an .html, an .svg and a name with ../ in it.', 'Type and size checked server-side, stored outside the web root, served as a download.'],
-      ['Rate limiting', 'Hammer the login and the search endpoint for a minute.', 'Throttled or delayed, with a 429 or a growing delay rather than silence.'],
-      ['Sensitive data in logs', 'Grep the application log for a password, a token and a PAN.', 'No secrets, no full card numbers, no session ids in any log line.'],
-      ['CORS', 'Send an Origin from an untrusted site against the API.', 'No wildcard with credentials; only the origins actually needed are allowed.'],
-      ['Exposed files', 'Request /.git/config, /.env, /backup.sql, /phpinfo.php.', 'None reachable; deploy artefacts excluded from the image.'],
-      ['Backup and restore', 'Confirm a backup exists, then read what it contains.', 'Backups taken on schedule, stored off the host, and a restore has been rehearsed.'],
-    ],
-  },
-  {
     key: 'owasp-wstg',
     version: 1,
     name: 'OWASP WSTG',
@@ -1183,7 +1163,7 @@ const DEFAULT_CHECKLISTS = [
 ];
 
 /** Ship-then-withdraw: a template we no longer publish, dropped on boot. */
-const RETIRED_CHECKLISTS = ['OWASP Top 10 2021'];
+const RETIRED_CHECKLISTS = ['OWASP Top 10 2021', 'Web hardening basics'];
 
 /**
  * Puts the shipped how-to-test library in the database, once.

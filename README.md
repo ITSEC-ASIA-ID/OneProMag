@@ -1671,8 +1671,8 @@ cascade — the same trap that once leaked variant notes.
 A project works through **one** checklist: **Open · Pass · Fail ·
 N/A** per item, a note that explains a Fail, and optionally one of the project's
 files as evidence. Three templates ship, all ordinary editable rows afterwards:
-**OWASP Top 10:2025** and **OWASP API Security Top 10 2023** (twenty and ten
-checks) plus **Web hardening basics**. The seed is versioned by `seed_key`, so a
+**OWASP Top 10:2025**, **OWASP API Security Top 10 2023** and **OWASP WSTG**
+(twenty, ten and 116 checks). The seed is versioned by `seed_key`, so a
 release that changes a shipped list replaces the items instead of adding a second
 copy beside it — and a retired list goes away rather than sitting next to its
 successor.
